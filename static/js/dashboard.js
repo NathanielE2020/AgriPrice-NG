@@ -4,7 +4,7 @@
   const state = {
     overview: null,
     series: { aggregate: [], market: [], world_bank: [] },
-    dataset: "aggregate",
+    dataset: document.body && document.body.dataset.deployScope === "approved_market" ? "market" : "aggregate",
     selectedSeries: { aggregate: null, market: null, world_bank: null },
     history: null,
     forecast: null,
@@ -23,6 +23,27 @@
 
   const $ = (selector) => document.querySelector(selector);
   const $$ = (selector) => Array.from(document.querySelectorAll(selector));
+
+  const datasetLabels = {
+    aggregate: "Aggregate",
+    market: "Market-level",
+    world_bank: "World Bank estimates",
+  };
+
+  function configureDatasetSelectors(availableDatasets) {
+    const allowed = new Set(availableDatasets || []);
+    ["#globalDataset", "#analysisDataset", "#forecastDataset"].forEach((selector) => {
+      const select = $(selector);
+      if (!select) return;
+      const current = allowed.has(select.value) ? select.value : null;
+      select.innerHTML = Object.keys(datasetLabels)
+        .filter((dataset) => allowed.has(dataset))
+        .map((dataset) => `<option value="${dataset}">${datasetLabels[dataset]}</option>`)
+        .join("");
+      if (current) select.value = current;
+    });
+    if (!allowed.has(state.dataset)) state.dataset = availableDatasets && availableDatasets.length ? availableDatasets[0] : "market";
+  }
 
   function escapeHTML(value) {
     return String(value ?? "")
@@ -252,14 +273,18 @@
   function renderOverview(overview) {
     const worldBank = overview.sources && overview.sources.world_bank && overview.sources.world_bank.available ? overview.sources.world_bank : null;
     const facts = state.dataset === "world_bank" && worldBank ? worldBank : (overview.dataset || {});
-    const modelStatus = state.dataset === "world_bank" ? (overview.model_status || {}).world_bank : (overview.model_status || {}).aggregate_final_validation;
+    const modelStatus = state.dataset === "world_bank"
+      ? (overview.model_status || {}).world_bank
+      : state.dataset === "aggregate"
+        ? (overview.model_status || {}).aggregate_final_validation
+        : (overview.model_status || {}).market;
     const modelFamilies = Object.keys(modelStatus || {}).length;
     const stats = [
       [state.dataset === "world_bank" ? "World Bank estimates" : "Recorded observations", formatNumber(facts.historical_observations), state.dataset === "world_bank" ? "Normalized close estimates" : "Across the source dataset", "leaf"],
       ["Commodities", formatNumber(facts.commodity_count), "Represented in the data", "grain"],
       [state.dataset === "world_bank" ? "Actual markets" : "Observed markets", formatNumber(facts.market_count), state.dataset === "world_bank" ? "Aggregate labels excluded" : "Market locations", "market"],
       ["States", formatNumber(facts.state_count), state.dataset === "world_bank" ? "Distinct source labels" : "With observed records", "state"],
-      ["Model families", formatNumber(modelFamilies), "Available in aggregate audit", "model"],
+      ["Model families", formatNumber(modelFamilies), `Available in ${state.dataset} view`, "model"],
     ];
     const grid = $("#statGrid");
     if (grid) grid.innerHTML = stats.map(([label, value, sub, icon]) => `<div class="stat-card"><span class="stat-label">${label}</span><div class="stat-value">${value}</div><div class="stat-sub">${sub}</div></div>`).join("");
@@ -555,6 +580,7 @@
       const [overview, series] = await Promise.all([apiGet("/api/overview"), apiGet("/api/series")]);
       state.overview = overview;
       state.series = { aggregate: series.aggregate || [], market: series.market || [], world_bank: series.world_bank || [] };
+      configureDatasetSelectors(overview.available_datasets || Object.keys(series).filter((key) => state.series[key]));
       renderOverview(overview);
       syncSeriesControls(state.dataset);
       renderSeriesTiles();

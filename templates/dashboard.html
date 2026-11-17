@@ -49,9 +49,13 @@
         <div class="dataset-switcher">
           <label for="globalDataset">Dataset</label>
           <select id="globalDataset" aria-label="Select dataset">
+            {% if deploy_scope == "approved_market" %}
+            <option value="market" selected>Market-level</option>
+            {% else %}
             <option value="aggregate">Aggregate</option>
             <option value="market">Market-level</option>
-              <option value="world_bank">World Bank estimates</option>
+            <option value="world_bank">World Bank estimates</option>
+            {% endif %}
           </select>
         </div>
         <div class="currency-chip"><span class="currency-symbol">₦</span> NGN</div>
@@ -116,7 +120,7 @@
         </div>
         <article class="panel controls-panel">
           <div class="control-grid analysis-controls">
-            <div class="field-group"><label for="analysisDataset">Data view</label><select id="analysisDataset"><option value="aggregate">Aggregate</option><option value="market">Market-level</option><option value="world_bank">World Bank estimates</option></select></div>
+            <div class="field-group"><label for="analysisDataset">Data view</label><select id="analysisDataset">{% if deploy_scope == "approved_market" %}<option value="market" selected>Market-level</option>{% else %}<option value="aggregate">Aggregate</option><option value="market">Market-level</option><option value="world_bank">World Bank estimates</option>{% endif %}</select></div>
             <div class="field-group field-wide"><label for="analysisSeries">Commodity series</label><select id="analysisSeries"></select></div>
             <div class="field-group"><label for="analysisStartDate">Start month</label><input id="analysisStartDate" type="month"></div>
             <div class="field-group"><label for="analysisEndDate">End month</label><input id="analysisEndDate" type="month"></div>
@@ -138,7 +142,7 @@
         <div class="section-heading"><div><span class="eyebrow accent">PRICE FORECASTING</span><h1>Look one step ahead.</h1><p>Generate recursive model estimates for supported series and horizons using the saved, validated project artifacts.</p></div><div class="method-badge"><span class="live-dot"></span>Inference connected</div></div>
         <article class="panel controls-panel forecast-controls-panel">
           <div class="control-grid forecast-controls">
-            <div class="field-group"><label for="forecastDataset">Data view</label><select id="forecastDataset"><option value="aggregate">Aggregate</option><option value="market">Market-level</option><option value="world_bank">World Bank estimates</option></select></div>
+            <div class="field-group"><label for="forecastDataset">Data view</label><select id="forecastDataset">{% if deploy_scope == "approved_market" %}<option value="market" selected>Market-level</option>{% else %}<option value="aggregate">Aggregate</option><option value="market">Market-level</option><option value="world_bank">World Bank estimates</option>{% endif %}</select></div>
             <div class="field-group field-wide"><label for="forecastSeries">Commodity series</label><select id="forecastSeries"></select></div>
             <div class="field-group"><label for="forecastModel">Forecast model</label><select id="forecastModel"></select><small id="modelAvailabilityNote"></small></div>
             <div class="field-group"><label for="forecastHorizon">Horizon</label><select id="forecastHorizon"><option value="1">1 month</option><option value="3" selected>3 months</option><option value="6">6 months</option></select></div>

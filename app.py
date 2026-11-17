@@ -13,7 +13,7 @@ def create_app(service=None) -> Flask:
 
     @app.get("/")
     def dashboard_page():
-        return render_template("dashboard.html")
+        return render_template("dashboard.html", deploy_scope=getattr(dashboard, "deploy_scope", ""))
 
     @app.get("/api/overview")
     def api_overview():
@@ -38,7 +38,7 @@ def create_app(service=None) -> Flask:
 
     @app.get("/api/performance")
     def api_performance():
-        dataset = request.args.get("dataset", "aggregate")
+        dataset = request.args.get("dataset") or getattr(dashboard, "default_dataset", "aggregate")
         series_id = request.args.get("series_id")
         return jsonify(dashboard.performance(dataset, series_id))
 

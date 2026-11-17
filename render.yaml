@@ -2,12 +2,13 @@ services:
   - type: web
     name: agriprice-ng
     runtime: python
-    # TensorFlow plus the normalized World Bank table may exceed the 512 MB
-    # free plan. Validate on Linux before choosing a smaller plan.
-    plan: 1c-2g
+    # Deployment scope keeps only the approved market experiment in memory.
+    plan: free
     buildCommand: pip install --upgrade pip && pip install -r requirements.txt
     startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 1 --timeout 120 app:app
     healthCheckPath: /
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.5
+      - key: AGRIPRICE_DEPLOY_SCOPE
+        value: approved_market

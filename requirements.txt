@@ -1,6 +1,8 @@
-# Runtime and training dependencies.  The dashboard loads the saved scikit-
-# learn/XGBoost artifacts directly and invokes TensorFlow in a subprocess for
-# the six approved aggregate LSTM series.
+# Runtime and training dependencies.  In the normal local scope the dashboard
+# can load saved scikit-learn/XGBoost artifacts and invoke TensorFlow in an
+# isolated subprocess for the six approved aggregate LSTM series.  The Render
+# approved_market scope keeps those supplementary datasets and inference paths
+# dormant at startup.
 numpy>=1.23
 scikit-learn>=1.2
 joblib>=1.2

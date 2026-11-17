@@ -22,13 +22,10 @@ from typing import Any
 
 import joblib
 import numpy as np
-import pandas as pd
 
-from .final_validation import _recursive_price_forecast
+from .data_loader import APPROVED_SERIES
 from .forecasting import recursive_forecast
 from .parquet_compat import month_from_index, month_index, read_parquet_rows, to_date
-from .world_bank_ingestion import NORMALIZED_FILE
-from .world_bank_training import _recursive_forecast as world_bank_recursive_forecast
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -52,6 +49,8 @@ FRESHNESS_THRESHOLDS_MONTHS = {
 }
 
 VALID_DATASETS = ("market", "aggregate", "world_bank")
+DEPLOY_SCOPE_ENV = "AGRIPRICE_DEPLOY_SCOPE"
+APPROVED_MARKET_SCOPE = "approved_market"
 VALID_HORIZONS = (1, 3, 6)
 MODEL_ORDER = (
     "naive_last_observation",
@@ -288,19 +287,25 @@ class DashboardService:
 
     def __init__(self, reference_date: date | None = None):
         self.reference_date = reference_date or date.today()
+        self.deploy_scope = os.environ.get(DEPLOY_SCOPE_ENV, "").strip().lower()
+        self.market_only = self.deploy_scope == APPROVED_MARKET_SCOPE
+        self.default_dataset = "market" if self.market_only else "aggregate"
         self.market_rows = self._load_market_rows()
-        self.aggregate_rows = self._load_aggregate_rows()
-        self.world_bank_rows = self._load_world_bank_rows()
+        self.aggregate_rows = [] if self.market_only else self._load_aggregate_rows()
+        self.world_bank_rows = [] if self.market_only else self._load_world_bank_rows()
         # Keep an index of references to the already-loaded World Bank row
         # dictionaries.  The index makes series lookups O(1) without creating
         # another copy of the 300k-row normalized table.
         self.world_bank_rows_by_series: dict[str, list[dict[str, Any]]] = {}
         for row in self.world_bank_rows:
             self.world_bank_rows_by_series.setdefault(row["series_id"], []).append(row)
-        self.source_summary = self._load_source_summary()
+        # The deployment scope deliberately avoids a full raw Parquet scan.
+        # The inspection report is the authoritative source summary in that
+        # mode; local development still calculates the summary dynamically.
+        self.source_summary = self._load_source_summary(skip_raw=self.market_only)
         self._market_metrics = self._load_metrics("market")
-        self._aggregate_metrics = self._load_metrics("aggregate")
-        self._world_bank_metrics = self._load_metrics("world_bank")
+        self._aggregate_metrics = [] if self.market_only else self._load_metrics("aggregate")
+        self._world_bank_metrics = [] if self.market_only else self._load_metrics("world_bank")
         self._artifact_compatibility: dict[tuple[str, str, str], bool] = {}
         self._lstm_forecast_cache: dict[tuple[str, int], dict[str, Any]] = {}
         self.market_series = self._build_series("market", self.market_rows)
@@ -308,78 +313,85 @@ class DashboardService:
         self.world_bank_series = self._build_series("world_bank", self.world_bank_rows_by_series)
 
     @staticmethod
-    def _load_source_summary() -> dict[str, Any]:
+    def _load_source_summary(skip_raw: bool = False) -> dict[str, Any]:
         """Summarize the actual supplied source dataset without writing to it."""
 
-        try:
-            raw_rows = read_parquet_rows(RAW_PARQUET_PATH)
-            dates = [to_date(row["date"]) for row in raw_rows if row.get("date") is not None]
-            commodities = {str(row.get("commodity")) for row in raw_rows if row.get("commodity") is not None}
-            markets = {str(row.get("market")) for row in raw_rows if row.get("market") is not None}
-            states = {str(row.get("admin1")) for row in raw_rows if row.get("admin1") is not None}
-            currencies = {str(row.get("currency")) for row in raw_rows if row.get("currency")}
-            earliest = min(dates) if dates else None
-            latest = max(dates) if dates else None
-            return {
-                "historical_observations": len(raw_rows),
-                "commodity_count": len(commodities),
-                "market_count": len(markets),
-                "state_count": len(states),
-                "date_start": f"{earliest.year:04d}-{earliest.month:02d}" if earliest else None,
-                "date_end": f"{latest.year:04d}-{latest.month:02d}" if latest else None,
-                "earliest_observation_date": earliest.isoformat() if earliest else None,
-                "latest_observation_date": latest.isoformat() if latest else None,
-                "frequency": "monthly",
-                "currency": next(iter(currencies)) if len(currencies) == 1 else "NGN",
-                "source_summary": "data/raw/train.parquet",
-                "statistics_source": "dynamic_raw_parquet",
-                "fallback_used": False,
-            }
-        except Exception:
-            # The active Flask environment may not have a Parquet engine.  The
-            # checked-in inspection report is the recorded result of reading
-            # this exact raw file, so use it as a read-only fallback until the
-            # optional reader is installed.  When a reader is available the
-            # branch above always wins and future raw updates are calculated
-            # dynamically.
-            report_path = REPORT_DIR / "dataset_inspection.txt"
-            if not report_path.exists():
-                return {}
-            report = report_path.read_text(encoding="utf-8", errors="replace")
-            row_match = re.search(r"Rows:\s*([\d,]+)", report)
-            commodity_match = re.search(r"There are\s+(\d+)\s+distinct commodity", report)
-            market_match = re.search(r"There are\s+(\d+)\s+distinct markets", report)
-            state_match = re.search(r"There are\s+(\d+)\s+distinct states", report)
-            coverage_match = re.search(r"(\d+) commodities,\s*(\d+) observed markets in\s*(\d+) states", report)
-            if coverage_match:
-                market_match = market_match or coverage_match
-                state_match = state_match or coverage_match
-            first_match = re.search(r"Earliest date:\s*(\d{4}-\d{2}-\d{2})", report)
-            last_match = re.search(r"Latest date:\s*(\d{4}-\d{2}-\d{2})", report)
-            earliest = first_match.group(1) if first_match else None
-            latest = last_match.group(1) if last_match else None
-            return {
-                "historical_observations": int(row_match.group(1).replace(",", "")) if row_match else None,
-                "commodity_count": int(commodity_match.group(1)) if commodity_match else None,
-                "market_count": int(coverage_match.group(2)) if coverage_match else (int(market_match.group(1)) if market_match else None),
-                "state_count": int(coverage_match.group(3)) if coverage_match else (int(state_match.group(1)) if state_match else None),
-                "date_start": earliest[:7] if earliest else None,
-                "date_end": latest[:7] if latest else None,
-                "earliest_observation_date": earliest,
-                "latest_observation_date": latest,
-                "frequency": "monthly",
-                "currency": "NGN",
-                "source_summary": "reports/dataset_inspection.txt (raw Parquet reader unavailable)",
-                "statistics_source": "verified_inspection_report_fallback",
-                "fallback_used": True,
-                "fallback_reason": "The source dataset could not be loaded by the available Parquet reader.",
-            }
+        if not skip_raw:
+            try:
+                raw_rows = read_parquet_rows(RAW_PARQUET_PATH)
+                dates = [to_date(row["date"]) for row in raw_rows if row.get("date") is not None]
+                commodities = {str(row.get("commodity")) for row in raw_rows if row.get("commodity") is not None}
+                markets = {str(row.get("market")) for row in raw_rows if row.get("market") is not None}
+                states = {str(row.get("admin1")) for row in raw_rows if row.get("admin1") is not None}
+                currencies = {str(row.get("currency")) for row in raw_rows if row.get("currency")}
+                earliest = min(dates) if dates else None
+                latest = max(dates) if dates else None
+                return {
+                    "historical_observations": len(raw_rows),
+                    "commodity_count": len(commodities),
+                    "market_count": len(markets),
+                    "state_count": len(states),
+                    "date_start": f"{earliest.year:04d}-{earliest.month:02d}" if earliest else None,
+                    "date_end": f"{latest.year:04d}-{latest.month:02d}" if latest else None,
+                    "earliest_observation_date": earliest.isoformat() if earliest else None,
+                    "latest_observation_date": latest.isoformat() if latest else None,
+                    "frequency": "monthly",
+                    "currency": next(iter(currencies)) if len(currencies) == 1 else "NGN",
+                    "source_summary": "data/raw/train.parquet",
+                    "statistics_source": "dynamic_raw_parquet",
+                    "fallback_used": False,
+                }
+            except Exception:
+                fallback_reason = "The source dataset could not be loaded by the available Parquet reader."
+        else:
+            fallback_reason = "Deployment scope intentionally skipped the full raw Parquet scan."
+
+        # The active Flask environment may not have a Parquet engine, or may
+        # intentionally skip the raw scan to stay within the deployment memory
+        # budget.  The checked-in inspection report is the recorded result of
+        # reading this exact raw file and is explicitly marked as a fallback.
+        report_path = REPORT_DIR / "dataset_inspection.txt"
+        if not report_path.exists():
+            return {}
+        report = report_path.read_text(encoding="utf-8", errors="replace")
+        row_match = re.search(r"Rows:\s*([\d,]+)", report)
+        commodity_match = re.search(r"There are\s+(\d+)\s+distinct commodity", report)
+        market_match = re.search(r"There are\s+(\d+)\s+distinct markets", report)
+        state_match = re.search(r"There are\s+(\d+)\s+distinct states", report)
+        coverage_match = re.search(r"(\d+) commodities,\s*(\d+) observed markets in\s*(\d+) states", report)
+        if coverage_match:
+            market_match = market_match or coverage_match
+            state_match = state_match or coverage_match
+        first_match = re.search(r"Earliest date:\s*(\d{4}-\d{2}-\d{2})", report)
+        last_match = re.search(r"Latest date:\s*(\d{4}-\d{2}-\d{2})", report)
+        earliest = first_match.group(1) if first_match else None
+        latest = last_match.group(1) if last_match else None
+        return {
+            "historical_observations": int(row_match.group(1).replace(",", "")) if row_match else None,
+            "commodity_count": int(commodity_match.group(1)) if commodity_match else None,
+            "market_count": int(coverage_match.group(2)) if coverage_match else (int(market_match.group(1)) if market_match else None),
+            "state_count": int(coverage_match.group(3)) if coverage_match else (int(state_match.group(1)) if state_match else None),
+            "date_start": earliest[:7] if earliest else None,
+            "date_end": latest[:7] if latest else None,
+            "earliest_observation_date": earliest,
+            "latest_observation_date": latest,
+            "frequency": "monthly",
+            "currency": "NGN",
+            "source_summary": "reports/dataset_inspection.txt (raw Parquet scan skipped)" if skip_raw else "reports/dataset_inspection.txt (raw Parquet reader unavailable)",
+            "statistics_source": "verified_inspection_report_fallback",
+            "fallback_used": True,
+            "fallback_reason": fallback_reason,
+        }
 
     @staticmethod
     def _load_market_rows() -> list[dict[str, Any]]:
         rows = _read_csv(PROCESSED_DIR / "approved_monthly_reindexed.csv")
+        approved = set(APPROVED_SERIES)
         output: list[dict[str, Any]] = []
         for row in rows:
+            key = (row.get("commodity", ""), row.get("market", ""), row.get("unit", ""), row.get("price_type", ""))
+            if key not in approved:
+                continue
             series_id = " | ".join(
                 (row["commodity"], row["market"], row["unit"], row["price_type"])
             )
@@ -416,10 +428,16 @@ class DashboardService:
     def _load_world_bank_rows() -> list[dict[str, Any]]:
         """Load normalized World Bank estimates without mixing WFP rows."""
 
+        # Keep the World Bank ingestion dependency (and its pandas import)
+        # outside the deployment-only startup path.
+        from .world_bank_ingestion import NORMALIZED_FILE
+
         if not NORMALIZED_FILE.exists():
             return []
         # pandas' C CSV reader keeps dashboard startup practical for the
         # 300k-row normalized release; this is read-only and does not alter it.
+        import pandas as pd
+
         rows = pd.read_csv(NORMALIZED_FILE).to_dict("records")
         for row in rows:
             commodity = row.get("commodity", "")
@@ -442,6 +460,7 @@ class DashboardService:
         return rows
 
     def _rows(self, dataset: str) -> list[dict[str, Any]]:
+        self._ensure_dataset_enabled(dataset)
         if dataset == "market":
             return self.market_rows
         if dataset == "aggregate":
@@ -453,6 +472,20 @@ class DashboardService:
             "dataset must be 'market', 'aggregate', or 'world_bank'.",
             400,
         )
+
+    def _ensure_dataset_enabled(self, dataset: str) -> None:
+        if dataset not in VALID_DATASETS:
+            raise DashboardError(
+                "invalid_dataset",
+                "dataset must be 'market', 'aggregate', or 'world_bank'.",
+                400,
+            )
+        if self.market_only and dataset != "market":
+            raise DashboardError(
+                "dataset_unavailable",
+                "This deployment exposes only the approved market-level WFP dataset.",
+                404,
+            )
 
     def _rows_for_series(self, dataset: str, series_id: str) -> list[dict[str, Any]]:
         """Return rows for one series without scanning World Bank rows.
@@ -467,6 +500,7 @@ class DashboardService:
         return [row for row in self._rows(dataset) if row["series_id"] == series_id]
 
     def _series_map(self, dataset: str) -> dict[str, dict[str, Any]]:
+        self._ensure_dataset_enabled(dataset)
         if dataset == "market":
             values = self.market_series
         elif dataset == "aggregate":
@@ -656,6 +690,7 @@ class DashboardService:
         return output
 
     def model_availability(self, dataset: str, series_id: str) -> list[dict[str, Any]]:
+        self._ensure_dataset_enabled(dataset)
         # _build_series already iterates the authoritative rows; repeating a
         # 300k-row scan for every World Bank catalogue series would make app
         # startup quadratic.
@@ -777,14 +812,15 @@ class DashboardService:
             for item in series["models"]:
                 if item["available"]:
                     market_model_counts[item["model"]] += 1
-        for series in self.aggregate_series:
-            for item in series["models"]:
-                if item["available"]:
-                    aggregate_model_counts[item["model"]] += 1
-        for series in self.world_bank_series:
-            for item in series["models"]:
-                if item["available"]:
-                    world_bank_model_counts[item["model"]] += 1
+        if not self.market_only:
+            for series in self.aggregate_series:
+                for item in series["models"]:
+                    if item["available"]:
+                        aggregate_model_counts[item["model"]] += 1
+            for series in self.world_bank_series:
+                for item in series["models"]:
+                    if item["available"]:
+                        world_bank_model_counts[item["model"]] += 1
         dataset_facts = {
             **self.source_summary,
             "frequency": self.source_summary.get("frequency", "monthly"),
@@ -795,20 +831,54 @@ class DashboardService:
                 else "WFP Nigeria Food Prices dataset; values reported in the verified dataset inspection report"
             ),
         }
-        return {
-            "dataset": dataset_facts,
-            "freshness": {
-                "reference_date": self.reference_date.isoformat(),
-                "thresholds_months": dict(FRESHNESS_THRESHOLDS_MONTHS),
-                "meaning": "Freshness describes the age of the latest recorded observation only; it does not indicate price accuracy.",
-            },
-            "experiments": {
+        if self.market_only:
+            sources = {
+                "wfp": {
+                    "label": "WFP Nigeria Food Prices (approved market scope)",
+                    "statistics": dataset_facts,
+                    "series_count": len(self.market_series),
+                },
+                "aggregate": {
+                    "available": False,
+                    "reason": "Disabled by AGRIPRICE_DEPLOY_SCOPE=approved_market.",
+                },
+                "world_bank": {
+                    "available": False,
+                    "reason": "Disabled by AGRIPRICE_DEPLOY_SCOPE=approved_market.",
+                },
+            }
+            experiments = {
+                "market_level_series": len(self.market_series),
+                "aggregate_series": 0,
+                "market_level_history_file": "approved_monthly_reindexed.csv",
+                "aggregate_history_file": None,
+            }
+            model_status = {
+                "market": dict(market_model_counts),
+                "aggregate_final_validation": {},
+                "world_bank": {},
+                "lstm": {
+                    "aggregate_available_series": 0,
+                    "market_available_series": market_model_counts.get("lstm", 0),
+                    "inference_environment": "LSTM is not loaded during market-only startup",
+                },
+            }
+        else:
+            sources = {
+                "wfp": {
+                    "label": "WFP Nigeria Food Prices",
+                    "statistics": dataset_facts,
+                    "series_count": len(self.market_series) + len(self.aggregate_series),
+                },
+                "world_bank": self._world_bank_overview(),
+            }
+            experiments = {
                 "market_level_series": len(self.market_series),
                 "aggregate_series": len(self.aggregate_series),
                 "market_level_history_file": "approved_monthly_reindexed.csv",
                 "aggregate_history_file": "aggregate_monthly_reindexed.csv",
-            },
-            "model_status": {
+            }
+            model_status = {
                 "market": dict(market_model_counts),
                 "aggregate_final_validation": dict(aggregate_model_counts),
                 "world_bank": dict(world_bank_model_counts),
@@ -817,15 +887,19 @@ class DashboardService:
                     "market_available_series": market_model_counts.get("lstm", 0),
                     "inference_environment": "Windows .venv-lstm or Linux active Python (TensorFlow 2.21.0)",
                 },
+            }
+        return {
+            "deployment_scope": self.deploy_scope or "local_full",
+            "available_datasets": ["market"] if self.market_only else list(VALID_DATASETS),
+            "dataset": dataset_facts,
+            "freshness": {
+                "reference_date": self.reference_date.isoformat(),
+                "thresholds_months": dict(FRESHNESS_THRESHOLDS_MONTHS),
+                "meaning": "Freshness describes the age of the latest recorded observation only; it does not indicate price accuracy.",
             },
-            "sources": {
-                "wfp": {
-                    "label": "WFP Nigeria Food Prices",
-                    "statistics": dataset_facts,
-                    "series_count": len(self.market_series) + len(self.aggregate_series),
-                },
-                "world_bank": self._world_bank_overview(),
-            },
+            "experiments": experiments,
+            "model_status": model_status,
+            "sources": sources,
         }
 
     def _world_bank_overview(self) -> dict[str, Any]:
@@ -875,6 +949,8 @@ class DashboardService:
 
     def series(self, dataset: str | None = None) -> dict[str, Any]:
         if dataset is None:
+            if self.market_only:
+                return {"market": self.market_series}
             return {"market": self.market_series, "aggregate": self.aggregate_series, "world_bank": self.world_bank_series}
         self._rows(dataset)  # validates dataset
         return {
@@ -1188,6 +1264,8 @@ class DashboardService:
         elif dataset == "world_bank":
             path = _model_path(dataset, series_id, model)
             predictor, metadata = _load_artifact(path)
+            from .world_bank_training import _recursive_forecast as world_bank_recursive_forecast
+
             transformation = str(metadata.get("transformation", "original"))
             forecast_rows = world_bank_recursive_forecast(
                 predictor,
@@ -1214,6 +1292,8 @@ class DashboardService:
         else:
             path = _model_path(dataset, series_id, model)
             predictor, metadata = _load_artifact(path)
+            from .final_validation import _recursive_price_forecast
+
             observed_months = [row["month"] for row in observed]
             if not _month_contiguous(observed_months, 3):
                 raise DashboardError(

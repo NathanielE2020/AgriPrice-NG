@@ -131,19 +131,24 @@ method exists.
 ### Linux/Render deployment preparation
 
 The repository includes `render.yaml` and `.python-version` for a Python 3.12.5
-Render web service. The Blueprint uses the `1c-2g` plan because the World Bank
-table and TensorFlow subprocess may exceed the 512 MB free-plan limit. The
-production process is a single Gunicorn worker so those memory users do not
-multiply across workers:
+Render web service. The Blueprint uses the Free plan with
+`AGRIPRICE_DEPLOY_SCOPE=approved_market`. In that deployment scope the service
+loads only the five approved WFP market series and their market-level metrics;
+it does not load the aggregate table, World Bank normalized table, or start an
+LSTM subprocess during application startup. The source-level summary is read
+from the verified inspection report instead of scanning the raw Parquet file.
+The production process is a single Gunicorn worker with one thread:
 
 ```text
 python -m pip install -r requirements.txt
 gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 1 --timeout 120 app:app
 ```
 
-On Linux, leave `LSTM_PYTHON` unset to use the active interpreter, or set it to
-an explicit TensorFlow-enabled Python executable. At minimum, deployment must
-include:
+The Render environment variables are `PYTHON_VERSION=3.12.5` and
+`AGRIPRICE_DEPLOY_SCOPE=approved_market`. On Linux, leave `LSTM_PYTHON` unset
+to use the active interpreter, or set it to an explicit TensorFlow-enabled
+Python executable if LSTM inference is later enabled. At minimum, deployment
+must include:
 
 - `data/raw/train.parquet` and `data/raw/wfp_markets_nga.csv`;
 - `data/processed/approved_monthly_reindexed.csv`,

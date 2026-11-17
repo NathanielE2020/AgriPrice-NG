@@ -9,7 +9,7 @@ from pathlib import Path
 import sys
 from unittest.mock import patch
 
-from app import app
+from app import app, create_app
 from src.dashboard_service import (
     DashboardError,
     DashboardService,
@@ -29,7 +29,9 @@ class DashboardApiTests(unittest.TestCase):
         self.assertEqual(self.client.get("/").status_code, 200)
         overview = self.client.get("/api/overview")
         self.assertEqual(overview.status_code, 200)
-        facts = overview.get_json()["dataset"]
+        overview_payload = overview.get_json()
+        self.assertEqual(overview_payload["available_datasets"], ["market", "aggregate", "world_bank"])
+        facts = overview_payload["dataset"]
         self.assertEqual(facts["historical_observations"], 54883)
         self.assertEqual(facts["commodity_count"], 42)
         self.assertFalse(facts["fallback_used"])
@@ -44,6 +46,8 @@ class DashboardApiTests(unittest.TestCase):
         html = page.get_data(as_text=True)
         for section in ("overview-section", "analysis-section", "forecast-section", "performance-section", "about-section"):
             self.assertIn(section, html)
+        self.assertIn(">Aggregate<", html)
+        self.assertIn(">World Bank estimates<", html)
         self.assertIn("chart.umd.min.js", html)
         css = self.client.get("/static/css/dashboard.css")
         js = self.client.get("/static/js/dashboard.js")
@@ -298,6 +302,74 @@ class DashboardApiTests(unittest.TestCase):
                 service.forecast("aggregate", series_id, "lstm", 1)
         self.assertEqual(context.exception.code, "model_unavailable")
         self.assertEqual(context.exception.status_code, 422)
+
+    def test_approved_market_deployment_scope_is_market_only(self):
+        # This scope must not invoke the raw Parquet reader or load either of
+        # the larger supplementary tables during Flask startup.
+        with patch.dict(os.environ, {"AGRIPRICE_DEPLOY_SCOPE": "approved_market"}, clear=False):
+            with patch("src.dashboard_service.read_parquet_rows", side_effect=AssertionError("raw scan should be skipped")):
+                service = DashboardService(reference_date=date(2026, 11, 15))
+        self.assertTrue(service.market_only)
+        self.assertEqual(service.default_dataset, "market")
+        self.assertEqual(len(service.market_series), 5)
+        self.assertEqual(service.aggregate_rows, [])
+        self.assertEqual(service.world_bank_rows, [])
+        self.assertEqual(service.overview()["available_datasets"], ["market"])
+        self.assertEqual(set(service.series()), {"market"})
+        self.assertTrue(all(item["series_id"] in {
+            "Sorghum (white) | Dawanau | 100 KG | Wholesale",
+            "Maize (white) | Dawanau | 100 KG | Wholesale",
+            "Millet | Dawanau | 100 KG | Wholesale",
+            "Maize | Illela (CBM) | KG | Wholesale",
+            "Sorghum | Mai Adoua (CBM) | KG | Wholesale",
+        } for item in service.market_series))
+
+    def test_approved_market_api_rejects_disabled_datasets_and_frontend_scope(self):
+        with patch.dict(os.environ, {"AGRIPRICE_DEPLOY_SCOPE": "approved_market"}, clear=False):
+            service = DashboardService()
+            scoped_client = create_app(service).test_client()
+
+        page = scoped_client.get("/")
+        self.assertEqual(page.status_code, 200)
+        page_html = page.get_data(as_text=True)
+        self.assertIn('data-deploy-scope="approved_market"', page_html)
+        self.assertNotIn(">Aggregate<", page_html)
+        self.assertNotIn(">World Bank estimates<", page_html)
+
+        overview = scoped_client.get("/api/overview")
+        self.assertEqual(overview.status_code, 200)
+        overview_payload = overview.get_json()
+        self.assertEqual(overview_payload["available_datasets"], ["market"])
+        self.assertEqual(overview_payload["model_status"]["aggregate_final_validation"], {})
+        self.assertFalse(overview_payload["sources"]["world_bank"]["available"])
+
+        series = scoped_client.get("/api/series")
+        self.assertEqual(series.status_code, 200)
+        self.assertEqual(set(series.get_json()), {"market"})
+        market_id = "Millet | Dawanau | 100 KG | Wholesale"
+        self.assertEqual(scoped_client.get("/api/history", query_string={"dataset": "market", "series_id": market_id}).status_code, 200)
+        for horizon in (1, 3, 6):
+            forecast = scoped_client.get(
+                "/api/forecast",
+                query_string={
+                    "dataset": "market",
+                    "series_id": market_id,
+                    "model": "naive_last_observation",
+                    "horizon": horizon,
+                },
+            )
+            self.assertEqual(forecast.status_code, 200, forecast.get_data(as_text=True))
+            self.assertEqual(len(forecast.get_json()["forecast"]), horizon)
+
+        for path, query in (
+            ("/api/series", {"dataset": "aggregate"}),
+            ("/api/history", {"dataset": "aggregate", "series_id": "Millet | 2.6 KG | Retail"}),
+            ("/api/performance", {"dataset": "world_bank"}),
+            ("/api/forecast", {"dataset": "aggregate", "series_id": "Millet | 2.6 KG | Retail", "model": "xgboost", "horizon": 1}),
+        ):
+            response = scoped_client.get(path, query_string=query)
+            self.assertEqual(response.status_code, 404, response.get_data(as_text=True))
+            self.assertEqual(response.get_json()["error"]["code"], "dataset_unavailable")
 
 
 if __name__ == "__main__":
