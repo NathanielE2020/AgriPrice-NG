@@ -4,7 +4,7 @@ services:
     runtime: python
     # Deployment scope keeps only the approved market experiment in memory.
     plan: free
-    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    buildCommand: pip install --upgrade pip && pip install -r requirements-deploy.txt
     startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 1 --timeout 120 app:app
     healthCheckPath: /
     envVars:

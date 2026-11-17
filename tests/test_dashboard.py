@@ -316,6 +316,10 @@ class DashboardApiTests(unittest.TestCase):
         self.assertEqual(service.world_bank_rows, [])
         self.assertEqual(service.overview()["available_datasets"], ["market"])
         self.assertEqual(set(service.series()), {"market"})
+        self.assertTrue(all(
+            [item["model"] for item in series["models"]] == ["naive_last_observation"]
+            for series in service.market_series
+        ))
         self.assertTrue(all(item["series_id"] in {
             "Sorghum (white) | Dawanau | 100 KG | Wholesale",
             "Maize (white) | Dawanau | 100 KG | Wholesale",
@@ -360,6 +364,18 @@ class DashboardApiTests(unittest.TestCase):
             )
             self.assertEqual(forecast.status_code, 200, forecast.get_data(as_text=True))
             self.assertEqual(len(forecast.get_json()["forecast"]), horizon)
+
+        unavailable_model = scoped_client.get(
+            "/api/forecast",
+            query_string={
+                "dataset": "market",
+                "series_id": market_id,
+                "model": "random_forest",
+                "horizon": 1,
+            },
+        )
+        self.assertEqual(unavailable_model.status_code, 422)
+        self.assertEqual(unavailable_model.get_json()["error"]["code"], "model_unavailable")
 
         for path, query in (
             ("/api/series", {"dataset": "aggregate"}),

@@ -1,0 +1,6 @@
+# Lightweight Render deployment for AGRIPRICE_DEPLOY_SCOPE=approved_market.
+# The deployment serves the read-only approved market catalogue and naive
+# persistence forecasts; trained-model and data-science dependencies remain in
+# requirements.txt for the complete local research environment.
+Flask>=3.0
+gunicorn>=23.0,<24.0

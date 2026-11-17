@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import csv
 import json
+import math
 import os
 import re
 import subprocess
@@ -20,11 +21,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-import joblib
-import numpy as np
-
 from .data_loader import APPROVED_SERIES
-from .forecasting import recursive_forecast
 from .parquet_compat import month_from_index, month_index, read_parquet_rows, to_date
 
 
@@ -87,6 +84,8 @@ class _StackingPredictor:
         self.bundle = bundle
 
     def predict(self, values):
+        import numpy as np
+
         bundle = self.bundle
         matrix = np.column_stack(
             [bundle["base_models"][name].predict(values) for name in bundle["base_names"]]
@@ -117,7 +116,7 @@ def _as_float(value: Any) -> float | None:
     if value in (None, "", "nan", "NaN"):
         return None
     numeric = float(value)
-    return None if np.isnan(numeric) else numeric
+    return None if math.isnan(numeric) else numeric
 
 
 def _as_int(value: Any) -> int | None:
@@ -262,6 +261,8 @@ def _load_artifact(path: Path) -> tuple[Any, dict[str, Any]]:
             422,
         )
     try:
+        import joblib
+
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             artifact = joblib.load(path)
@@ -696,6 +697,16 @@ class DashboardService:
         # startup quadratic.
         if dataset != "world_bank" and not any(row["series_id"] == series_id for row in self._rows(dataset)):
             return []
+        if self.market_only:
+            return [
+                {
+                    "model": "naive_last_observation",
+                    "label": MODEL_LABELS["naive_last_observation"],
+                    "available": True,
+                    "status": "available",
+                    "notes": "Previous calendar-month price baseline; lightweight deployment path.",
+                }
+            ]
         records = {row["model"]: row for row in self._metrics_for(dataset, series_id)}
         available: list[dict[str, Any]] = []
         for model in MODEL_ORDER:
@@ -1077,12 +1088,15 @@ class DashboardService:
         if horizon not in VALID_HORIZONS:
             raise DashboardError("invalid_horizon", "horizon must be 1, 3, or 6 months.", 400)
         allowed = {item["model"]: item for item in self.model_availability(dataset, series_id)}
-        if model not in allowed:
+        if model not in MODEL_ORDER:
             raise DashboardError("invalid_model", "The requested model name is not supported.", 400)
-        if not allowed[model]["available"]:
+        if model not in allowed or not allowed[model]["available"]:
             raise DashboardError(
                 "model_unavailable",
-                allowed[model]["notes"],
+                allowed.get(model, {}).get(
+                    "notes",
+                    "This model is not available in the approved-market deployment scope.",
+                ),
                 422,
             )
         return series
@@ -1237,6 +1251,8 @@ class DashboardService:
         elif dataset == "market":
             path = _model_path(dataset, series_id, model)
             predictor, metadata = _load_artifact(path)
+            from .forecasting import recursive_forecast
+
             forecast_rows = recursive_forecast(
                 predictor,
                 rows,

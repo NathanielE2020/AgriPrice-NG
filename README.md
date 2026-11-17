@@ -140,7 +140,7 @@ from the verified inspection report instead of scanning the raw Parquet file.
 The production process is a single Gunicorn worker with one thread:
 
 ```text
-python -m pip install -r requirements.txt
+python -m pip install -r requirements-deploy.txt
 gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 1 --timeout 120 app:app
 ```
 
@@ -162,8 +162,16 @@ must include:
   `reports/common_test_date_audit/common_test_date_model_comparison.csv`,
   `reports/common_test_date_audit/model_date_eligibility.csv`, and
   `reports/world_bank/model_comparison.csv`;
-- `app.py`, `src/`, `templates/`, `static/`, `requirements.txt`,
+- `app.py`, `src/`, `templates/`, `static/`, `requirements-deploy.txt`,
   `.python-version`, and `render.yaml`.
+
+`requirements.txt` remains the complete local research/training environment.
+The deployment requirements intentionally omit NumPy, Pandas, PyArrow,
+scikit-learn, XGBoost, TensorFlow, and Joblib: approved-market deployment
+serves the read-only catalogue and naive persistence forecast without loading
+those packages. The full research datasets and model artifacts remain in the
+repository for local use and reproducibility, but are not loaded by this
+deployment scope.
 
 The remaining reports, raw World Bank release files, and forecast outputs are
 retained for reproducibility and project review. The application does not
