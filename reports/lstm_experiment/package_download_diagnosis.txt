@@ -1,0 +1,153 @@
+AgriPrice-NG - LSTM Recovery Stage 2: package download diagnosis
+Generated: 2026-11-14
+
+Scope
+-----
+This report diagnoses the previous TensorFlow and PyTorch installation
+attempts and establishes a working CPU TensorFlow environment. No model was
+trained, no forecast was generated, and no file under data/raw/ or any
+existing model/report/output artifact was modified.
+
+Environment
+-----------
+Operating system: Windows 11 (Windows-11-10.0.22621-SP0)
+Architecture: AMD64, 64-bit WindowsPE
+Python: 3.12.5 (MSC v.1940 64 bit AMD64)
+TensorFlow environment: .venv-lstm
+TensorFlow interpreter:
+  D:\Projects\STUDENTS_PROJECT\AGRIC-PRICE-NG\.venv-lstm\Scripts\python.exe
+PyTorch fallback environment: .venv-lstm-torch
+
+Previous failures and diagnosis
+-------------------------------
+The saved TensorFlow log records two different failures:
+
+1. An initial restricted-network attempt produced repeated WinError 10013
+   socket permission errors while accessing the package index.
+2. A later resolver request reached TensorFlow 2.21.0 metadata but received a
+   truncated package-index response. Pip ended with
+   JSONDecodeError: Unterminated string starting at line 1 column 2198563.
+3. An explicitly pinned TensorFlow 2.21.0 download selected the correct
+   Windows CPython 3.12 wheel, but transfer made no progress for more than
+   ten minutes and was stopped.
+
+The saved PyTorch log records that the official CPU index selected
+torch 2.15.0+cpu for cp312/win_amd64. The 126.6 MB wheel reached its full
+size once, but the installation was stopped while dependencies were being
+resolved. A no-dependencies retry also stalled. No torch package was
+committed.
+
+The evidence does not indicate a bad Python version, an incompatible wheel,
+TLS/SSL failure, proxy authentication failure, dependency conflict, or lack of
+disk space. The primary causes were restricted socket access in the first
+attempt, one malformed/truncated package-index response, and very slow or
+intermittent transfer of large wheels.
+
+Pip configuration and cache
+---------------------------
+The following checks were run in .venv-lstm:
+
+  python -m pip config debug
+  python -m pip --version
+  python -m pip cache info
+
+pip version: 24.2 (Python 3.12)
+Global, site and user pip.ini files: none found at the paths reported by pip.
+Proxy-related environment variables: none observed. No credentials or proxy
+values are included in this report.
+Package index page cache: approximately 802.5 MB, 1004 HTTP files.
+Locally built wheel cache: approximately 18 kB, 2 wheels.
+
+Connectivity checks
+-------------------
+Read-only DNS, TCP 443 and HTTPS HEAD tests were run outside the restricted
+sandbox using PowerShell:
+
+  https://pypi.org/simple/
+    DNS: resolved; TCP 443: True; HEAD: 200
+  https://files.pythonhosted.org/
+    DNS: resolved; TCP 443: True; HEAD: 404 (host reachable; root path has
+    no resource)
+  https://download.pytorch.org/whl/cpu
+    DNS: resolved; TCP 443: True; HEAD: 200
+
+Therefore PyPI, the Python-hosted-files CDN and the PyTorch CPU index were
+reachable. The 404 on the files.pythonhosted.org root URL is an expected
+resource-path response, not a connectivity failure. No TLS error was
+observed. Bounded 1 MiB range tests against the exact TensorFlow and PyTorch
+wheels returned HTTP 206, but throughput was only approximately 0.28 MB/s and
+0.40 MB/s respectively, explaining the earlier apparent stalls.
+
+Verified package metadata
+-------------------------
+TensorFlow metadata was read from the official PyPI JSON endpoint. The
+selected wheel is:
+
+  tensorflow-2.21.0-cp312-cp312-win_amd64.whl
+  Size: 350,945,509 bytes
+  SHA-256: 27ba0682572b1e50a0db1ee74cfb787eafcfdb1b751bbbf401fed62fe32a92e0
+
+The official metadata lists a Windows CPython 3.12 AMD64 wheel, so Python
+3.12.5 is compatible. The wheel was downloaded once, to the separate
+wheelhouse/lstm/ directory, using a resumable transfer. Its observed size is
+350,945,509 bytes and its computed SHA-256 is exactly the value above.
+
+The PyTorch official CPU simple index also lists a cp312/win_amd64 wheel:
+
+  torch-2.15.0+cpu-cp312-cp312-win_amd64.whl
+  Size: 126,627,285 bytes
+  SHA-256: 5af9fb357790db09e62484b12032304f046c22c4b1895ca88c4cf5987ea369ca
+
+This confirms that the previous PyTorch selection was an official compatible
+wheel, not an invented version. PyTorch was not installed because TensorFlow
+became available first and no fallback framework was needed.
+
+TensorFlow installation result
+------------------------------
+The verified TensorFlow wheel was installed directly with --no-deps from the
+wheelhouse, avoiding a second large download. Its runtime dependencies were
+then installed from the official PyPI index. The verification command was:
+
+  .venv-lstm\Scripts\python.exe -c "import tensorflow as tf; print(tf.__version__); print(tf.config.list_physical_devices('CPU'))"
+
+Observed result:
+
+  tensorflow 2.21.0
+  [PhysicalDevice(name='/physical_device:CPU:0', device_type='CPU')]
+
+The native-Windows GPU warning is expected for current TensorFlow releases;
+CPU execution is available and sufficient for the planned small exploratory
+LSTM. No training was started in this recovery stage.
+
+Sequence-count and leakage note
+-------------------------------
+The approved aggregate monthly file contains six separate series. Complete
+calendar windows were counted without imputing or forward-filling missing
+target prices. Windows overlap; therefore counts are counts of training
+examples, not independent historical observations.
+
+Series                                   6-month windows (train/val/test)  12-month windows (train/val/test)
+Millet | 2.6 KG | Retail                 106 (74/16/16)                   100 (70/15/15)
+Oil (palm) | L | Retail                  120 (84/18/18)                   112 (78/17/17)
+Rice (imported) | 2.8 KG | Retail        111 (77/17/17)                   104 (72/16/16)
+Rice (imported) | 50 KG | Wholesale       115 (80/17/18)                   103 (72/15/16)
+Rice (local) | 2.7 KG | Retail           109 (76/16/17)                   103 (72/15/16)
+Yam | 2.5 KG | Retail                    131 (91/20/20)                   125 (87/19/19)
+
+The planned primary LSTM window is 12 months. Sequence targets are ordered
+chronologically and split 70%/15%/15%; validation and test targets occur
+strictly after training targets. Each input uses only preceding complete
+calendar months, so missing months do not become artificial lags. Because the
+12-month window consumes the preceding history, its test target months do not
+exactly match tabular feature-model test months; this must be disclosed when
+comparing LSTM metrics.
+
+Recommended next step
+---------------------
+The isolated TensorFlow framework is working. The next step is to run the
+approved, separate LSTM experiment using the existing calendar-contiguous
+sequence builder and training-only scaling. Report original monthly counts,
+complete-window counts and chronological train/validation/test counts beside
+all LSTM metrics. Do not pool commodities or treat overlapping windows as
+independent observations. Keep the PyTorch environment untouched unless a
+future TensorFlow-specific runtime issue is encountered.

@@ -1,0 +1,57 @@
+AgriPrice-NG World Bank integration report
+==========================================
+
+Source validation
+-----------------
+The extracted World Bank CSV contains 17,686 rows and 137 columns. It has one
+row per location and month, 74 location records per month, and 239 calendar
+months from 2007-01-01 through 2026-11-01. The ticker metadata maps 17 close
+estimate series to their official names and units. Close, low, high, and trust
+fields are numeric and non-negative; duplicate location/month records were not
+found. The c_ fields are modelled/imputed estimates, not direct survey prices.
+The accompanying survey observation period ends October 2026; November 2026 is
+retained as an estimate and is not labelled a direct survey observation.
+
+Geography
+---------
+The normalized table contains 67 actual market labels, 15 distinct state labels
+(including the source label Kano State (1)), five geopolitical-zone records, a
+National Average, and a Market Average. Aggregate labels were not counted as
+actual markets or states. The source details metadata reports 73 markets
+modelled/covered; this is preserved as source metadata rather than substituted
+for the row-level classification.
+
+Training panel
+--------------
+The normalized table contains 1,258 commodity/location series (including the
+food-price index). The first reproducible price-model panel excludes the index
+and trains six commodities—beans, imported rice, millet, white maize, white
+sorghum, and yam—at National Average and Market Average: 12 series. Each has
+239 source months, 236 usable lag-feature rows, and a chronological
+165/35/36 train/validation/test split. Features use only calendar lags 1–3,
+three-month rolling statistics, month sine/cosine and a trend index.
+
+Models and validation
+---------------------
+Random Forest, XGBoost 3.4.1, Gradient Boosting, and leakage-safe stacking were
+trained. Original, log1p, price-change and percentage-change targets were
+selected by validation RMSE only; the selected model was refit on train plus
+validation and evaluated once on the untouched 36-month test period. Stacking
+uses chronological out-of-fold base predictions. A naive previous-calendar-
+month close estimate is included for every series. Saved predictions reproduce
+all 60 metric rows with zero mismatches.
+
+Four of the 12 series had a non-naive lowest-RMSE model: Market Average millet
+(XGBoost), Market Average sorghum (Gradient Boosting), Market Average yam
+(stacking), and National Average yam (Random Forest). The naive baseline remains
+best on the other eight series; no blanket superiority claim is made.
+
+Forecasts and dashboard
+-----------------------
+Each trained series/model has recursive 1-, 3-, and 6-month forecasts. Future
+predictions are fed back as lags; actual future prices are never read. Confidence
+intervals are null because no validated interval method is implemented. The
+Flask dashboard exposes World Bank history, source/geography metadata,
+low/high estimates, trust scores, model availability and forecasts through the
+existing API without mixing WFP rows. World Bank LSTM is explicitly unavailable;
+the existing TensorFlow LSTM artifacts remain WFP-source-specific.

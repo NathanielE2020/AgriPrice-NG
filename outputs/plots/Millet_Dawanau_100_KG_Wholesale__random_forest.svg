@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="560" viewBox="0 0 1000 560">
+<rect width="100%" height="100%" fill="white"/>
+<text x="500" y="30" text-anchor="middle" font-size="18" font-family="Arial">Millet | Dawanau | 100 KG | Wholesale — random_forest</text>
+<line x1="80" y1="470" x2="940" y2="470" stroke="#444"/>
+<line x1="80" y1="70" x2="80" y2="470" stroke="#444"/>
+<polyline fill="none" stroke="#1f77b4" stroke-width="3" points="80.0,331.1 202.9,364.4 325.7,440.1 448.6,441.1 571.4,255.8 694.3,296.5 817.1,219.4 940.0,97.6"/>
+<polyline fill="none" stroke="#d62728" stroke-width="2" points="80.0,376.6 202.9,373.5 325.7,382.9 448.6,385.1 571.4,384.5 694.3,389.3 817.1,390.5 940.0,387.3"/>
+<polyline fill="none" stroke="#777" stroke-width="2" stroke-dasharray="6 4" points="80.0,343.9 202.9,331.1 325.7,440.3 448.6,442.4 571.4,256.5 694.3,255.8 817.1,228.3 940.0,147.5"/>
+<text x="90" y="90" font-size="13" fill="#1f77b4">Actual</text>
+<text x="160" y="90" font-size="13" fill="#d62728">Predicted</text>
+<text x="260" y="90" font-size="13" fill="#777">Naive last-calendar-month</text>
+<text x="25" y="270.0" transform="rotate(-90 25 270.0)" font-size="13">Price</text>
+<text x="80.0" y="500" text-anchor="middle" font-size="12">2018-05</text><text x="571.4" y="500" text-anchor="middle" font-size="12">2020-08</text><text x="940.0" y="500" text-anchor="middle" font-size="12">2022-11</text>
+</svg>

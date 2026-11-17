@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="560" viewBox="0 0 1000 560">
+<rect width="100%" height="100%" fill="white"/>
+<text x="500" y="30" text-anchor="middle" font-size="18" font-family="Arial">Yam | 2.5 KG | Retail — gradient_boosting</text>
+<line x1="80" y1="470" x2="940" y2="470" stroke="#444"/>
+<line x1="80" y1="70" x2="80" y2="470" stroke="#444"/>
+<polyline fill="none" stroke="#1f77b4" stroke-width="3" points="80.0,331.5 123.0,312.7 166.0,248.7 209.0,208.1 252.0,159.7 295.0,139.8 338.0,185.8 381.0,201.1 424.0,207.9 467.0,176.0 510.0,161.3 553.0,189.3 596.0,220.1 639.0,188.9 682.0,130.2 725.0,145.6 768.0,97.6 811.0,126.8 854.0,172.1 897.0,251.4 940.0,222.1"/>
+<polyline fill="none" stroke="#d62728" stroke-width="2" points="80.0,433.6 123.0,434.1 166.0,433.4 209.0,436.3 252.0,435.3 295.0,437.8 338.0,439.6 381.0,438.0 424.0,439.8 467.0,442.4 510.0,439.8 553.0,440.4 596.0,433.1 639.0,435.5 682.0,432.9 725.0,436.3 768.0,435.9 811.0,436.0 854.0,437.8 897.0,439.8 940.0,439.8"/>
+<polyline fill="none" stroke="#777" stroke-width="2" stroke-dasharray="6 4" points="80.0,331.7 123.0,331.5 166.0,312.7 209.0,248.7 252.0,208.1 295.0,159.7 338.0,139.8 381.0,185.8 424.0,201.1 467.0,207.9 510.0,176.0 553.0,161.3 596.0,189.3 639.0,220.1 682.0,188.9 725.0,130.2 768.0,145.6 811.0,97.6 854.0,126.8 897.0,172.1 940.0,251.4"/>
+<text x="90" y="90" font-size="13" fill="#1f77b4">Actual</text>
+<text x="160" y="90" font-size="13" fill="#d62728">Predicted</text>
+<text x="260" y="90" font-size="13" fill="#777">Naive last-calendar-month</text>
+<text x="25" y="270.0" transform="rotate(-90 25 270.0)" font-size="13">Price</text>
+<text x="80.0" y="500" text-anchor="middle" font-size="12">2024-03</text><text x="510.0" y="500" text-anchor="middle" font-size="12">2025-01</text><text x="940.0" y="500" text-anchor="middle" font-size="12">2025-11</text>
+</svg>

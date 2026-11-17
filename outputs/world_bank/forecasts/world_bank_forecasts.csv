@@ -1,0 +1,181 @@
+source,series_id,model,horizon_months,forecast_month,forecast_price,status
+world_bank,Beans (red) | Market Average | 2.5 KG | close_estimate,random_forest,1,2026-12,2854.649061099876,recursive_forecast
+world_bank,Beans (red) | Market Average | 2.5 KG | close_estimate,random_forest,3,2027-02,3856.834443885705,recursive_forecast
+world_bank,Beans (red) | Market Average | 2.5 KG | close_estimate,random_forest,6,2027-05,6007.9825106231065,recursive_forecast
+world_bank,Beans (red) | Market Average | 2.5 KG | close_estimate,xgboost,1,2026-12,2855.077603444457,recursive_forecast
+world_bank,Beans (red) | Market Average | 2.5 KG | close_estimate,xgboost,3,2027-02,3790.158639110045,recursive_forecast
+world_bank,Beans (red) | Market Average | 2.5 KG | close_estimate,xgboost,6,2027-05,5704.452591543551,recursive_forecast
+world_bank,Beans (red) | Market Average | 2.5 KG | close_estimate,gradient_boosting,1,2026-12,2886.9017160321705,recursive_forecast
+world_bank,Beans (red) | Market Average | 2.5 KG | close_estimate,gradient_boosting,3,2027-02,3966.229599826648,recursive_forecast
+world_bank,Beans (red) | Market Average | 2.5 KG | close_estimate,gradient_boosting,6,2027-05,6467.899849067414,recursive_forecast
+world_bank,Beans (red) | Market Average | 2.5 KG | close_estimate,stacking,1,2026-12,2544.6907056107143,recursive_forecast
+world_bank,Beans (red) | Market Average | 2.5 KG | close_estimate,stacking,3,2027-02,2666.815892157519,recursive_forecast
+world_bank,Beans (red) | Market Average | 2.5 KG | close_estimate,stacking,6,2027-05,2861.62534131821,recursive_forecast
+world_bank,Beans (red) | Market Average | 2.5 KG | close_estimate,naive_last_observation,1,2026-12,2485.81,recursive_forecast
+world_bank,Beans (red) | Market Average | 2.5 KG | close_estimate,naive_last_observation,3,2027-02,2485.81,recursive_forecast
+world_bank,Beans (red) | Market Average | 2.5 KG | close_estimate,naive_last_observation,6,2027-05,2485.81,recursive_forecast
+world_bank,Beans (red) | National Average | 2.5 KG | close_estimate,random_forest,1,2026-12,2055.948425,recursive_forecast
+world_bank,Beans (red) | National Average | 2.5 KG | close_estimate,random_forest,3,2027-02,2186.4420765873015,recursive_forecast
+world_bank,Beans (red) | National Average | 2.5 KG | close_estimate,random_forest,6,2027-05,2401.0927154761903,recursive_forecast
+world_bank,Beans (red) | National Average | 2.5 KG | close_estimate,xgboost,1,2026-12,2077.0687490703913,recursive_forecast
+world_bank,Beans (red) | National Average | 2.5 KG | close_estimate,xgboost,3,2027-02,2219.135733438433,recursive_forecast
+world_bank,Beans (red) | National Average | 2.5 KG | close_estimate,xgboost,6,2027-05,2359.061736871202,recursive_forecast
+world_bank,Beans (red) | National Average | 2.5 KG | close_estimate,gradient_boosting,1,2026-12,2113.933142835982,recursive_forecast
+world_bank,Beans (red) | National Average | 2.5 KG | close_estimate,gradient_boosting,3,2027-02,2227.765514102728,recursive_forecast
+world_bank,Beans (red) | National Average | 2.5 KG | close_estimate,gradient_boosting,6,2027-05,2427.498125261122,recursive_forecast
+world_bank,Beans (red) | National Average | 2.5 KG | close_estimate,stacking,1,2026-12,2040.4755542142843,recursive_forecast
+world_bank,Beans (red) | National Average | 2.5 KG | close_estimate,stacking,3,2027-02,2130.971989232862,recursive_forecast
+world_bank,Beans (red) | National Average | 2.5 KG | close_estimate,stacking,6,2027-05,2276.127569922563,recursive_forecast
+world_bank,Beans (red) | National Average | 2.5 KG | close_estimate,naive_last_observation,1,2026-12,1993.23,recursive_forecast
+world_bank,Beans (red) | National Average | 2.5 KG | close_estimate,naive_last_observation,3,2027-02,1993.23,recursive_forecast
+world_bank,Beans (red) | National Average | 2.5 KG | close_estimate,naive_last_observation,6,2027-05,1993.23,recursive_forecast
+world_bank,Maize (white) | Market Average | Kg | close_estimate,random_forest,1,2026-12,887.7444614141291,recursive_forecast
+world_bank,Maize (white) | Market Average | Kg | close_estimate,random_forest,3,2027-02,979.0034078638414,recursive_forecast
+world_bank,Maize (white) | Market Average | Kg | close_estimate,random_forest,6,2027-05,1153.2036598415443,recursive_forecast
+world_bank,Maize (white) | Market Average | Kg | close_estimate,xgboost,1,2026-12,880.1026606941224,recursive_forecast
+world_bank,Maize (white) | Market Average | Kg | close_estimate,xgboost,3,2027-02,938.2468998071314,recursive_forecast
+world_bank,Maize (white) | Market Average | Kg | close_estimate,xgboost,6,2027-05,1025.188001222212,recursive_forecast
+world_bank,Maize (white) | Market Average | Kg | close_estimate,gradient_boosting,1,2026-12,899.4814695098663,recursive_forecast
+world_bank,Maize (white) | Market Average | Kg | close_estimate,gradient_boosting,3,2027-02,1005.0043014512249,recursive_forecast
+world_bank,Maize (white) | Market Average | Kg | close_estimate,gradient_boosting,6,2027-05,1169.8001601271405,recursive_forecast
+world_bank,Maize (white) | Market Average | Kg | close_estimate,stacking,1,2026-12,865.8802659177064,recursive_forecast
+world_bank,Maize (white) | Market Average | Kg | close_estimate,stacking,3,2027-02,893.5795753472177,recursive_forecast
+world_bank,Maize (white) | Market Average | Kg | close_estimate,stacking,6,2027-05,936.8755858031342,recursive_forecast
+world_bank,Maize (white) | Market Average | Kg | close_estimate,naive_last_observation,1,2026-12,852.44,recursive_forecast
+world_bank,Maize (white) | Market Average | Kg | close_estimate,naive_last_observation,3,2027-02,852.44,recursive_forecast
+world_bank,Maize (white) | Market Average | Kg | close_estimate,naive_last_observation,6,2027-05,852.44,recursive_forecast
+world_bank,Maize (white) | National Average | Kg | close_estimate,random_forest,1,2026-12,603.8819641846743,recursive_forecast
+world_bank,Maize (white) | National Average | Kg | close_estimate,random_forest,3,2027-02,646.0623190177974,recursive_forecast
+world_bank,Maize (white) | National Average | Kg | close_estimate,random_forest,6,2027-05,717.0507014307218,recursive_forecast
+world_bank,Maize (white) | National Average | Kg | close_estimate,xgboost,1,2026-12,604.1927356076241,recursive_forecast
+world_bank,Maize (white) | National Average | Kg | close_estimate,xgboost,3,2027-02,611.9459704709053,recursive_forecast
+world_bank,Maize (white) | National Average | Kg | close_estimate,xgboost,6,2027-05,624.8307389569283,recursive_forecast
+world_bank,Maize (white) | National Average | Kg | close_estimate,gradient_boosting,1,2026-12,603.791615045104,recursive_forecast
+world_bank,Maize (white) | National Average | Kg | close_estimate,gradient_boosting,3,2027-02,611.3950773874747,recursive_forecast
+world_bank,Maize (white) | National Average | Kg | close_estimate,gradient_boosting,6,2027-05,628.9403107245536,recursive_forecast
+world_bank,Maize (white) | National Average | Kg | close_estimate,stacking,1,2026-12,613.942195712017,recursive_forecast
+world_bank,Maize (white) | National Average | Kg | close_estimate,stacking,3,2027-02,633.6206237599583,recursive_forecast
+world_bank,Maize (white) | National Average | Kg | close_estimate,stacking,6,2027-05,664.4586154619785,recursive_forecast
+world_bank,Maize (white) | National Average | Kg | close_estimate,naive_last_observation,1,2026-12,604.37,recursive_forecast
+world_bank,Maize (white) | National Average | Kg | close_estimate,naive_last_observation,3,2027-02,604.37,recursive_forecast
+world_bank,Maize (white) | National Average | Kg | close_estimate,naive_last_observation,6,2027-05,604.37,recursive_forecast
+world_bank,Millet | Market Average | 2.6 KG | close_estimate,random_forest,1,2026-12,2107.806466269841,recursive_forecast
+world_bank,Millet | Market Average | 2.6 KG | close_estimate,random_forest,3,2027-02,2179.245580952381,recursive_forecast
+world_bank,Millet | Market Average | 2.6 KG | close_estimate,random_forest,6,2027-05,2242.5481765873014,recursive_forecast
+world_bank,Millet | Market Average | 2.6 KG | close_estimate,xgboost,1,2026-12,2131.096093432903,recursive_forecast
+world_bank,Millet | Market Average | 2.6 KG | close_estimate,xgboost,3,2027-02,2247.0764192195234,recursive_forecast
+world_bank,Millet | Market Average | 2.6 KG | close_estimate,xgboost,6,2027-05,2487.7803064880827,recursive_forecast
+world_bank,Millet | Market Average | 2.6 KG | close_estimate,gradient_boosting,1,2026-12,2072.2812477607426,recursive_forecast
+world_bank,Millet | Market Average | 2.6 KG | close_estimate,gradient_boosting,3,2027-02,2083.6474174685177,recursive_forecast
+world_bank,Millet | Market Average | 2.6 KG | close_estimate,gradient_boosting,6,2027-05,2137.587103737273,recursive_forecast
+world_bank,Millet | Market Average | 2.6 KG | close_estimate,stacking,1,2026-12,2146.5082318728064,recursive_forecast
+world_bank,Millet | Market Average | 2.6 KG | close_estimate,stacking,3,2027-02,2263.634638816352,recursive_forecast
+world_bank,Millet | Market Average | 2.6 KG | close_estimate,stacking,6,2027-05,2456.749592388856,recursive_forecast
+world_bank,Millet | Market Average | 2.6 KG | close_estimate,naive_last_observation,1,2026-12,2094.39,recursive_forecast
+world_bank,Millet | Market Average | 2.6 KG | close_estimate,naive_last_observation,3,2027-02,2094.39,recursive_forecast
+world_bank,Millet | Market Average | 2.6 KG | close_estimate,naive_last_observation,6,2027-05,2094.39,recursive_forecast
+world_bank,Millet | National Average | 2.6 KG | close_estimate,random_forest,1,2026-12,1287.7249418361887,recursive_forecast
+world_bank,Millet | National Average | 2.6 KG | close_estimate,random_forest,3,2027-02,1392.566644734954,recursive_forecast
+world_bank,Millet | National Average | 2.6 KG | close_estimate,random_forest,6,2027-05,1602.3759036620793,recursive_forecast
+world_bank,Millet | National Average | 2.6 KG | close_estimate,xgboost,1,2026-12,1291.2688554105162,recursive_forecast
+world_bank,Millet | National Average | 2.6 KG | close_estimate,xgboost,3,2027-02,1368.544056374303,recursive_forecast
+world_bank,Millet | National Average | 2.6 KG | close_estimate,xgboost,6,2027-05,1545.4486318556355,recursive_forecast
+world_bank,Millet | National Average | 2.6 KG | close_estimate,gradient_boosting,1,2026-12,1281.8874395373423,recursive_forecast
+world_bank,Millet | National Average | 2.6 KG | close_estimate,gradient_boosting,3,2027-02,1381.0033052779904,recursive_forecast
+world_bank,Millet | National Average | 2.6 KG | close_estimate,gradient_boosting,6,2027-05,1582.22463227438,recursive_forecast
+world_bank,Millet | National Average | 2.6 KG | close_estimate,stacking,1,2026-12,1294.7578406368866,recursive_forecast
+world_bank,Millet | National Average | 2.6 KG | close_estimate,stacking,3,2027-02,1362.2357719334864,recursive_forecast
+world_bank,Millet | National Average | 2.6 KG | close_estimate,stacking,6,2027-05,1475.0831092547644,recursive_forecast
+world_bank,Millet | National Average | 2.6 KG | close_estimate,naive_last_observation,1,2026-12,1265.76,recursive_forecast
+world_bank,Millet | National Average | 2.6 KG | close_estimate,naive_last_observation,3,2027-02,1265.76,recursive_forecast
+world_bank,Millet | National Average | 2.6 KG | close_estimate,naive_last_observation,6,2027-05,1265.76,recursive_forecast
+world_bank,Rice (imported) | Market Average | 2.8 KG | close_estimate,random_forest,1,2026-12,4901.177553174603,recursive_forecast
+world_bank,Rice (imported) | Market Average | 2.8 KG | close_estimate,random_forest,3,2027-02,5540.388510714287,recursive_forecast
+world_bank,Rice (imported) | Market Average | 2.8 KG | close_estimate,random_forest,6,2027-05,6388.793467857144,recursive_forecast
+world_bank,Rice (imported) | Market Average | 2.8 KG | close_estimate,xgboost,1,2026-12,4806.688005773053,recursive_forecast
+world_bank,Rice (imported) | Market Average | 2.8 KG | close_estimate,xgboost,3,2027-02,5201.777403932662,recursive_forecast
+world_bank,Rice (imported) | Market Average | 2.8 KG | close_estimate,xgboost,6,2027-05,5751.406849768106,recursive_forecast
+world_bank,Rice (imported) | Market Average | 2.8 KG | close_estimate,gradient_boosting,1,2026-12,5094.0006837175215,recursive_forecast
+world_bank,Rice (imported) | Market Average | 2.8 KG | close_estimate,gradient_boosting,3,2027-02,6043.953992947049,recursive_forecast
+world_bank,Rice (imported) | Market Average | 2.8 KG | close_estimate,gradient_boosting,6,2027-05,6838.957601333414,recursive_forecast
+world_bank,Rice (imported) | Market Average | 2.8 KG | close_estimate,stacking,1,2026-12,4664.506493185318,recursive_forecast
+world_bank,Rice (imported) | Market Average | 2.8 KG | close_estimate,stacking,3,2027-02,4929.787318456685,recursive_forecast
+world_bank,Rice (imported) | Market Average | 2.8 KG | close_estimate,stacking,6,2027-05,5332.929318801269,recursive_forecast
+world_bank,Rice (imported) | Market Average | 2.8 KG | close_estimate,naive_last_observation,1,2026-12,4531.01,recursive_forecast
+world_bank,Rice (imported) | Market Average | 2.8 KG | close_estimate,naive_last_observation,3,2027-02,4531.01,recursive_forecast
+world_bank,Rice (imported) | Market Average | 2.8 KG | close_estimate,naive_last_observation,6,2027-05,4531.01,recursive_forecast
+world_bank,Rice (imported) | National Average | 2.8 KG | close_estimate,random_forest,1,2026-12,4469.263492460318,recursive_forecast
+world_bank,Rice (imported) | National Average | 2.8 KG | close_estimate,random_forest,3,2027-02,4832.693891269842,recursive_forecast
+world_bank,Rice (imported) | National Average | 2.8 KG | close_estimate,random_forest,6,2027-05,5360.500922619049,recursive_forecast
+world_bank,Rice (imported) | National Average | 2.8 KG | close_estimate,xgboost,1,2026-12,4431.196211625635,recursive_forecast
+world_bank,Rice (imported) | National Average | 2.8 KG | close_estimate,xgboost,3,2027-02,4762.476040972194,recursive_forecast
+world_bank,Rice (imported) | National Average | 2.8 KG | close_estimate,xgboost,6,2027-05,5208.069018175926,recursive_forecast
+world_bank,Rice (imported) | National Average | 2.8 KG | close_estimate,gradient_boosting,1,2026-12,4543.740346830397,recursive_forecast
+world_bank,Rice (imported) | National Average | 2.8 KG | close_estimate,gradient_boosting,3,2027-02,5020.032968471251,recursive_forecast
+world_bank,Rice (imported) | National Average | 2.8 KG | close_estimate,gradient_boosting,6,2027-05,5795.221984564322,recursive_forecast
+world_bank,Rice (imported) | National Average | 2.8 KG | close_estimate,stacking,1,2026-12,4367.178040811236,recursive_forecast
+world_bank,Rice (imported) | National Average | 2.8 KG | close_estimate,stacking,3,2027-02,4554.511752031656,recursive_forecast
+world_bank,Rice (imported) | National Average | 2.8 KG | close_estimate,stacking,6,2027-05,4847.325840288106,recursive_forecast
+world_bank,Rice (imported) | National Average | 2.8 KG | close_estimate,naive_last_observation,1,2026-12,4277.8,recursive_forecast
+world_bank,Rice (imported) | National Average | 2.8 KG | close_estimate,naive_last_observation,3,2027-02,4277.8,recursive_forecast
+world_bank,Rice (imported) | National Average | 2.8 KG | close_estimate,naive_last_observation,6,2027-05,4277.8,recursive_forecast
+world_bank,Sorghum (white) | Market Average | Kg | close_estimate,random_forest,1,2026-12,652.3182610865276,recursive_forecast
+world_bank,Sorghum (white) | Market Average | Kg | close_estimate,random_forest,3,2027-02,721.0148488845376,recursive_forecast
+world_bank,Sorghum (white) | Market Average | Kg | close_estimate,random_forest,6,2027-05,853.6201999776084,recursive_forecast
+world_bank,Sorghum (white) | Market Average | Kg | close_estimate,xgboost,1,2026-12,647.2263911981136,recursive_forecast
+world_bank,Sorghum (white) | Market Average | Kg | close_estimate,xgboost,3,2027-02,689.0869144212414,recursive_forecast
+world_bank,Sorghum (white) | Market Average | Kg | close_estimate,xgboost,6,2027-05,787.5125229607131,recursive_forecast
+world_bank,Sorghum (white) | Market Average | Kg | close_estimate,gradient_boosting,1,2026-12,635.1196472207432,recursive_forecast
+world_bank,Sorghum (white) | Market Average | Kg | close_estimate,gradient_boosting,3,2027-02,673.6284292528945,recursive_forecast
+world_bank,Sorghum (white) | Market Average | Kg | close_estimate,gradient_boosting,6,2027-05,728.1975498231294,recursive_forecast
+world_bank,Sorghum (white) | Market Average | Kg | close_estimate,stacking,1,2026-12,651.160196565738,recursive_forecast
+world_bank,Sorghum (white) | Market Average | Kg | close_estimate,stacking,3,2027-02,687.9426158900847,recursive_forecast
+world_bank,Sorghum (white) | Market Average | Kg | close_estimate,stacking,6,2027-05,749.5855268562718,recursive_forecast
+world_bank,Sorghum (white) | Market Average | Kg | close_estimate,naive_last_observation,1,2026-12,635.75,recursive_forecast
+world_bank,Sorghum (white) | Market Average | Kg | close_estimate,naive_last_observation,3,2027-02,635.75,recursive_forecast
+world_bank,Sorghum (white) | Market Average | Kg | close_estimate,naive_last_observation,6,2027-05,635.75,recursive_forecast
+world_bank,Sorghum (white) | National Average | Kg | close_estimate,random_forest,1,2026-12,422.72409628630976,recursive_forecast
+world_bank,Sorghum (white) | National Average | Kg | close_estimate,random_forest,3,2027-02,428.98811116904847,recursive_forecast
+world_bank,Sorghum (white) | National Average | Kg | close_estimate,random_forest,6,2027-05,457.2794795827739,recursive_forecast
+world_bank,Sorghum (white) | National Average | Kg | close_estimate,xgboost,1,2026-12,431.4946983802411,recursive_forecast
+world_bank,Sorghum (white) | National Average | Kg | close_estimate,xgboost,3,2027-02,472.31930847227596,recursive_forecast
+world_bank,Sorghum (white) | National Average | Kg | close_estimate,xgboost,6,2027-05,589.4530970134409,recursive_forecast
+world_bank,Sorghum (white) | National Average | Kg | close_estimate,gradient_boosting,1,2026-12,428.49679725889234,recursive_forecast
+world_bank,Sorghum (white) | National Average | Kg | close_estimate,gradient_boosting,3,2027-02,476.13775373468525,recursive_forecast
+world_bank,Sorghum (white) | National Average | Kg | close_estimate,gradient_boosting,6,2027-05,603.0480682218704,recursive_forecast
+world_bank,Sorghum (white) | National Average | Kg | close_estimate,stacking,1,2026-12,434.59542729531483,recursive_forecast
+world_bank,Sorghum (white) | National Average | Kg | close_estimate,stacking,3,2027-02,462.81358864767645,recursive_forecast
+world_bank,Sorghum (white) | National Average | Kg | close_estimate,stacking,6,2027-05,522.2461023344391,recursive_forecast
+world_bank,Sorghum (white) | National Average | Kg | close_estimate,naive_last_observation,1,2026-12,425.09,recursive_forecast
+world_bank,Sorghum (white) | National Average | Kg | close_estimate,naive_last_observation,3,2027-02,425.09,recursive_forecast
+world_bank,Sorghum (white) | National Average | Kg | close_estimate,naive_last_observation,6,2027-05,425.09,recursive_forecast
+world_bank,Yam | Market Average | 2.5 KG | close_estimate,random_forest,1,2026-12,3360.7705153983516,recursive_forecast
+world_bank,Yam | Market Average | 2.5 KG | close_estimate,random_forest,3,2027-02,3620.881053125259,recursive_forecast
+world_bank,Yam | Market Average | 2.5 KG | close_estimate,random_forest,6,2027-05,4245.070224357922,recursive_forecast
+world_bank,Yam | Market Average | 2.5 KG | close_estimate,xgboost,1,2026-12,3302.4816967202164,recursive_forecast
+world_bank,Yam | Market Average | 2.5 KG | close_estimate,xgboost,3,2027-02,3604.1305307117104,recursive_forecast
+world_bank,Yam | Market Average | 2.5 KG | close_estimate,xgboost,6,2027-05,4172.036696204565,recursive_forecast
+world_bank,Yam | Market Average | 2.5 KG | close_estimate,gradient_boosting,1,2026-12,3325.64463493987,recursive_forecast
+world_bank,Yam | Market Average | 2.5 KG | close_estimate,gradient_boosting,3,2027-02,3681.7976439413137,recursive_forecast
+world_bank,Yam | Market Average | 2.5 KG | close_estimate,gradient_boosting,6,2027-05,4288.802309578444,recursive_forecast
+world_bank,Yam | Market Average | 2.5 KG | close_estimate,stacking,1,2026-12,3263.881002064437,recursive_forecast
+world_bank,Yam | Market Average | 2.5 KG | close_estimate,stacking,3,2027-02,3372.546880718043,recursive_forecast
+world_bank,Yam | Market Average | 2.5 KG | close_estimate,stacking,6,2027-05,3545.959994475341,recursive_forecast
+world_bank,Yam | Market Average | 2.5 KG | close_estimate,naive_last_observation,1,2026-12,3208.97,recursive_forecast
+world_bank,Yam | Market Average | 2.5 KG | close_estimate,naive_last_observation,3,2027-02,3208.97,recursive_forecast
+world_bank,Yam | Market Average | 2.5 KG | close_estimate,naive_last_observation,6,2027-05,3208.97,recursive_forecast
+world_bank,Yam | National Average | 2.5 KG | close_estimate,random_forest,1,2026-12,2888.9862992063495,recursive_forecast
+world_bank,Yam | National Average | 2.5 KG | close_estimate,random_forest,3,2027-02,2998.1433083333336,recursive_forecast
+world_bank,Yam | National Average | 2.5 KG | close_estimate,random_forest,6,2027-05,3171.036352579365,recursive_forecast
+world_bank,Yam | National Average | 2.5 KG | close_estimate,xgboost,1,2026-12,2884.5650982942434,recursive_forecast
+world_bank,Yam | National Average | 2.5 KG | close_estimate,xgboost,3,2027-02,3081.9129718330178,recursive_forecast
+world_bank,Yam | National Average | 2.5 KG | close_estimate,xgboost,6,2027-05,3476.480100794464,recursive_forecast
+world_bank,Yam | National Average | 2.5 KG | close_estimate,gradient_boosting,1,2026-12,2947.568509151236,recursive_forecast
+world_bank,Yam | National Average | 2.5 KG | close_estimate,gradient_boosting,3,2027-02,3215.661146075955,recursive_forecast
+world_bank,Yam | National Average | 2.5 KG | close_estimate,gradient_boosting,6,2027-05,3732.083009769049,recursive_forecast
+world_bank,Yam | National Average | 2.5 KG | close_estimate,stacking,1,2026-12,2870.252642821637,recursive_forecast
+world_bank,Yam | National Average | 2.5 KG | close_estimate,stacking,3,2027-02,2942.9278423812743,recursive_forecast
+world_bank,Yam | National Average | 2.5 KG | close_estimate,stacking,6,2027-05,3051.906086435137,recursive_forecast
+world_bank,Yam | National Average | 2.5 KG | close_estimate,naive_last_observation,1,2026-12,2834.78,recursive_forecast
+world_bank,Yam | National Average | 2.5 KG | close_estimate,naive_last_observation,3,2027-02,2834.78,recursive_forecast
+world_bank,Yam | National Average | 2.5 KG | close_estimate,naive_last_observation,6,2027-05,2834.78,recursive_forecast

@@ -1,0 +1,301 @@
+series_id,model,transformation,origin_month,forecast_month,horizon_months,forecast_price,method
+Millet | 2.6 KG | Retail,naive_last_observation,none,2025-11,2025-12,1,990.5569230769231,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,random_forest,price_change,2025-11,2025-12,1,1118.8219314859948,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,xgboost,price_change,2025-11,2025-12,1,1061.0351335261419,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,gradient_boosting,price_change,2025-11,2025-12,1,1091.9802352934341,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,stacking,percentage_change,2025-11,2025-12,1,1028.8521843333579,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,naive_last_observation,none,2025-11,2025-12,1,990.5569230769231,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,naive_last_observation,none,2025-11,2026-01,2,990.5569230769231,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,naive_last_observation,none,2025-11,2026-02,3,990.5569230769231,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,random_forest,price_change,2025-11,2025-12,1,1118.8219314859946,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,random_forest,price_change,2025-11,2026-01,2,1237.880192391892,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,random_forest,price_change,2025-11,2026-02,3,1266.7519103423315,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,xgboost,price_change,2025-11,2025-12,1,1061.0351335261419,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,xgboost,price_change,2025-11,2026-01,2,1152.0337373469426,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,xgboost,price_change,2025-11,2026-02,3,1230.9287263606145,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,gradient_boosting,price_change,2025-11,2025-12,1,1091.9802352934341,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,gradient_boosting,price_change,2025-11,2026-01,2,1205.8027077548393,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,gradient_boosting,price_change,2025-11,2026-02,3,1217.4026379356271,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,stacking,percentage_change,2025-11,2025-12,1,1028.8521843333579,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,stacking,percentage_change,2025-11,2026-01,2,1071.2548396930379,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,stacking,percentage_change,2025-11,2026-02,3,1114.176203369956,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,naive_last_observation,none,2025-11,2025-12,1,990.5569230769231,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,naive_last_observation,none,2025-11,2026-01,2,990.5569230769231,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,naive_last_observation,none,2025-11,2026-02,3,990.5569230769231,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,naive_last_observation,none,2025-11,2026-03,4,990.5569230769231,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,naive_last_observation,none,2025-11,2026-04,5,990.5569230769231,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,naive_last_observation,none,2025-11,2026-05,6,990.5569230769231,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,random_forest,price_change,2025-11,2025-12,1,1118.8219314859948,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,random_forest,price_change,2025-11,2026-01,2,1237.8801923918923,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,random_forest,price_change,2025-11,2026-02,3,1266.7519103423317,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,random_forest,price_change,2025-11,2026-03,4,1409.728706939357,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,random_forest,price_change,2025-11,2026-04,5,1481.333900026587,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,random_forest,price_change,2025-11,2026-05,6,1591.9013890144952,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,xgboost,price_change,2025-11,2025-12,1,1061.0351335261419,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,xgboost,price_change,2025-11,2026-01,2,1152.0337373469426,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,xgboost,price_change,2025-11,2026-02,3,1230.9287263606145,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,xgboost,price_change,2025-11,2026-03,4,1148.300773784931,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,xgboost,price_change,2025-11,2026-04,5,1223.0024110529973,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,xgboost,price_change,2025-11,2026-05,6,1130.324943706806,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,gradient_boosting,price_change,2025-11,2025-12,1,1091.9802352934341,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,gradient_boosting,price_change,2025-11,2026-01,2,1205.8027077548393,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,gradient_boosting,price_change,2025-11,2026-02,3,1217.4026379356271,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,gradient_boosting,price_change,2025-11,2026-03,4,1462.6975685705247,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,gradient_boosting,price_change,2025-11,2026-04,5,1332.4163355976975,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,gradient_boosting,price_change,2025-11,2026-05,6,1675.8850333532473,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,stacking,percentage_change,2025-11,2025-12,1,1028.8521843333579,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,stacking,percentage_change,2025-11,2026-01,2,1071.2548396930379,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,stacking,percentage_change,2025-11,2026-02,3,1114.176203369956,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,stacking,percentage_change,2025-11,2026-03,4,1159.142359870432,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,stacking,percentage_change,2025-11,2026-04,5,1206.4540644879648,recursive; actual future prices not used
+Millet | 2.6 KG | Retail,stacking,percentage_change,2025-11,2026-05,6,1249.1906898339976,recursive; actual future prices not used
+Oil (palm) | L | Retail,naive_last_observation,none,2025-11,2025-12,1,2556.7908333333335,recursive; actual future prices not used
+Oil (palm) | L | Retail,random_forest,percentage_change,2025-11,2025-12,1,2545.0644396048565,recursive; actual future prices not used
+Oil (palm) | L | Retail,xgboost,percentage_change,2025-11,2025-12,1,2561.9300381134335,recursive; actual future prices not used
+Oil (palm) | L | Retail,gradient_boosting,percentage_change,2025-11,2025-12,1,2485.982625953738,recursive; actual future prices not used
+Oil (palm) | L | Retail,stacking,percentage_change,2025-11,2025-12,1,2589.8563000985546,recursive; actual future prices not used
+Oil (palm) | L | Retail,naive_last_observation,none,2025-11,2025-12,1,2556.7908333333335,recursive; actual future prices not used
+Oil (palm) | L | Retail,naive_last_observation,none,2025-11,2026-01,2,2556.7908333333335,recursive; actual future prices not used
+Oil (palm) | L | Retail,naive_last_observation,none,2025-11,2026-02,3,2556.7908333333335,recursive; actual future prices not used
+Oil (palm) | L | Retail,random_forest,percentage_change,2025-11,2025-12,1,2545.0644396048565,recursive; actual future prices not used
+Oil (palm) | L | Retail,random_forest,percentage_change,2025-11,2026-01,2,2536.494367010709,recursive; actual future prices not used
+Oil (palm) | L | Retail,random_forest,percentage_change,2025-11,2026-02,3,2786.352885671971,recursive; actual future prices not used
+Oil (palm) | L | Retail,xgboost,percentage_change,2025-11,2025-12,1,2561.9300381134335,recursive; actual future prices not used
+Oil (palm) | L | Retail,xgboost,percentage_change,2025-11,2026-01,2,2574.8566906727306,recursive; actual future prices not used
+Oil (palm) | L | Retail,xgboost,percentage_change,2025-11,2026-02,3,2720.2377051101485,recursive; actual future prices not used
+Oil (palm) | L | Retail,gradient_boosting,percentage_change,2025-11,2025-12,1,2485.982625953738,recursive; actual future prices not used
+Oil (palm) | L | Retail,gradient_boosting,percentage_change,2025-11,2026-01,2,2478.8820243638356,recursive; actual future prices not used
+Oil (palm) | L | Retail,gradient_boosting,percentage_change,2025-11,2026-02,3,2843.6855574059014,recursive; actual future prices not used
+Oil (palm) | L | Retail,stacking,percentage_change,2025-11,2025-12,1,2589.8563000985546,recursive; actual future prices not used
+Oil (palm) | L | Retail,stacking,percentage_change,2025-11,2026-01,2,2623.066605768535,recursive; actual future prices not used
+Oil (palm) | L | Retail,stacking,percentage_change,2025-11,2026-02,3,2643.4300821475376,recursive; actual future prices not used
+Oil (palm) | L | Retail,naive_last_observation,none,2025-11,2025-12,1,2556.7908333333335,recursive; actual future prices not used
+Oil (palm) | L | Retail,naive_last_observation,none,2025-11,2026-01,2,2556.7908333333335,recursive; actual future prices not used
+Oil (palm) | L | Retail,naive_last_observation,none,2025-11,2026-02,3,2556.7908333333335,recursive; actual future prices not used
+Oil (palm) | L | Retail,naive_last_observation,none,2025-11,2026-03,4,2556.7908333333335,recursive; actual future prices not used
+Oil (palm) | L | Retail,naive_last_observation,none,2025-11,2026-04,5,2556.7908333333335,recursive; actual future prices not used
+Oil (palm) | L | Retail,naive_last_observation,none,2025-11,2026-05,6,2556.7908333333335,recursive; actual future prices not used
+Oil (palm) | L | Retail,random_forest,percentage_change,2025-11,2025-12,1,2545.0644396048565,recursive; actual future prices not used
+Oil (palm) | L | Retail,random_forest,percentage_change,2025-11,2026-01,2,2536.494367010709,recursive; actual future prices not used
+Oil (palm) | L | Retail,random_forest,percentage_change,2025-11,2026-02,3,2786.352885671971,recursive; actual future prices not used
+Oil (palm) | L | Retail,random_forest,percentage_change,2025-11,2026-03,4,2799.5072113020437,recursive; actual future prices not used
+Oil (palm) | L | Retail,random_forest,percentage_change,2025-11,2026-04,5,2769.935920196648,recursive; actual future prices not used
+Oil (palm) | L | Retail,random_forest,percentage_change,2025-11,2026-05,6,3023.022234853828,recursive; actual future prices not used
+Oil (palm) | L | Retail,xgboost,percentage_change,2025-11,2025-12,1,2561.9300381134335,recursive; actual future prices not used
+Oil (palm) | L | Retail,xgboost,percentage_change,2025-11,2026-01,2,2574.8566906727306,recursive; actual future prices not used
+Oil (palm) | L | Retail,xgboost,percentage_change,2025-11,2026-02,3,2720.2377051101485,recursive; actual future prices not used
+Oil (palm) | L | Retail,xgboost,percentage_change,2025-11,2026-03,4,2659.538754326802,recursive; actual future prices not used
+Oil (palm) | L | Retail,xgboost,percentage_change,2025-11,2026-04,5,2493.4007362814264,recursive; actual future prices not used
+Oil (palm) | L | Retail,xgboost,percentage_change,2025-11,2026-05,6,2455.0153669267997,recursive; actual future prices not used
+Oil (palm) | L | Retail,gradient_boosting,percentage_change,2025-11,2025-12,1,2485.982625953738,recursive; actual future prices not used
+Oil (palm) | L | Retail,gradient_boosting,percentage_change,2025-11,2026-01,2,2478.8820243638356,recursive; actual future prices not used
+Oil (palm) | L | Retail,gradient_boosting,percentage_change,2025-11,2026-02,3,2843.6855574059014,recursive; actual future prices not used
+Oil (palm) | L | Retail,gradient_boosting,percentage_change,2025-11,2026-03,4,2760.2743980728183,recursive; actual future prices not used
+Oil (palm) | L | Retail,gradient_boosting,percentage_change,2025-11,2026-04,5,2557.694651069693,recursive; actual future prices not used
+Oil (palm) | L | Retail,gradient_boosting,percentage_change,2025-11,2026-05,6,2482.7063390713315,recursive; actual future prices not used
+Oil (palm) | L | Retail,stacking,percentage_change,2025-11,2025-12,1,2589.8563000985546,recursive; actual future prices not used
+Oil (palm) | L | Retail,stacking,percentage_change,2025-11,2026-01,2,2623.066605768535,recursive; actual future prices not used
+Oil (palm) | L | Retail,stacking,percentage_change,2025-11,2026-02,3,2643.4300821475376,recursive; actual future prices not used
+Oil (palm) | L | Retail,stacking,percentage_change,2025-11,2026-03,4,2663.9810963213686,recursive; actual future prices not used
+Oil (palm) | L | Retail,stacking,percentage_change,2025-11,2026-04,5,2690.3437398634405,recursive; actual future prices not used
+Oil (palm) | L | Retail,stacking,percentage_change,2025-11,2026-05,6,2711.2067169047264,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,naive_last_observation,none,2025-11,2025-12,1,4243.507142857143,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,random_forest,price_change,2025-11,2025-12,1,4542.052283882596,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,xgboost,price_change,2025-11,2025-12,1,4495.118852451869,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,gradient_boosting,price_change,2025-11,2025-12,1,4640.340478527732,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,stacking,price_change,2025-11,2025-12,1,4179.537686251177,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,naive_last_observation,none,2025-11,2025-12,1,4243.507142857143,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,naive_last_observation,none,2025-11,2026-01,2,4243.507142857143,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,naive_last_observation,none,2025-11,2026-02,3,4243.507142857143,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,random_forest,price_change,2025-11,2025-12,1,4542.052283882596,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,random_forest,price_change,2025-11,2026-01,2,4973.51103422859,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,random_forest,price_change,2025-11,2026-02,3,5165.825441408306,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,xgboost,price_change,2025-11,2025-12,1,4495.118852451869,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,xgboost,price_change,2025-11,2026-01,2,4819.552079990932,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,xgboost,price_change,2025-11,2026-02,3,4892.858407810756,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,gradient_boosting,price_change,2025-11,2025-12,1,4640.340478527732,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,gradient_boosting,price_change,2025-11,2026-01,2,5174.980383933496,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,gradient_boosting,price_change,2025-11,2026-02,3,5390.5589026952175,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,stacking,price_change,2025-11,2025-12,1,4179.537686251177,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,stacking,price_change,2025-11,2026-01,2,4025.935322068512,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,stacking,price_change,2025-11,2026-02,3,3977.718265211975,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,naive_last_observation,none,2025-11,2025-12,1,4243.507142857143,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,naive_last_observation,none,2025-11,2026-01,2,4243.507142857143,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,naive_last_observation,none,2025-11,2026-02,3,4243.507142857143,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,naive_last_observation,none,2025-11,2026-03,4,4243.507142857143,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,naive_last_observation,none,2025-11,2026-04,5,4243.507142857143,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,naive_last_observation,none,2025-11,2026-05,6,4243.507142857143,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,random_forest,price_change,2025-11,2025-12,1,4542.052283882596,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,random_forest,price_change,2025-11,2026-01,2,4973.51103422859,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,random_forest,price_change,2025-11,2026-02,3,5165.825441408306,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,random_forest,price_change,2025-11,2026-03,4,5250.256716008151,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,random_forest,price_change,2025-11,2026-04,5,5309.419357306485,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,random_forest,price_change,2025-11,2026-05,6,5440.007594579604,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,xgboost,price_change,2025-11,2025-12,1,4495.118852451869,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,xgboost,price_change,2025-11,2026-01,2,4819.552079990932,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,xgboost,price_change,2025-11,2026-02,3,4892.858407810756,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,xgboost,price_change,2025-11,2026-03,4,5090.735406712123,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,xgboost,price_change,2025-11,2026-04,5,5362.877252415248,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,xgboost,price_change,2025-11,2026-05,6,5313.56211264474,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,gradient_boosting,price_change,2025-11,2025-12,1,4640.340478527732,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,gradient_boosting,price_change,2025-11,2026-01,2,5174.980383933496,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,gradient_boosting,price_change,2025-11,2026-02,3,5390.5589026952175,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,gradient_boosting,price_change,2025-11,2026-03,4,5452.197428614695,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,gradient_boosting,price_change,2025-11,2026-04,5,5609.6821969611165,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,gradient_boosting,price_change,2025-11,2026-05,6,5765.320850189637,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,stacking,price_change,2025-11,2025-12,1,4179.537686251177,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,stacking,price_change,2025-11,2026-01,2,4025.935322068512,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,stacking,price_change,2025-11,2026-02,3,3977.718265211975,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,stacking,price_change,2025-11,2026-03,4,3981.9883285506626,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,stacking,price_change,2025-11,2026-04,5,3977.7642057476946,recursive; actual future prices not used
+Rice (imported) | 2.8 KG | Retail,stacking,price_change,2025-11,2026-05,6,3969.4382373656963,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,naive_last_observation,none,2023-01,2023-02,1,35828.88888888889,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,random_forest,percentage_change,2023-01,2023-02,1,36032.97602116162,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,xgboost,percentage_change,2023-01,2023-02,1,35642.076907738425,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,gradient_boosting,price_change,2023-01,2023-02,1,34787.564354390546,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,stacking,price_change,2023-01,2023-02,1,36360.47430850356,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,naive_last_observation,none,2023-01,2023-02,1,35828.88888888889,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,naive_last_observation,none,2023-01,2023-03,2,35828.88888888889,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,naive_last_observation,none,2023-01,2023-04,3,35828.88888888889,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,random_forest,percentage_change,2023-01,2023-02,1,36032.97602116162,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,random_forest,percentage_change,2023-01,2023-03,2,35993.787696466185,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,random_forest,percentage_change,2023-01,2023-04,3,36044.074273452294,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,xgboost,percentage_change,2023-01,2023-02,1,35642.076907738425,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,xgboost,percentage_change,2023-01,2023-03,2,35815.53093101793,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,xgboost,percentage_change,2023-01,2023-04,3,36152.69525275131,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,gradient_boosting,price_change,2023-01,2023-02,1,34787.564354390546,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,gradient_boosting,price_change,2023-01,2023-03,2,34524.9209110689,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,gradient_boosting,price_change,2023-01,2023-04,3,34715.57473633962,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,stacking,price_change,2023-01,2023-02,1,36360.47430850356,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,stacking,price_change,2023-01,2023-03,2,36500.111471140626,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,stacking,price_change,2023-01,2023-04,3,36399.798244091304,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,naive_last_observation,none,2023-01,2023-02,1,35828.88888888889,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,naive_last_observation,none,2023-01,2023-03,2,35828.88888888889,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,naive_last_observation,none,2023-01,2023-04,3,35828.88888888889,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,naive_last_observation,none,2023-01,2023-05,4,35828.88888888889,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,naive_last_observation,none,2023-01,2023-06,5,35828.88888888889,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,naive_last_observation,none,2023-01,2023-07,6,35828.88888888889,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,random_forest,percentage_change,2023-01,2023-02,1,36032.97602116162,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,random_forest,percentage_change,2023-01,2023-03,2,35993.787696466185,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,random_forest,percentage_change,2023-01,2023-04,3,36044.074273452294,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,random_forest,percentage_change,2023-01,2023-05,4,35844.47437288897,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,random_forest,percentage_change,2023-01,2023-06,5,35242.2081138709,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,random_forest,percentage_change,2023-01,2023-07,6,34879.21336725677,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,xgboost,percentage_change,2023-01,2023-02,1,35642.076907738425,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,xgboost,percentage_change,2023-01,2023-03,2,35815.53093101793,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,xgboost,percentage_change,2023-01,2023-04,3,36152.69525275131,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,xgboost,percentage_change,2023-01,2023-05,4,36194.64254278845,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,xgboost,percentage_change,2023-01,2023-06,5,36123.59117687104,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,xgboost,percentage_change,2023-01,2023-07,6,35729.38292199519,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,gradient_boosting,price_change,2023-01,2023-02,1,34787.564354390546,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,gradient_boosting,price_change,2023-01,2023-03,2,34524.9209110689,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,gradient_boosting,price_change,2023-01,2023-04,3,34715.57473633962,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,gradient_boosting,price_change,2023-01,2023-05,4,34476.74834369144,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,gradient_boosting,price_change,2023-01,2023-06,5,33559.92336877715,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,gradient_boosting,price_change,2023-01,2023-07,6,33024.251017734656,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,stacking,price_change,2023-01,2023-02,1,36360.47430850356,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,stacking,price_change,2023-01,2023-03,2,36500.111471140626,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,stacking,price_change,2023-01,2023-04,3,36399.798244091304,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,stacking,price_change,2023-01,2023-05,4,36490.02403940079,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,stacking,price_change,2023-01,2023-06,5,36906.302718331266,recursive; actual future prices not used
+Rice (imported) | 50 KG | Wholesale,stacking,price_change,2023-01,2023-07,6,37293.1701856983,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,naive_last_observation,none,2025-11,2025-12,1,2640.02,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,random_forest,percentage_change,2025-11,2025-12,1,2829.5692616381857,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,xgboost,percentage_change,2025-11,2025-12,1,2807.408244563639,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,gradient_boosting,percentage_change,2025-11,2025-12,1,2791.1246721873918,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,stacking,percentage_change,2025-11,2025-12,1,2673.4409210570925,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,naive_last_observation,none,2025-11,2025-12,1,2640.02,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,naive_last_observation,none,2025-11,2026-01,2,2640.02,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,naive_last_observation,none,2025-11,2026-02,3,2640.02,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,random_forest,percentage_change,2025-11,2025-12,1,2829.5692616381857,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,random_forest,percentage_change,2025-11,2026-01,2,3208.224429269821,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,random_forest,percentage_change,2025-11,2026-02,3,3366.686500331086,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,xgboost,percentage_change,2025-11,2025-12,1,2807.408244563639,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,xgboost,percentage_change,2025-11,2026-01,2,3015.786555666392,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,xgboost,percentage_change,2025-11,2026-02,3,3238.3146340420626,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,gradient_boosting,percentage_change,2025-11,2025-12,1,2791.1246721873918,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,gradient_boosting,percentage_change,2025-11,2026-01,2,2952.354924399697,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,gradient_boosting,percentage_change,2025-11,2026-02,3,3127.948227274616,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,stacking,percentage_change,2025-11,2025-12,1,2673.4409210570925,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,stacking,percentage_change,2025-11,2026-01,2,2701.7825548765836,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,stacking,percentage_change,2025-11,2026-02,3,2728.9471822015475,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,naive_last_observation,none,2025-11,2025-12,1,2640.02,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,naive_last_observation,none,2025-11,2026-01,2,2640.02,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,naive_last_observation,none,2025-11,2026-02,3,2640.02,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,naive_last_observation,none,2025-11,2026-03,4,2640.02,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,naive_last_observation,none,2025-11,2026-04,5,2640.02,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,naive_last_observation,none,2025-11,2026-05,6,2640.02,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,random_forest,percentage_change,2025-11,2025-12,1,2829.5692616381857,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,random_forest,percentage_change,2025-11,2026-01,2,3208.224429269821,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,random_forest,percentage_change,2025-11,2026-02,3,3366.686500331086,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,random_forest,percentage_change,2025-11,2026-03,4,3541.6703281106825,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,random_forest,percentage_change,2025-11,2026-04,5,3663.662169881587,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,random_forest,percentage_change,2025-11,2026-05,6,3830.6064304497977,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,xgboost,percentage_change,2025-11,2025-12,1,2807.408244563639,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,xgboost,percentage_change,2025-11,2026-01,2,3015.786555666392,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,xgboost,percentage_change,2025-11,2026-02,3,3238.3146340420626,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,xgboost,percentage_change,2025-11,2026-03,4,3475.6789597884363,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,xgboost,percentage_change,2025-11,2026-04,5,3700.1617200951346,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,xgboost,percentage_change,2025-11,2026-05,6,3939.143089237092,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,gradient_boosting,percentage_change,2025-11,2025-12,1,2791.1246721873918,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,gradient_boosting,percentage_change,2025-11,2026-01,2,2952.354924399697,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,gradient_boosting,percentage_change,2025-11,2026-02,3,3127.948227274616,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,gradient_boosting,percentage_change,2025-11,2026-03,4,3264.859887403628,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,gradient_boosting,percentage_change,2025-11,2026-04,5,3440.068354800348,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,gradient_boosting,percentage_change,2025-11,2026-05,6,3624.679371802932,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,stacking,percentage_change,2025-11,2025-12,1,2673.4409210570925,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,stacking,percentage_change,2025-11,2026-01,2,2701.7825548765836,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,stacking,percentage_change,2025-11,2026-02,3,2728.9471822015475,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,stacking,percentage_change,2025-11,2026-03,4,2758.167512609955,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,stacking,percentage_change,2025-11,2026-04,5,2788.3044383543315,recursive; actual future prices not used
+Rice (local) | 2.7 KG | Retail,stacking,percentage_change,2025-11,2026-05,6,2819.3799859232936,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,naive_last_observation,none,2025-11,2025-12,1,2906.8795652173912,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,random_forest,price_change,2025-11,2025-12,1,2993.6191279074096,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,xgboost,percentage_change,2025-11,2025-12,1,2908.3533550729585,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,gradient_boosting,price_change,2025-11,2025-12,1,3032.4137614673327,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,stacking,price_change,2025-11,2025-12,1,2991.622776238669,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,naive_last_observation,none,2025-11,2025-12,1,2906.8795652173912,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,naive_last_observation,none,2025-11,2026-01,2,2906.8795652173912,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,naive_last_observation,none,2025-11,2026-02,3,2906.8795652173912,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,random_forest,price_change,2025-11,2025-12,1,2993.6191279074096,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,random_forest,price_change,2025-11,2026-01,2,3056.6472985186733,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,random_forest,price_change,2025-11,2026-02,3,3048.428568031036,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,xgboost,percentage_change,2025-11,2025-12,1,2908.3533550729585,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,xgboost,percentage_change,2025-11,2026-01,2,3168.4364654874416,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,xgboost,percentage_change,2025-11,2026-02,3,3170.8443621960814,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,gradient_boosting,price_change,2025-11,2025-12,1,3032.4137614673327,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,gradient_boosting,price_change,2025-11,2026-01,2,2974.874098027525,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,gradient_boosting,price_change,2025-11,2026-02,3,2929.5908506140895,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,stacking,price_change,2025-11,2025-12,1,2991.622776238669,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,stacking,price_change,2025-11,2026-01,2,3053.9186021735445,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,stacking,price_change,2025-11,2026-02,3,3093.4551848637266,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,naive_last_observation,none,2025-11,2025-12,1,2906.8795652173912,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,naive_last_observation,none,2025-11,2026-01,2,2906.8795652173912,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,naive_last_observation,none,2025-11,2026-02,3,2906.8795652173912,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,naive_last_observation,none,2025-11,2026-03,4,2906.8795652173912,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,naive_last_observation,none,2025-11,2026-04,5,2906.8795652173912,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,naive_last_observation,none,2025-11,2026-05,6,2906.8795652173912,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,random_forest,price_change,2025-11,2025-12,1,2993.6191279074096,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,random_forest,price_change,2025-11,2026-01,2,3056.6472985186733,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,random_forest,price_change,2025-11,2026-02,3,3048.428568031036,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,random_forest,price_change,2025-11,2026-03,4,3077.8893995114877,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,random_forest,price_change,2025-11,2026-04,5,3106.3471651501277,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,random_forest,price_change,2025-11,2026-05,6,3136.7144363735774,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,xgboost,percentage_change,2025-11,2025-12,1,2908.3533550729585,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,xgboost,percentage_change,2025-11,2026-01,2,3168.4364654874416,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,xgboost,percentage_change,2025-11,2026-02,3,3170.8443621960814,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,xgboost,percentage_change,2025-11,2026-03,4,3325.8188380713746,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,xgboost,percentage_change,2025-11,2026-04,5,3516.346248820448,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,xgboost,percentage_change,2025-11,2026-05,6,3692.9799453466944,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,gradient_boosting,price_change,2025-11,2025-12,1,3032.4137614673327,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,gradient_boosting,price_change,2025-11,2026-01,2,2974.874098027525,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,gradient_boosting,price_change,2025-11,2026-02,3,2929.5908506140895,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,gradient_boosting,price_change,2025-11,2026-03,4,2924.2885906185834,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,gradient_boosting,price_change,2025-11,2026-04,5,2909.905095964083,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,gradient_boosting,price_change,2025-11,2026-05,6,2837.732977855673,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,stacking,price_change,2025-11,2025-12,1,2991.622776238669,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,stacking,price_change,2025-11,2026-01,2,3053.9186021735445,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,stacking,price_change,2025-11,2026-02,3,3093.4551848637266,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,stacking,price_change,2025-11,2026-03,4,3149.5592988867875,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,stacking,price_change,2025-11,2026-04,5,3204.780601446769,recursive; actual future prices not used
+Yam | 2.5 KG | Retail,stacking,price_change,2025-11,2026-05,6,3260.7918908651836,recursive; actual future prices not used

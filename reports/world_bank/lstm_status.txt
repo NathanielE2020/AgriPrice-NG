@@ -1,0 +1,9 @@
+World Bank LSTM status
+======================
+
+No World Bank LSTM was trained in this experiment. The project-local Flask
+environment does not include TensorFlow, and the existing TensorFlow models
+were trained on WFP aggregate series. Reusing those artifacts for World Bank
+close estimates would mix sources and invalidate the results, so the dashboard
+marks LSTM unavailable for the World Bank selector. This is an explicit
+unsupported-model status, not a fabricated metric.

@@ -1,0 +1,6 @@
+series_id,commodity,market,unit,price_type,calendar_rows,observed_rows,usable_feature_rows,excluded_missing_history_rows,lags,rolling_windows
+Maize | Illela (CBM) | KG | Wholesale,Maize,Illela (CBM),KG,Wholesale,181,107,33,74,"1,2,3",3
+Maize (white) | Dawanau | 100 KG | Wholesale,Maize (white),Dawanau,100 KG,Wholesale,234,149,34,115,"1,2,3",3
+Millet | Dawanau | 100 KG | Wholesale,Millet,Dawanau,100 KG,Wholesale,232,146,49,97,"1,2,3",3
+Sorghum | Mai Adoua (CBM) | KG | Wholesale,Sorghum,Mai Adoua (CBM),KG,Wholesale,171,99,23,76,"1,2,3",3
+Sorghum (white) | Dawanau | 100 KG | Wholesale,Sorghum (white),Dawanau,100 KG,Wholesale,233,155,41,114,"1,2,3",3

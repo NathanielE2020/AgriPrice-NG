@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="560" viewBox="0 0 1000 560">
+<rect width="100%" height="100%" fill="white"/>
+<text x="500" y="30" text-anchor="middle" font-size="18" font-family="Arial">Rice (imported) | 2.8 KG | Retail - LSTM test predictions</text>
+<line x1="80" y1="470" x2="940" y2="470" stroke="#444"/>
+<line x1="80" y1="70" x2="80" y2="470" stroke="#444"/>
+<polyline fill="none" stroke="#1f77b4" stroke-width="3" points="80.0,210.3 137.3,176.1 194.7,179.8 252.0,124.1 309.3,159.8 366.7,113.0 424.0,124.4 481.3,212.3 538.7,148.2 596.0,230.4 653.3,283.8 710.7,332.7 768.0,331.0 825.3,334.2 882.7,442.4 940.0,400.1"/>
+<polyline fill="none" stroke="#d62728" stroke-width="2" points="80.0,249.5 137.3,188.8 194.7,156.6 252.0,161.0 309.3,107.3 366.7,142.7 424.0,97.6 481.3,109.3 538.7,194.8 596.0,131.6 653.3,211.3 710.7,261.7 768.0,307.3 825.3,303.9 882.7,305.8 940.0,408.9"/>
+<polyline fill="none" stroke="#777" stroke-width="2" stroke-dasharray="6 4" points="80.0,273.8 137.3,210.3 194.7,176.1 252.0,179.8 309.3,124.1 366.7,159.8 424.0,113.0 481.3,124.4 538.7,212.3 596.0,148.2 653.3,230.4 710.7,283.8 768.0,332.7 825.3,331.0 882.7,334.2 940.0,442.4"/>
+<text x="90" y="90" font-size="13" fill="#1f77b4">Actual</text>
+<text x="160" y="90" font-size="13" fill="#d62728">Predicted</text>
+<text x="260" y="90" font-size="13" fill="#777">Naive last-calendar-month</text>
+<text x="25" y="270.0" transform="rotate(-90 25 270.0)" font-size="13">Price</text>
+<text x="80.0" y="500" text-anchor="middle" font-size="12">2024-08</text><text x="538.7" y="500" text-anchor="middle" font-size="12">2025-04</text><text x="940.0" y="500" text-anchor="middle" font-size="12">2025-11</text>
+</svg>

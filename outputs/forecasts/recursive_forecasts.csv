@@ -1,0 +1,46 @@
+series_id,model,horizon_months,forecast_month,forecast_price,status
+Maize (white) | Dawanau | 100 KG | Wholesale,random_forest,1,2023-02,,unavailable_missing_calendar_history
+Maize (white) | Dawanau | 100 KG | Wholesale,random_forest,3,2023-04,,unavailable_missing_calendar_history
+Maize (white) | Dawanau | 100 KG | Wholesale,random_forest,6,2023-07,,unavailable_missing_calendar_history
+Maize (white) | Dawanau | 100 KG | Wholesale,gradient_boosting,1,2023-02,,unavailable_missing_calendar_history
+Maize (white) | Dawanau | 100 KG | Wholesale,gradient_boosting,3,2023-04,,unavailable_missing_calendar_history
+Maize (white) | Dawanau | 100 KG | Wholesale,gradient_boosting,6,2023-07,,unavailable_missing_calendar_history
+Maize (white) | Dawanau | 100 KG | Wholesale,stacking,1,2023-02,,unavailable_missing_calendar_history
+Maize (white) | Dawanau | 100 KG | Wholesale,stacking,3,2023-04,,unavailable_missing_calendar_history
+Maize (white) | Dawanau | 100 KG | Wholesale,stacking,6,2023-07,,unavailable_missing_calendar_history
+Maize | Illela (CBM) | KG | Wholesale,random_forest,1,2017-04,,unavailable_missing_calendar_history
+Maize | Illela (CBM) | KG | Wholesale,random_forest,3,2017-06,,unavailable_missing_calendar_history
+Maize | Illela (CBM) | KG | Wholesale,random_forest,6,2017-09,,unavailable_missing_calendar_history
+Maize | Illela (CBM) | KG | Wholesale,gradient_boosting,1,2017-04,,unavailable_missing_calendar_history
+Maize | Illela (CBM) | KG | Wholesale,gradient_boosting,3,2017-06,,unavailable_missing_calendar_history
+Maize | Illela (CBM) | KG | Wholesale,gradient_boosting,6,2017-09,,unavailable_missing_calendar_history
+Maize | Illela (CBM) | KG | Wholesale,stacking,1,2017-04,,unavailable_missing_calendar_history
+Maize | Illela (CBM) | KG | Wholesale,stacking,3,2017-06,,unavailable_missing_calendar_history
+Maize | Illela (CBM) | KG | Wholesale,stacking,6,2017-09,,unavailable_missing_calendar_history
+Millet | Dawanau | 100 KG | Wholesale,random_forest,1,2022-12,11817.875,recursive_forecast
+Millet | Dawanau | 100 KG | Wholesale,random_forest,3,2023-02,11334.8,recursive_forecast
+Millet | Dawanau | 100 KG | Wholesale,random_forest,6,2023-05,12201.075,recursive_forecast
+Millet | Dawanau | 100 KG | Wholesale,gradient_boosting,1,2022-12,11109.716352513375,recursive_forecast
+Millet | Dawanau | 100 KG | Wholesale,gradient_boosting,3,2023-02,10636.756468381258,recursive_forecast
+Millet | Dawanau | 100 KG | Wholesale,gradient_boosting,6,2023-05,11372.643256534031,recursive_forecast
+Millet | Dawanau | 100 KG | Wholesale,stacking,1,2022-12,23725.649883167607,recursive_forecast
+Millet | Dawanau | 100 KG | Wholesale,stacking,3,2023-02,22996.14045364281,recursive_forecast
+Millet | Dawanau | 100 KG | Wholesale,stacking,6,2023-05,22438.470209411462,recursive_forecast
+Sorghum (white) | Dawanau | 100 KG | Wholesale,random_forest,1,2023-01,,unavailable_missing_calendar_history
+Sorghum (white) | Dawanau | 100 KG | Wholesale,random_forest,3,2023-03,,unavailable_missing_calendar_history
+Sorghum (white) | Dawanau | 100 KG | Wholesale,random_forest,6,2023-06,,unavailable_missing_calendar_history
+Sorghum (white) | Dawanau | 100 KG | Wholesale,gradient_boosting,1,2023-01,,unavailable_missing_calendar_history
+Sorghum (white) | Dawanau | 100 KG | Wholesale,gradient_boosting,3,2023-03,,unavailable_missing_calendar_history
+Sorghum (white) | Dawanau | 100 KG | Wholesale,gradient_boosting,6,2023-06,,unavailable_missing_calendar_history
+Sorghum (white) | Dawanau | 100 KG | Wholesale,stacking,1,2023-01,,unavailable_missing_calendar_history
+Sorghum (white) | Dawanau | 100 KG | Wholesale,stacking,3,2023-03,,unavailable_missing_calendar_history
+Sorghum (white) | Dawanau | 100 KG | Wholesale,stacking,6,2023-06,,unavailable_missing_calendar_history
+Sorghum | Mai Adoua (CBM) | KG | Wholesale,random_forest,1,2017-04,192.14140000000003,recursive_forecast
+Sorghum | Mai Adoua (CBM) | KG | Wholesale,random_forest,3,2017-06,208.41195000000062,recursive_forecast
+Sorghum | Mai Adoua (CBM) | KG | Wholesale,random_forest,6,2017-09,196.80620000000056,recursive_forecast
+Sorghum | Mai Adoua (CBM) | KG | Wholesale,gradient_boosting,1,2017-04,191.06528084058695,recursive_forecast
+Sorghum | Mai Adoua (CBM) | KG | Wholesale,gradient_boosting,3,2017-06,214.50173010998898,recursive_forecast
+Sorghum | Mai Adoua (CBM) | KG | Wholesale,gradient_boosting,6,2017-09,215.8076555722209,recursive_forecast
+Sorghum | Mai Adoua (CBM) | KG | Wholesale,stacking,1,2017-04,202.99005815279008,recursive_forecast
+Sorghum | Mai Adoua (CBM) | KG | Wholesale,stacking,3,2017-06,222.4777943986819,recursive_forecast
+Sorghum | Mai Adoua (CBM) | KG | Wholesale,stacking,6,2017-09,220.3818697309576,recursive_forecast

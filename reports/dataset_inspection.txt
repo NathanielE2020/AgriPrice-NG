@@ -1,0 +1,328 @@
+AgriPrice-NG dataset inspection report
+======================================
+Generated: 2026-11-12
+
+Scope and data-preservation note
+--------------------------------
+This inspection covers only the files that were present in data/raw/:
+
+  - data/raw/train.parquet
+  - data/raw/wfp_markets_nga.csv
+
+The files in data/raw/ were not modified, renamed, or overwritten. No model was
+trained and no dashboard was built during this inspection.
+
+Dependency status
+-----------------
+Python 3.12, NumPy 2.4.0, and scikit-learn were already available. pandas and
+pyarrow were initially absent. Installation was attempted with pip, but the
+package-server connection stalled while downloading the Windows wheels. For
+this inspection only, the Parquet was decoded with the lightweight local
+parquet/thriftpy2 reader (with Snappy page decoding) so that all reported
+statistics come from the actual rows. The project should still install pandas
+and pyarrow before the normal training pipeline is implemented; they remain
+required runtime dependencies.
+
+Files found
+-----------
+train.parquet
+  File size: 487,487 bytes
+  Format: Apache Parquet
+  Rows: 54,883
+  Columns: 17
+  Row groups: 1
+  Footer creator: parquet-cpp-arrow version 22.0.0
+
+wfp_markets_nga.csv
+  File size: 5,438 bytes
+  Physical lines: 120
+  Header row plus WFP metadata-tag row plus 118 market records
+  Columns: market_id, market, countryiso3, admin1, admin2, latitude, longitude
+  The second row contains WFP tags (for example #loc+market+code and
+  #adm1+name), not a market record.
+  After excluding that tag row, the inferred types are market_id=int64,
+  market/countryiso3/admin1/admin2=string, and latitude/longitude=float64.
+  The 118 market records have no blank values and no duplicate market_id.
+
+Parquet dimensions and column types
+------------------------------------
+The dtypes below are the pandas-compatible logical dtypes recorded in the
+Parquet pandas metadata. Text fields are UTF-8 strings; date is a nanosecond
+datetime; numeric fields are 64-bit integers or 64-bit floating point values.
+
+Column       Logical dtype       Missing values
+-----------  ------------------  --------------
+date         datetime64[ns]      0
+admin1       string/object       0
+admin2       string/object       0
+market       string/object       0
+market_id    int64               0
+latitude     float64             0
+longitude    float64             0
+category     string/object       0
+commodity    string/object       0
+commodity_id int64               0
+unit         string/object       0
+priceflag    string/object       0
+pricetype    string/object       0
+currency     string/object       0
+price        float64             0
+usdprice     float64             0
+
+Dataset shape: 54,883 rows x 17 columns.
+All 17 columns have zero missing values in the supplied Parquet file.
+
+Date range and frequency
+------------------------
+  Earliest date: 2002-01-15
+  Latest date:   2025-11-15
+  Unique dates:  287
+  Day of month: 15 for all 54,883 records
+
+The unique dates are monthly snapshots: 2002-01 through 2025-11. The gaps
+between successive global dates are 28, 29, 30, or 31 days, consistent with
+calendar months. There are 12 observed months in each year from 2002 through
+2024 and 11 observed months in 2025. The data is therefore monthly, not daily
+or weekly. Individual commodity-market series are sparse, so a monthly global
+calendar does not imply that every series has an observation in every month.
+
+Commodity coverage
+------------------
+There are 42 distinct commodity names. Record counts are:
+
+Commodity                              Records
+-------------------------------------  -------
+Millet                                   3,173
+Rice (imported)                          2,727
+Rice (local)                             2,612
+Yam                                      2,562
+Oil (palm)                               2,066
+Sorghum (white)                          1,622
+Maize (white)                            1,594
+Sorghum                                  1,572
+Sorghum (brown)                          1,443
+Cowpeas (white)                          1,436
+Groundnuts (shelled)                     1,413
+Gari (white)                             1,392
+Maize (yellow)                            1,344
+Fish                                      1,335
+Groundnuts                                1,322
+Cowpeas (brown)                           1,314
+Onions                                    1,310
+Meat (beef)                               1,305
+Meat (goat)                               1,302
+Milk (powder)                             1,290
+Watermelons                               1,290
+Cassava meal (gari, yellow)               1,274
+Oranges                                   1,271
+Beans (white)                             1,260
+Oil (vegetable)                           1,257
+Beans (red)                               1,247
+Bananas                                   1,235
+Maize flour                               1,228
+Eggs                                      1,216
+Salt                                      1,208
+Sugar                                     1,201
+Tomatoes                                  1,179
+Spinach                                   1,128
+Cowpeas                                   1,116
+Fuel (petrol-gasoline)                     993
+Fuel (diesel)                              963
+Bread                                      960
+Maize                                      385
+Rice (milled, local)                       234
+Yam (Abuja)                                 42
+Wheat                                       41
+Beans (niebe)                               21
+
+Administrative and market coverage
+------------------------------------
+In train.parquet:
+  - 14 distinct admin1/state values
+  - 49 distinct admin2 values
+  - 68 distinct market IDs and market names
+
+Records by admin1/state:
+
+State       Records
+----------  -------
+Borno        18,517
+Yobe         17,608
+Kaduna        2,675
+Katsina       2,090
+Adamawa       1,818
+Kano          1,674
+Oyo           1,634
+Jigawa        1,559
+Kebbi         1,544
+Zamfara       1,532
+Gombe         1,502
+Lagos         1,439
+Abia            889
+Sokoto          402
+
+The 68 markets represented in train.parquet are:
+
+Illela (CBM), Jibia (CBM), Mai Adoua (CBM), Damassack (CBM), Mai Gatari (CBM),
+Aba, Biu, Damaturu, Dandume, Giwa, Gombe, Gujungu, Gwandu, Ibadan, Dawanau,
+Kaura Namoda, Lagos, Maiduguri, Mubi, Potiskum, Saminaka, Budum, Baga Road,
+Bullunkutu, Nguru, Bade (Gashua), Yusufari, Gujba (Buni Yadi), Damaturu
+(Sunday Market), Yunusari, Geidam, Abba Gamaram, Custom, Kusawam Shanu,
+Monday, Tashan Bama, Jakusko, Gulani (Tettaba), Bursari, Bolori Stores, Ngala,
+Monguno, Konduga, Magumeri Central, Madagali, Damboa, Ngalang, Kashuwan
+Shanu, Michika, Gwoza Central, Dikwa Central, Gamboru, Bayantasha, Jimeta
+Grain, Bama, Gajiram, Mafa, Banki, Pulka, Biriri, Damagum, Shani Main Market,
+Machina Central, Rann, Mubi North, Gombi, Nangere, and Ngelzarma.
+
+The supporting CSV contains 118 unique market IDs across 15 admin1 values. It
+includes Abuja in its metadata coverage, while Abuja does not occur in the
+Parquet observations. All 68 market IDs observed in train.parquet are present
+in the CSV. The CSV has 50 additional market IDs that are not represented in
+train.parquet; these are metadata-only for this project unless future price
+observations are supplied.
+
+Price fields, types, units, and currencies
+------------------------------------------
+The suitable common target candidate is price, which is a nominal NGN amount
+for the unit in the unit column. usdprice is also complete, but it is a USD
+equivalent and should not be mixed with price in one target. currency contains
+only NGN (54,883 records).
+
+Price type:
+  Retail:    40,798
+  Wholesale: 14,085
+
+Price flag:
+  actual:             33,783
+  aggregate:          20,613
+  actual,aggregate:      487
+
+Units and record counts:
+
+Unit         Records       Unit         Records
+-----------  -------       -----------  -------
+100 KG        10,811       KG              9,775
+2.5 KG         5,632       L               5,237
+2.7 KG         2,932       400 G           2,561
+2.1 KG         2,518       0.5 KG          2,489
+2.6 KG         1,725       2.8 KG          1,487
+2.2 KG         1,322       1.3 KG          1,235
+30 pcs         1,216       250 G           1,208
+500 G          1,201       300 G           1,128
+50 KG          1,083       Unit              960
+100 Tubers       327       100 L              36
+
+Observed numeric ranges (not normalized across units):
+  price:    1.00 to 137,677.42 NGN per recorded unit
+  usdprice: 0.0023 to 358.76 USD equivalent
+  zero prices: 0 in either numeric price field
+  negative prices: 0 in either numeric price field
+
+Data-quality checks
+--------------------
+  Missing values: 0 in every Parquet column.
+  Supporting CSV market records: 0 blank values in all seven columns.
+  Exact duplicate rows: 0.
+  Duplicate observation keys using
+  (date, market_id, commodity_id, unit, pricetype, currency): 0.
+  Non-finite or negative price values: none observed.
+  Distinct (commodity, market_id, unit, pricetype) series: 1,753.
+
+The absence of duplicate keys does not mean that all series are complete. The
+1,753 series are unevenly sampled over the 287-month global calendar. Before
+modeling, the selected series must be checked for history length and gaps.
+
+Recommended training plan based on this dataset
+------------------------------------------------
+1. Target and series definition
+   Use price as the single target, in nominal NGN and in its observed unit.
+   Keep currency == NGN (the only value present). Do not combine KG, bags,
+   litres, pieces, tubs, or other units into one numeric series. A modeling
+   series should be identified by at least:
+
+       commodity + market_id + unit + pricetype
+
+   priceflag should be kept as a series-selection/status field. The primary
+   experiment should use one consistent flag per series (prefer actual where
+   there is enough history); aggregate and actual,aggregate observations must
+   not be silently mixed with actual observations. Record the final policy and
+   selected series in the training configuration.
+
+2. Monthly preparation
+   The source is already monthly, so do not resample daily or weekly data.
+   Parse date as a true datetime and use the observed month (the source date is
+   always the 15th). Sort chronologically and aggregate only if a duplicate
+   monthly key is encountered after the documented filtering. Reindexing a
+   selected series to a monthly calendar may be used to expose gaps, but do
+   not fill a missing target with a fabricated price. Drop rows whose lag or
+   rolling features cannot be computed from past observations.
+
+3. History sufficiency and sparsity
+   There are 1,753 commodity-market-unit-price-type series. Before splitting,
+   742 of these have at least 36 observed records, 562 have at least 48, and
+   289 have at least 60. These are counts before splitting by priceflag.
+   Individual series are not dense: no series meets both 36 observations and
+   80% coverage of its full calendar span. Therefore use a configurable
+   minimum-history rule (for example 36 observed monthly points plus a
+   documented maximum-gap rule) and exclude a series that cannot support a
+   12-month lookback and the required validation/test horizon. Save the exact
+   selected combinations rather than claiming that all markets are modeled.
+
+4. Features without leakage
+   For each selected series, create lagged prices (for example lags 1, 2, 3,
+   6, and 12 observed/calendar months as supported), shifted rolling means and
+   standard deviations (3, 6, and 12), month number, and cyclic month
+   features. Every rolling statistic must be shifted so it uses only data
+   available before the prediction date. Fit any scaler or encoder on the
+   training portion only. Do not use usdprice as an input derived from the
+   target unless this relationship is explicitly treated as leakage; the
+   safer default is to exclude it.
+
+5. Chronological evaluation
+   Use the same cutoff dates and the same selected series for all five models.
+   A practical split is an earlier training period, a chronological validation
+   period, and the final chronological test period; use rolling-origin
+   validation when a series has enough observations. Do not randomly shuffle.
+   For a six-month evaluation, require six future observed target months after
+   the cutoff; otherwise record that the series cannot support that horizon.
+   Include a persistence/last-observed-price naive baseline.
+
+6. Required models and comparable target
+   Train the LSTM (TensorFlow/Keras), Random Forest Regressor, XGBoost
+   Regressor, Gradient Boosting Regressor, and a stacking ensemble on the same
+   price target and comparable chronological test period. The tree models can
+   use the lag/rolling/calendar feature table. The LSTM should use the same
+   past-price information as a fixed-length chronological sequence. For the
+   stacking model, generate out-of-fold chronological predictions from the
+   base models, fit the meta-model only on those predictions, and evaluate it
+   once on the untouched test period.
+
+7. Metrics and forecasts
+   Report RMSE, MAE, MAPE, and R-squared for every model and series. Compute
+   MAPE only where the actual price is non-zero; keep the zero-count in the
+   report. Produce actual-versus-predicted plots and CSV comparison tables.
+   One-, three-, and six-month forecasts must be generated recursively: after
+   predicting one month, append that prediction to the lag/rolling history
+   before predicting the next month. A one-step result must not be relabeled as
+   a six-month forecast. If confidence intervals are added, document whether
+   they come from residual bootstrap or another method and state that they are
+   approximate for sparse, non-stationary market series.
+
+8. Outputs and reproducibility
+   Preserve data/raw/. Write cleaned monthly data to data/processed/, models
+   and preprocessing objects to models/, plots to outputs/plots/, and metrics
+   and configuration to reports/ and CSV outputs. The configuration should
+   include the target column, unit/priceflag policy, selected series, date
+   cutoffs, lookback, forecast horizons, random seeds, and package versions.
+   Only after this inspection and approval of the plan should the full training
+   pipeline and dashboard be implemented.
+
+Conclusion
+----------
+The supplied WFP file is a complete, monthly, 54,883-row Parquet table with
+42 commodities, 68 observed markets in 14 states, NGN prices, multiple price
+types and 20 recorded units. It has no missing values or duplicate observation
+keys, but the commodity-market series are uneven and sparse. The main modeling
+decision is therefore series selection and unit/priceflag consistency; a
+single model trained on all raw price values would mix incomparable units and
+would not be a defensible price forecast.

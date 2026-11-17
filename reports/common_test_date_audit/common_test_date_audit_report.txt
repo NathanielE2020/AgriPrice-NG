@@ -1,0 +1,55 @@
+AgriPrice-NG common-test-date model comparison audit
+
+This read-only audit reuses saved tabular model artifacts and saved LSTM predictions. No model was retrained and no original report was overwritten.
+
+Decision priority: Option A (common eligible prediction dates) was applied per series when all six models had legitimate predictions. Each model is evaluated on exactly the same target months and actual prices within that series.
+Saved tabular models were allowed to predict only their recorded final-validation test months. Dates outside those periods were not extrapolated. A prediction is eligible only when its fitting period ends before the target date and transformation selection is recorded as validation-only.
+Reproduction check: 24 saved tabular test rows were recalculated; all reported RMSE values match within 1e-6: True (maximum absolute difference: 9.094947017729282e-13).
+
+Series: Millet | 2.6 KG | Retail
+  LSTM train/validation/test: 2017-08 to 2023-05; 2023-06 to 2024-08; 2024-09 to 2025-11
+  Tabular train/validation/test: 2016-11 to 2023-02; 2023-03 to 2024-06; 2024-07 to 2025-11
+  Common eligible target dates before all-model checks: 15 (2024-09 to 2025-11)
+  All-six common-date comparison: YES
+  LSTM transformation: price_change; tabular transformations: random_forest=price_change, gradient_boosting=price_change, xgboost=price_change, stacking=percentage_change
+
+Series: Oil (palm) | L | Retail
+  LSTM train/validation/test: 2016-08 to 2023-01; 2023-02 to 2024-06; 2024-07 to 2025-11
+  Tabular train/validation/test: 2015-02 to 2022-09; 2022-10 to 2024-04; 2024-05 to 2025-11
+  Common eligible target dates before all-model checks: 17 (2024-07 to 2025-11)
+  All-six common-date comparison: YES
+  LSTM transformation: price_change; tabular transformations: random_forest=percentage_change, gradient_boosting=percentage_change, xgboost=percentage_change, stacking=percentage_change
+
+Series: Rice (imported) | 2.8 KG | Retail
+  LSTM train/validation/test: 2017-04 to 2023-03; 2023-04 to 2024-07; 2024-08 to 2025-11
+  Tabular train/validation/test: 2014-10 to 2022-11; 2022-12 to 2024-05; 2024-06 to 2025-11
+  Common eligible target dates before all-model checks: 16 (2024-08 to 2025-11)
+  All-six common-date comparison: YES
+  LSTM transformation: price_change; tabular transformations: random_forest=price_change, gradient_boosting=price_change, xgboost=price_change, stacking=price_change
+
+Series: Rice (imported) | 50 KG | Wholesale
+  LSTM train/validation/test: 2013-05 to 2020-06; 2020-07 to 2021-09; 2021-10 to 2023-01
+  Tabular train/validation/test: 2012-08 to 2019-12; 2020-01 to 2021-06; 2021-07 to 2023-01
+  Common eligible target dates before all-model checks: 16 (2021-10 to 2023-01)
+  All-six common-date comparison: YES
+  LSTM transformation: original; tabular transformations: random_forest=percentage_change, gradient_boosting=price_change, xgboost=percentage_change, stacking=price_change
+
+Series: Rice (local) | 2.7 KG | Retail
+  LSTM train/validation/test: 2017-05 to 2023-04; 2023-05 to 2024-07; 2024-08 to 2025-11
+  Tabular train/validation/test: 2015-02 to 2022-11; 2022-12 to 2024-05; 2024-06 to 2025-11
+  Common eligible target dates before all-model checks: 16 (2024-08 to 2025-11)
+  All-six common-date comparison: YES
+  LSTM transformation: price_change; tabular transformations: random_forest=percentage_change, gradient_boosting=percentage_change, xgboost=percentage_change, stacking=percentage_change
+
+Series: Yam | 2.5 KG | Retail
+  LSTM train/validation/test: 2015-07 to 2022-09; 2022-10 to 2024-04; 2024-05 to 2025-11
+  Tabular train/validation/test: 2014-10 to 2022-06; 2022-07 to 2024-02; 2024-03 to 2025-11
+  Common eligible target dates before all-model checks: 19 (2024-05 to 2025-11)
+  All-six common-date comparison: YES
+  LSTM transformation: price_change; tabular transformations: random_forest=price_change, gradient_boosting=price_change, xgboost=percentage_change, stacking=price_change
+
+Overall decision
+  Series with a valid all-six common-date comparison: 6 of 6.
+  Valid model metric rows: 36.
+  Existing reports, models, raw files, and forecasts were not overwritten.
+  If a series has no all-six common dates, a unified chronological retraining experiment is required before claiming a complete six-model comparison.

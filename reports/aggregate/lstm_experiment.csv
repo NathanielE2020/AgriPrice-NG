@@ -1,0 +1,7 @@
+series_id,sequence_window,sequence_count,train_sequences,validation_sequences,test_sequences,rmse,mae,mape,r2,status,notes
+Millet | 2.6 KG | Retail,12,100,70,15,15,,,,,missing_tensorflow,TensorFlow/Keras unavailable: No module named 'tensorflow'
+Oil (palm) | L | Retail,12,112,78,17,17,,,,,missing_tensorflow,TensorFlow/Keras unavailable: No module named 'tensorflow'
+Rice (imported) | 2.8 KG | Retail,12,104,72,16,16,,,,,missing_tensorflow,TensorFlow/Keras unavailable: No module named 'tensorflow'
+Rice (imported) | 50 KG | Wholesale,12,103,72,15,16,,,,,missing_tensorflow,TensorFlow/Keras unavailable: No module named 'tensorflow'
+Rice (local) | 2.7 KG | Retail,12,103,72,15,16,,,,,missing_tensorflow,TensorFlow/Keras unavailable: No module named 'tensorflow'
+Yam | 2.5 KG | Retail,12,125,87,19,19,,,,,missing_tensorflow,TensorFlow/Keras unavailable: No module named 'tensorflow'

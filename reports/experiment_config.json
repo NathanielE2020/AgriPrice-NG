@@ -1,0 +1,63 @@
+{
+  "approved_series": [
+    [
+      "Maize",
+      "Illela (CBM)",
+      "KG",
+      "Wholesale"
+    ],
+    [
+      "Sorghum",
+      "Mai Adoua (CBM)",
+      "KG",
+      "Wholesale"
+    ],
+    [
+      "Maize (white)",
+      "Dawanau",
+      "100 KG",
+      "Wholesale"
+    ],
+    [
+      "Millet",
+      "Dawanau",
+      "100 KG",
+      "Wholesale"
+    ],
+    [
+      "Sorghum (white)",
+      "Dawanau",
+      "100 KG",
+      "Wholesale"
+    ]
+  ],
+  "target": "target_price",
+  "feature_columns": [
+    "price_lag_1",
+    "price_lag_2",
+    "price_lag_3",
+    "rolling_mean_3",
+    "rolling_std_3",
+    "month_sin",
+    "month_cos",
+    "trend_index"
+  ],
+  "chronological_split": {
+    "train": 0.7,
+    "validation": 0.15,
+    "test": 0.15
+  },
+  "random_state": 42,
+  "xgboost_dependency_note": "xgboost unavailable: No module named 'xgboost'",
+  "models_trained": [
+    "gradient_boosting",
+    "naive_last_calendar_month",
+    "random_forest",
+    "stacking"
+  ],
+  "lstm": "exploratory stage reported separately; primary series lack reliable 12-month runs",
+  "aggregate_rows": 6163,
+  "lstm_statuses": [
+    "insufficient_sequences"
+  ]
+}

@@ -1,0 +1,7 @@
+series_id,lowest_reported_test_rmse_model,test_rmse,comparison_source,note
+Millet | 2.6 KG | Retail,naive_last_observation,118.92128035729527,final_validation,Date alignment must be checked; LSTM sequence test dates may differ from tabular final-validation dates.
+Oil (palm) | L | Retail,xgboost,182.80158649089873,final_validation,Date alignment must be checked; LSTM sequence test dates may differ from tabular final-validation dates.
+Rice (imported) | 2.8 KG | Retail,naive_last_observation,415.19696683207565,final_validation,Date alignment must be checked; LSTM sequence test dates may differ from tabular final-validation dates.
+Rice (imported) | 50 KG | Wholesale,stacking,1249.5591771439083,final_validation,Date alignment must be checked; LSTM sequence test dates may differ from tabular final-validation dates.
+Rice (local) | 2.7 KG | Retail,naive_last_observation,203.93202558281774,final_validation,Date alignment must be checked; LSTM sequence test dates may differ from tabular final-validation dates.
+Yam | 2.5 KG | Retail,gradient_boosting,289.8022451071078,final_validation,Date alignment must be checked; LSTM sequence test dates may differ from tabular final-validation dates.

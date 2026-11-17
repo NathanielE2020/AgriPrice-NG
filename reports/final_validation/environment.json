@@ -1,0 +1,10 @@
+{
+  "python": "3.12.5 (tags/v3.12.5:ff3bc82, Aug  6 2024, 20:45:27) [MSC v.1940 64 bit (AMD64)]",
+  "executable": "D:\\Projects\\STUDENTS_PROJECT\\AGRIC-PRICE-NG\\.venv\\Scripts\\python.exe",
+  "platform": "Windows-11-10.0.22621-SP0",
+  "architecture": "64bit",
+  "prefix": "D:\\Projects\\STUDENTS_PROJECT\\AGRIC-PRICE-NG\\.venv",
+  "base_prefix": "C:\\Python312",
+  "xgboost_status": "available (3.4.1)",
+  "tensorflow_status": "unavailable: No module named 'tensorflow'"
+}

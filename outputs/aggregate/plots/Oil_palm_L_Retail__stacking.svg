@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="560" viewBox="0 0 1000 560">
+<rect width="100%" height="100%" fill="white"/>
+<text x="500" y="30" text-anchor="middle" font-size="18" font-family="Arial">Oil (palm) | L | Retail — stacking</text>
+<line x1="80" y1="470" x2="940" y2="470" stroke="#444"/>
+<line x1="80" y1="70" x2="80" y2="470" stroke="#444"/>
+<polyline fill="none" stroke="#1f77b4" stroke-width="3" points="80.0,318.8 127.8,288.2 175.6,333.0 223.3,304.1 271.1,268.2 318.9,257.3 366.7,222.0 414.4,155.7 462.2,152.0 510.0,97.6 557.8,159.5 605.6,200.6 653.3,165.8 701.1,165.6 748.9,141.7 796.7,139.4 844.4,175.4 892.2,162.5 940.0,137.1"/>
+<polyline fill="none" stroke="#d62728" stroke-width="2" points="80.0,441.4 127.8,441.5 175.6,441.5 223.3,441.6 271.1,441.6 318.9,441.9 366.7,442.2 414.4,442.2 462.2,442.2 510.0,442.0 557.8,441.9 605.6,441.9 653.3,441.3 701.1,441.3 748.9,441.9 796.7,441.7 844.4,441.8 892.2,442.3 940.0,442.4"/>
+<polyline fill="none" stroke="#777" stroke-width="2" stroke-dasharray="6 4" points="80.0,329.7 127.8,318.8 175.6,288.2 223.3,333.0 271.1,304.1 318.9,268.2 366.7,257.3 414.4,222.0 462.2,155.7 510.0,152.0 557.8,97.6 605.6,159.5 653.3,200.6 701.1,165.8 748.9,165.6 796.7,141.7 844.4,139.4 892.2,175.4 940.0,162.5"/>
+<text x="90" y="90" font-size="13" fill="#1f77b4">Actual</text>
+<text x="160" y="90" font-size="13" fill="#d62728">Predicted</text>
+<text x="260" y="90" font-size="13" fill="#777">Naive last-calendar-month</text>
+<text x="25" y="270.0" transform="rotate(-90 25 270.0)" font-size="13">Price</text>
+<text x="80.0" y="500" text-anchor="middle" font-size="12">2024-05</text><text x="510.0" y="500" text-anchor="middle" font-size="12">2025-02</text><text x="940.0" y="500" text-anchor="middle" font-size="12">2025-11</text>
+</svg>

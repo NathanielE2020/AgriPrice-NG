@@ -1,0 +1,14 @@
+AgriPrice-NG final-validation LSTM status
+
+Interpreter: D:\Projects\STUDENTS_PROJECT\AGRIC-PRICE-NG\.venv\Scripts\python.exe
+TensorFlow: unavailable: No module named 'tensorflow'
+
+series_id | sequences | train | validation | test | status | selected_transformation | test_RMSE
+Millet | 2.6 KG | Retail | 100 | 70 | 15 | 15 | unavailable |  |
+Oil (palm) | L | Retail | 112 | 78 | 17 | 17 | unavailable |  |
+Rice (imported) | 2.8 KG | Retail | 104 | 72 | 16 | 16 | unavailable |  |
+Rice (imported) | 50 KG | Wholesale | 103 | 72 | 15 | 16 | unavailable |  |
+Rice (local) | 2.7 KG | Retail | 103 | 72 | 15 | 16 | unavailable |  |
+Yam | 2.5 KG | Retail | 125 | 87 | 19 | 19 | unavailable |  |
+
+The 12-month sequence window requires complete observed calendar history. Sequence counts and statuses are also in lstm_sequence_counts.csv and selection_audit.csv. No LSTM metrics were fabricated.

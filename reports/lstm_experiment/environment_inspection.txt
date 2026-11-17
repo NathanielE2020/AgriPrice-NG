@@ -1,0 +1,153 @@
+AgriPrice-NG - LSTM recovery Stage 1 inspection
+Generated: 2026-11-13
+
+Status
+------
+This is an inspection-only report. No TensorFlow/PyTorch installation was
+attempted and no LSTM training was started. Existing models, reports, outputs,
+and data/raw files were not changed.
+
+1. Runtime and environment
+--------------------------
+Operating system: Windows 11
+Architecture: AMD64 / 64-bit
+Base Python: C:\Python312\python.exe
+Base Python version: 3.12.5
+Project environment: D:\Projects\STUDENTS_PROJECT\AGRIC-PRICE-NG\.venv\Scripts\python.exe
+Project environment version: 3.12.5
+Available Python launchers:
+  Python 3.12: C:\Python312\python.exe
+  Python 2.7 (32-bit): C:\Python27\python.exe
+
+Project-environment packages detected:
+  pandas 2.2.3
+  numpy 2.5.4
+  scikit-learn 1.9.1
+  xgboost 3.4.1
+  Flask 3.1.3
+  joblib 1.6.0
+  pyarrow: not installed
+  tensorflow: not installed
+  torch: not installed
+
+Disk space at inspection time:
+  C: 128.98 GB free of 426.29 GB
+  D: 29.96 GB free of 50.04 GB
+
+2. Aggregate monthly file
+-------------------------
+File: data/processed/aggregate_monthly_reindexed.csv
+Dimensions: 820 rows x 12 columns
+Columns and pandas dtypes:
+  commodity        object
+  unit             object
+  price_type       object
+  series_id        object
+  month            object (YYYY-MM)
+  date             object (YYYY-MM-15)
+  mean_price       float64
+  median_price     float64
+  n_markets        int64
+  n_records        int64
+  currency_values  object
+  observed         bool
+
+The file is monthly and reindexed to each series' calendar range. Missing
+calendar months remain present with observed=False and no mean_price; they are
+not imputed or forward-filled. There are no duplicate
+commodity/unit/price_type/month keys. The combined file spans 2012-05 to
+2025-11 and contains 789 observed rows plus 31 explicit missing calendar rows.
+
+3. Approved aggregate series coverage
+-------------------------------------
+Series                                        Calendar  Observed  Missing  Coverage   Range
+Millet | 2.6 KG | Retail                           139       127       12    91.37%   2014-05..2025-11
+Oil (palm) | L | Retail                           139       134        5    96.40%   2014-05..2025-11
+Rice (imported) | 2.8 KG | Retail                 139       133        6    95.68%   2014-05..2025-11
+Rice (imported) | 50 KG | Wholesale               129       127        2    98.45%   2012-05..2023-01
+Rice (local) | 2.7 KG | Retail                    137       131        6    95.62%   2014-07..2025-11
+Yam | 2.5 KG | Retail                            137       137        0   100.00%   2014-07..2025-11
+
+The aggregate target used by final validation is the monthly unweighted
+mean_price. Unit and price_type are kept separate. n_markets and n_records are
+retained as metadata and are not used to fill missing target prices.
+
+4. Complete consecutive input sequences
+----------------------------------------
+Sequence counts below require an observed target month and every preceding
+calendar month in the input window to be observed with a non-null mean_price.
+The chronological split is 70% train, 15% validation, 15% test using sequence
+target months.
+
+Series                                        6-month window             12-month window
+Millet | 2.6 KG | Retail                       106 (74/16/16)             100 (70/15/15)
+Oil (palm) | L | Retail                        120 (84/18/18)             112 (78/17/17)
+Rice (imported) | 2.8 KG | Retail               111 (77/17/17)             104 (72/16/16)
+Rice (imported) | 50 KG | Wholesale             115 (80/17/18)             103 (72/15/16)
+Rice (local) | 2.7 KG | Retail                  109 (76/16/17)             103 (72/15/16)
+Yam | 2.5 KG | Retail                          131 (91/20/20)             125 (87/19/19)
+
+All six series exceed the existing defensibility threshold of 20 total
+12-month sequences. A 6-month window provides more sequences, but a 12-month
+window is consistent with the existing final-validation LSTM design and
+captures annual seasonality. Both windows are feasible for comparison.
+
+5. Existing final-validation chronological boundaries
+------------------------------------------------------
+These are the exact tabular feature-row boundaries used for the existing final
+validation tree/XGBoost/stacking comparison:
+
+Series                                        Train                  Validation             Test
+Millet | 2.6 KG | Retail                       2016-11..2023-02 (76)  2023-03..2024-06 (16)  2024-07..2025-11 (17)
+Oil (palm) | L | Retail                        2015-02..2022-09 (88)  2022-10..2024-04 (19)  2024-05..2025-11 (19)
+Rice (imported) | 2.8 KG | Retail               2014-10..2022-11 (82)  2022-12..2024-05 (18)  2024-06..2025-11 (18)
+Rice (imported) | 50 KG | Wholesale             2012-08..2019-12 (84)  2020-01..2021-06 (18)  2021-07..2023-01 (19)
+Rice (local) | 2.7 KG | Retail                  2015-02..2022-11 (81)  2022-12..2024-05 (18)  2024-06..2025-11 (18)
+Yam | 2.5 KG | Retail                          2014-10..2022-06 (93)  2022-07..2024-02 (20)  2024-03..2025-11 (21)
+
+The existing 12-month sequence split has different target-month boundaries
+because the input window requires 12 preceding complete calendar months:
+
+Series                                        Train                  Validation             Test
+Millet | 2.6 KG | Retail                       2017-08..2023-05 (70)  2023-06..2024-08 (15)  2024-09..2025-11 (15)
+Oil (palm) | L | Retail                        2016-08..2023-01 (78)  2023-02..2024-06 (17)  2024-07..2025-11 (17)
+Rice (imported) | 2.8 KG | Retail               2017-04..2023-03 (72)  2023-04..2024-07 (16)  2024-08..2025-11 (16)
+Rice (imported) | 50 KG | Wholesale             2013-05..2020-06 (72)  2020-07..2021-09 (15)  2021-10..2023-01 (16)
+Rice (local) | 2.7 KG | Retail                  2017-05..2023-04 (72)  2023-05..2024-07 (15)  2024-08..2025-11 (16)
+Yam | 2.5 KG | Retail                          2015-07..2022-09 (87)  2022-10..2024-04 (19)  2024-05..2025-11 (19)
+
+The test months for the 12-month LSTM therefore do not exactly match the
+tabular test months. This is a structural consequence of complete sequence
+construction and must be disclosed when comparing LSTM results.
+
+6. Existing LSTM preprocessing reuse assessment
+-----------------------------------------------
+Reusable, inspected helpers:
+  src/final_validation.py::_build_sequences
+    Builds only calendar-contiguous observed sequences and never imputes gaps.
+  src/final_validation.py::_sequence_split
+    Uses chronological 70/15/15 sequence-target ordering.
+  src/final_validation.py::_lstm_fit_predict
+    Fits input and target StandardScaler objects on training data only, applies
+    them to validation/test data, supports validation early stopping, and
+    inverse-transforms predictions before metrics.
+  src/final_validation.py::_recursive_lstm_forecast
+    Feeds recursive predictions back into the 12-month input window.
+
+src/lstm_experiment.py contains a similar exploratory implementation, but its
+artifact paths and report paths point at the existing market-level locations.
+It should not be reused as-is for this recovery experiment because the new
+models/reports must remain isolated. The lower-level sequence/scaling logic can
+be adapted into a separate experiment script.
+
+7. Stage 1 recommendation
+-------------------------
+Create an isolated .venv-lstm environment with the installed 64-bit Python
+3.12 interpreter and attempt a controlled TensorFlow CPU installation. Use
+the 12-month window as the primary comparison because it matches the existing
+final-validation design, and optionally run the 6-month window as a clearly
+separate sensitivity experiment. Do not pool the six series merely to increase
+sample counts: each individual series already has sufficient complete
+sequences, and pooling would alter the unit/commodity-specific interpretation.
+
+No model training was performed during this inspection.

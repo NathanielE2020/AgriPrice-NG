@@ -1,0 +1,145 @@
+AgriPrice-NG Phase 3.3 forecasting performance diagnosis
+========================================================
+
+This diagnosis preserves all existing market-level and aggregate outputs. New calculations are written only under reports/diagnostics/.
+
+1. Alignment and feature checks
+--------------------------------
+Predictions were reconstructed from the saved aggregate model artifacts and the saved aggregate feature rows.
+Each model uses the same chronological test rows as the naive baseline within its series.
+The target is aggregate mean_price; units and price types remain separate.
+Existing aggregate features are calendar lags 1-3, previous-three-month rolling statistics, month sine/cosine, and year_index.
+Log, change, and percentage-change reconstruction uses the historical lag_1 available at each test date; no future target is used.
+
+2. Error direction and baseline comparison
+--------------------------------------------
+Millet | 2.6 KG | Retail
+  naive_last_observation: bias=71.03 (overestimates), RMSE=118.92, MAE=93.69, MAPE=6.17%, RMSE delta vs naive=0.00, outside training range=17
+  random_forest: bias=-984.85 (underestimates), RMSE=1068.73, MAE=984.85, MAPE=57.87%, RMSE delta vs naive=949.81, outside training range=0
+  gradient_boosting: bias=-1006.71 (underestimates), RMSE=1088.61, MAE=1006.71, MAPE=59.34%, RMSE delta vs naive=969.69, outside training range=0
+  stacking: bias=-1070.81 (underestimates), RMSE=1147.94, MAE=1070.81, MAPE=63.61%, RMSE delta vs naive=1029.02, outside training range=0
+  direction=increase model=naive_last_observation: n=4, bias=-48.14, RMSE=51.64
+  direction=decrease model=naive_last_observation: n=13, bias=107.70, RMSE=132.94
+  direction=increase model=random_forest: n=4, bias=-1286.24, RMSE=1316.84
+  direction=decrease model=random_forest: n=13, bias=-892.11, RMSE=979.83
+  direction=increase model=gradient_boosting: n=4, bias=-1305.23, RMSE=1335.80
+  direction=decrease model=gradient_boosting: n=13, bias=-914.86, RMSE=1000.34
+  direction=increase model=stacking: n=4, bias=-1366.87, RMSE=1396.50
+  direction=decrease model=stacking: n=13, bias=-979.72, RMSE=1059.80
+Oil (palm) | L | Retail
+  naive_last_observation: bias=-55.95 (underestimates), RMSE=193.41, MAE=162.69, MAPE=7.63%, RMSE delta vs naive=0.00, outside training range=19
+  random_forest: bias=-1144.30 (underestimates), RMSE=1208.31, MAE=1144.30, MAPE=50.33%, RMSE delta vs naive=1014.90, outside training range=0
+  gradient_boosting: bias=-1136.30 (underestimates), RMSE=1198.57, MAE=1136.30, MAPE=50.01%, RMSE delta vs naive=1005.16, outside training range=0
+  stacking: bias=-1321.73 (underestimates), RMSE=1375.78, MAE=1321.73, MAPE=58.75%, RMSE delta vs naive=1182.37, outside training range=0
+  direction=increase model=naive_last_observation: n=15, bias=-138.47, RMSE=171.67
+  direction=decrease model=naive_last_observation: n=4, bias=253.52, RMSE=259.15
+  direction=increase model=random_forest: n=15, bias=-1166.53, RMSE=1228.64
+  direction=decrease model=random_forest: n=4, bias=-1060.96, RMSE=1128.80
+  direction=increase model=gradient_boosting: n=15, bias=-1158.12, RMSE=1218.62
+  direction=decrease model=gradient_boosting: n=4, bias=-1054.49, RMSE=1120.18
+  direction=increase model=stacking: n=15, bias=-1343.55, RMSE=1396.16
+  direction=decrease model=stacking: n=4, bias=-1239.91, RMSE=1296.50
+Rice (imported) | 2.8 KG | Retail
+  naive_last_observation: bias=14.18 (overestimates), RMSE=415.20, MAE=346.77, MAPE=6.64%, RMSE delta vs naive=0.00, outside training range=18
+  random_forest: bias=-3621.48 (underestimates), RMSE=3694.90, MAE=3621.48, MAPE=66.46%, RMSE delta vs naive=3279.70, outside training range=0
+  gradient_boosting: bias=-3574.25 (underestimates), RMSE=3649.79, MAE=3574.25, MAPE=65.56%, RMSE delta vs naive=3234.59, outside training range=0
+  stacking: bias=-3571.55 (underestimates), RMSE=3646.48, MAE=3571.55, MAPE=65.51%, RMSE delta vs naive=3231.28, outside training range=0
+  direction=increase model=naive_last_observation: n=9, bias=-332.59, RMSE=375.18
+  direction=decrease model=naive_last_observation: n=9, bias=360.94, RMSE=451.68
+  direction=increase model=random_forest: n=9, bias=-3691.42, RMSE=3766.08
+  direction=decrease model=random_forest: n=9, bias=-3551.54, RMSE=3622.32
+  direction=increase model=gradient_boosting: n=9, bias=-3644.94, RMSE=3721.60
+  direction=decrease model=gradient_boosting: n=9, bias=-3503.55, RMSE=3576.53
+  direction=increase model=stacking: n=9, bias=-3641.80, RMSE=3717.92
+  direction=decrease model=stacking: n=9, bias=-3501.30, RMSE=3573.61
+Rice (imported) | 50 KG | Wholesale
+  naive_last_observation: bias=-532.14 (underestimates), RMSE=1267.67, MAE=988.16, MAPE=3.35%, RMSE delta vs naive=0.00, outside training range=19
+  random_forest: bias=-12340.79 (underestimates), RMSE=12711.03, MAE=12340.79, MAPE=39.99%, RMSE delta vs naive=11443.36, outside training range=0
+  gradient_boosting: bias=-12431.56 (underestimates), RMSE=12787.76, MAE=12431.56, MAPE=40.31%, RMSE delta vs naive=11520.09, outside training range=0
+  stacking: bias=-12139.37 (underestimates), RMSE=12486.17, MAE=12139.37, MAPE=39.38%, RMSE delta vs naive=11218.50, outside training range=4
+  direction=increase model=naive_last_observation: n=15, bias=-962.86, RMSE=1237.84
+  direction=decrease model=naive_last_observation: n=4, bias=1083.04, RMSE=1373.78
+  direction=increase model=random_forest: n=15, bias=-12779.09, RMSE=13058.95
+  direction=decrease model=random_forest: n=4, bias=-10697.13, RMSE=11311.42
+  direction=increase model=gradient_boosting: n=15, bias=-12894.82, RMSE=13167.78
+  direction=decrease model=gradient_boosting: n=4, bias=-10694.31, RMSE=11248.93
+  direction=increase model=stacking: n=15, bias=-12639.17, RMSE=12912.13
+  direction=decrease model=stacking: n=4, bias=-10265.11, RMSE=10739.39
+Rice (local) | 2.7 KG | Retail
+  naive_last_observation: bias=47.62 (overestimates), RMSE=203.93, MAE=175.20, MAPE=4.78%, RMSE delta vs naive=0.00, outside training range=18
+  random_forest: bias=-2377.63 (underestimates), RMSE=2442.33, MAE=2377.63, MAPE=62.90%, RMSE delta vs naive=2238.40, outside training range=0
+  gradient_boosting: bias=-2359.62 (underestimates), RMSE=2425.35, MAE=2359.62, MAPE=62.39%, RMSE delta vs naive=2221.41, outside training range=0
+  stacking: bias=-2156.12 (underestimates), RMSE=2227.84, MAE=2156.12, MAPE=56.79%, RMSE delta vs naive=2023.91, outside training range=0
+  direction=increase model=naive_last_observation: n=5, bias=-229.64, RMSE=263.33
+  direction=decrease model=naive_last_observation: n=13, bias=154.26, RMSE=175.82
+  direction=increase model=random_forest: n=5, bias=-2781.57, RMSE=2799.03
+  direction=decrease model=random_forest: n=13, bias=-2222.27, RMSE=2290.39
+  direction=increase model=gradient_boosting: n=5, bias=-2774.34, RMSE=2793.36
+  direction=decrease model=gradient_boosting: n=13, bias=-2200.11, RMSE=2267.95
+  direction=increase model=stacking: n=5, bias=-2567.25, RMSE=2587.06
+  direction=decrease model=stacking: n=13, bias=-1997.99, RMSE=2073.17
+Yam | 2.5 KG | Retail
+  naive_last_observation: bias=-42.14 (underestimates), RMSE=311.08, MAE=269.67, MAPE=8.63%, RMSE delta vs naive=0.00, outside training range=21
+  random_forest: bias=-2062.23 (underestimates), RMSE=2112.31, MAE=2062.23, MAPE=64.96%, RMSE delta vs naive=1801.23, outside training range=0
+  gradient_boosting: bias=-1960.22 (underestimates), RMSE=2013.95, MAE=1960.22, MAPE=61.58%, RMSE delta vs naive=1702.87, outside training range=0
+  stacking: bias=-1949.50 (underestimates), RMSE=2000.96, MAE=1949.50, MAPE=61.31%, RMSE delta vs naive=1689.88, outside training range=0
+  direction=increase model=naive_last_observation: n=12, bias=-272.84, RMSE=309.51
+  direction=decrease model=naive_last_observation: n=9, bias=265.45, RMSE=313.16
+  direction=increase model=random_forest: n=12, bias=-2028.92, RMSE=2102.11
+  direction=decrease model=random_forest: n=9, bias=-2106.65, RMSE=2125.84
+  direction=increase model=gradient_boosting: n=12, bias=-1923.48, RMSE=2002.55
+  direction=decrease model=gradient_boosting: n=9, bias=-2009.20, RMSE=2029.05
+  direction=increase model=stacking: n=12, bias=-1920.85, RMSE=1995.29
+  direction=decrease model=stacking: n=9, bias=-1987.70, RMSE=2008.51
+
+Positive bias means systematic overprediction; negative bias means underprediction.
+Predictions outside the training price range are counted against the train-only historical range, avoiding use of test actuals for that check.
+
+3. Target transformation comparison
+------------------------------------
+Millet | 2.6 KG | Retail
+  price_change + random_forest: RMSE=104.15, MAE=92.30, MAPE=5.87%, bias=-36.81, RMSE delta vs naive=-14.77
+  price_change + gradient_boosting: RMSE=109.81, MAE=93.09, MAPE=5.84%, bias=-50.50, RMSE delta vs naive=-9.11
+  price_change + stacking: RMSE=119.51, MAE=94.12, MAPE=6.21%, bias=71.98, RMSE delta vs naive=0.59
+Oil (palm) | L | Retail
+  percentage_change + stacking: RMSE=189.41, MAE=155.16, MAPE=7.29%, bias=-32.87, RMSE delta vs naive=-4.00
+  price_change + stacking: RMSE=190.29, MAE=157.48, MAPE=7.40%, bias=-45.06, RMSE delta vs naive=-3.11
+  price_change + random_forest: RMSE=211.62, MAE=188.93, MAPE=8.80%, bias=-99.73, RMSE delta vs naive=18.21
+Rice (imported) | 2.8 KG | Retail
+  price_change + stacking: RMSE=416.22, MAE=346.70, MAPE=6.64%, bias=28.68, RMSE delta vs naive=1.02
+  percentage_change + stacking: RMSE=417.37, MAE=349.37, MAPE=6.70%, bias=41.15, RMSE delta vs naive=2.17
+  price_change + random_forest: RMSE=423.00, MAE=365.37, MAPE=6.97%, bias=-84.44, RMSE delta vs naive=7.81
+Rice (imported) | 50 KG | Wholesale
+  percentage_change + stacking: RMSE=1159.26, MAE=840.54, MAPE=2.87%, bias=-107.11, RMSE delta vs naive=-108.41
+  price_change + stacking: RMSE=1160.67, MAE=845.60, MAPE=2.89%, bias=-178.62, RMSE delta vs naive=-106.99
+  price_change + gradient_boosting: RMSE=1411.23, MAE=1125.48, MAPE=3.79%, bias=-721.05, RMSE delta vs naive=143.56
+Rice (local) | 2.7 KG | Retail
+  price_change + stacking: RMSE=200.19, MAE=169.20, MAPE=4.62%, bias=44.39, RMSE delta vs naive=-3.74
+  percentage_change + stacking: RMSE=216.55, MAE=192.13, MAPE=5.30%, bias=87.93, RMSE delta vs naive=12.62
+  price_change + random_forest: RMSE=217.47, MAE=152.53, MAPE=3.88%, bias=-73.09, RMSE delta vs naive=13.54
+Yam | 2.5 KG | Retail
+  price_change + random_forest: RMSE=292.18, MAE=253.14, MAPE=8.16%, bias=19.45, RMSE delta vs naive=-18.90
+  price_change + stacking: RMSE=302.70, MAE=259.66, MAPE=8.38%, bias=34.50, RMSE delta vs naive=-8.38
+  price_change + gradient_boosting: RMSE=318.79, MAE=253.24, MAPE=8.42%, bias=149.39, RMSE delta vs naive=7.71
+
+The original, log1p, price-change, and percentage-change rows are all evaluated after reconstructing prices.
+Change and percentage-change models are one-step test-date experiments; a multi-step deployment would recursively feed predicted changes and must not substitute future actual lags.
+
+4. Forecasting baselines
+------------------------
+Millet | 2.6 KG | Retail: lowest RMSE in this fixed test period was naive_last_observation (118.92); this is not treated as a universal winner.
+Oil (palm) | L | Retail: lowest RMSE in this fixed test period was naive_last_observation (193.41); this is not treated as a universal winner.
+Rice (imported) | 2.8 KG | Retail: lowest RMSE in this fixed test period was naive_last_observation (415.20); this is not treated as a universal winner.
+Rice (imported) | 50 KG | Wholesale: lowest RMSE in this fixed test period was naive_last_observation (1267.67); this is not treated as a universal winner.
+Rice (local) | 2.7 KG | Retail: lowest RMSE in this fixed test period was naive_last_observation (203.93); this is not treated as a universal winner.
+Yam | 2.5 KG | Retail: lowest RMSE in this fixed test period was naive_last_observation (311.08); this is not treated as a universal winner.
+
+5. Diagnosis and recommendation
+--------------------------------
+The saved tree/stacking models often produce large errors and negative R2 because the test regimes contain price levels and jumps outside what the small training samples represent.
+The naive last-observation rule is a strong persistence benchmark for these monthly series and remains difficult to beat without additional explanatory variables or a model designed for level/trend extrapolation.
+A log target can stabilize scale, while change or percentage-change targets directly model movement; their results should be judged against the naive baseline per series, not pooled across units.
+The simple linear trend is an intentionally limited benchmark and should only be retained where its fixed test-period results justify it.
+XGBoost remains unavailable in this environment: XGBoost unavailable or failed to import: No module named 'xgboost'
+TensorFlow/Keras remains unavailable for LSTM training; no LSTM metric was fabricated.
+No extensive hyperparameter tuning was performed and no model was forced to beat the naive baseline.

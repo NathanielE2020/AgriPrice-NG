@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% block title %}AgriPrice-NG | Market intelligence{% endblock %}
+{% block content %}
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar" aria-label="Primary navigation">
+    <div class="brand-block">
+      <div class="brand-mark" aria-hidden="true"><span>AG</span></div>
+      <div>
+        <div class="brand-name">AgriPrice<span>-NG</span></div>
+        <div class="brand-caption">Market intelligence</div>
+      </div>
+    </div>
+
+    <div class="sidebar-label">Workspace</div>
+    <nav class="side-nav">
+      <button class="side-link active" data-section-target="overview-section" type="button">
+        <span class="side-icon">⌂</span><span>Overview</span>
+      </button>
+      <button class="side-link" data-section-target="analysis-section" type="button">
+        <span class="side-icon">◒</span><span>Price analysis</span>
+      </button>
+      <button class="side-link" data-section-target="forecast-section" type="button">
+        <span class="side-icon">↗</span><span>Price forecasting</span>
+      </button>
+      <button class="side-link" data-section-target="performance-section" type="button">
+        <span class="side-icon">▥</span><span>Model performance</span>
+      </button>
+      <button class="side-link" data-section-target="about-section" type="button">
+        <span class="side-icon">i</span><span>About the project</span>
+      </button>
+    </nav>
+
+    <div class="sidebar-spacer"></div>
+    <div class="sidebar-note">
+      <span class="live-dot"></span>
+      <div><strong>Read-only research view</strong><small>Verified WFP Nigeria data</small></div>
+    </div>
+    <div class="sidebar-footer">AgriPrice-NG · v1.0</div>
+  </aside>
+
+  <div class="main-panel">
+    <header class="topbar">
+      <button class="mobile-menu" id="mobileMenu" type="button" aria-label="Open navigation" aria-controls="sidebar" aria-expanded="false">☰</button>
+      <div class="page-context">
+        <span class="eyebrow">AGRICULTURAL PRICE INTELLIGENCE</span>
+        <span class="topbar-title" id="pageTitle">Overview</span>
+      </div>
+      <div class="topbar-actions">
+        <div class="dataset-switcher">
+          <label for="globalDataset">Dataset</label>
+          <select id="globalDataset" aria-label="Select dataset">
+            <option value="aggregate">Aggregate</option>
+            <option value="market">Market-level</option>
+              <option value="world_bank">World Bank estimates</option>
+          </select>
+        </div>
+        <div class="currency-chip"><span class="currency-symbol">₦</span> NGN</div>
+        <div class="avatar" aria-label="AgriPrice-NG">AP</div>
+      </div>
+    </header>
+
+    <main class="content-area">
+      <div class="toast-message" id="toastMessage" role="status" aria-live="polite"></div>
+
+      <section class="dashboard-section active" id="overview-section" data-section="overview">
+        <div class="section-heading hero-heading">
+          <div>
+            <span class="eyebrow accent">NIGERIAN MARKET SNAPSHOT</span>
+            <h1>Know the market. <em>Plan ahead.</em></h1>
+            <p>Explore observed agricultural prices, compare forecasting models, and understand the evidence behind every estimate.</p>
+          </div>
+          <div class="coverage-card">
+            <span class="coverage-icon">◷</span>
+            <div><span>Dataset coverage</span><strong id="latestDate">Loading…</strong><small id="overallDateRange">Loading overall range…</small></div>
+          </div>
+        </div>
+
+        <div class="stat-grid" id="statGrid" aria-live="polite">
+          <div class="stat-card skeleton-card"></div><div class="stat-card skeleton-card"></div>
+          <div class="stat-card skeleton-card"></div><div class="stat-card skeleton-card"></div>
+          <div class="stat-card skeleton-card"></div>
+        </div>
+
+        <div class="overview-grid">
+          <article class="panel panel-chart overview-chart-panel">
+            <div class="panel-header">
+              <div><span class="eyebrow">SELECTED SERIES</span><h2 id="overviewChartTitle">Historical price movement</h2></div>
+              <button class="text-button" data-section-target="analysis-section" type="button">Open analysis <span>→</span></button>
+            </div>
+            <div class="chart-wrap overview-chart-wrap"><canvas id="overviewChart" aria-label="Selected series historical price chart"></canvas><div class="empty-overlay" id="overviewChartEmpty">Choose a series to begin exploring.</div></div>
+            <div class="chart-footer"><span><i class="legend-dot actual"></i>Observed monthly price</span><span id="overviewChartMeta">Loading series…</span></div>
+          </article>
+          <article class="panel insight-panel">
+            <div class="insight-icon">✦</div>
+            <span class="eyebrow accent">RESEARCH NOTE</span>
+            <h2>Read the signal, not just the number.</h2>
+            <p>AgriPrice-NG keeps missing calendar months visible and compares models on their documented test observations. Forecasts are estimates, not guaranteed market prices.</p>
+            <div class="insight-rule"></div>
+            <div class="insight-stat"><span>Frequency</span><strong id="frequencyValue">Monthly</strong></div>
+            <div class="insight-stat"><span>Currency</span><strong id="currencyValue">NGN</strong></div>
+          </article>
+        </div>
+
+        <article class="panel series-panel">
+          <div class="panel-header">
+            <div><span class="eyebrow">APPROVED EXPERIMENT SERIES</span><h2>Available price series</h2></div>
+            <span class="count-pill" id="seriesCount">—</span>
+          </div>
+          <div class="series-grid" id="overviewSeriesGrid"><div class="loading-line">Loading approved series…</div></div>
+        </article>
+      </section>
+
+      <section class="dashboard-section" id="analysis-section" data-section="analysis" hidden>
+        <div class="section-heading">
+          <div><span class="eyebrow accent">PRICE ANALYSIS</span><h1>Follow the history.</h1><p>Review observed monthly prices for each approved market or aggregate series. Missing months are left visible rather than filled.</p></div>
+        </div>
+        <article class="panel controls-panel">
+          <div class="control-grid analysis-controls">
+            <div class="field-group"><label for="analysisDataset">Data view</label><select id="analysisDataset"><option value="aggregate">Aggregate</option><option value="market">Market-level</option><option value="world_bank">World Bank estimates</option></select></div>
+            <div class="field-group field-wide"><label for="analysisSeries">Commodity series</label><select id="analysisSeries"></select></div>
+            <div class="field-group"><label for="analysisStartDate">Start month</label><input id="analysisStartDate" type="month"></div>
+            <div class="field-group"><label for="analysisEndDate">End month</label><input id="analysisEndDate" type="month"></div>
+            <button class="primary-button align-end" id="refreshHistory" type="button"><span>↻</span> Apply range</button>
+          </div>
+        </article>
+        <article class="latest-card" id="analysisLatestCard" aria-live="polite">
+          <div class="latest-icon">₦</div><div class="latest-copy"><span class="eyebrow accent">LATEST AVAILABLE RECORDED PRICE</span><h2 id="analysisLatestPrice">Loading…</h2><p id="analysisLatestContext">Select a series to inspect its latest real observation.</p></div>
+          <div class="latest-details"><div><span>Observation date</span><strong id="analysisLatestDate">—</strong></div><div><span>Age</span><strong id="analysisLatestAge">—</strong></div><div><span>Freshness</span><strong id="analysisFreshness" class="freshness-badge">—</strong></div></div>
+          <div class="latest-warning" id="analysisFreshnessExplanation">Data age describes recency only; it does not indicate price accuracy.</div>
+        </article>
+        <div class="analysis-layout">
+          <article class="panel panel-chart"><div class="panel-header"><div><span class="eyebrow">MONTHLY PRICE SERIES</span><h2 id="historyTitle">Historical prices</h2></div><span class="soft-badge" id="historyCoverage">—</span></div><div class="chart-wrap large-chart"><canvas id="historyChart" aria-label="Historical monthly price chart"></canvas><div class="empty-overlay" id="historyEmpty">No historical data for this selection.</div></div><div class="chart-footer"><span><i class="legend-dot actual"></i>Observed</span><span><i class="legend-dash"></i>Gaps remain unfilled</span></div></article>
+          <article class="panel data-table-panel"><div class="panel-header"><div><span class="eyebrow">OBSERVATIONS</span><h2>Price table</h2></div><span class="soft-badge" id="historyCount">—</span></div><div class="table-scroll"><table class="data-table"><thead><tr><th>Date</th><th>Commodity</th><th>Price</th><th>Unit</th><th>Price type</th><th>Market / markets</th><th>Status</th></tr></thead><tbody id="historyTableBody"></tbody></table></div></article>
+        </div>
+      </section>
+
+      <section class="dashboard-section" id="forecast-section" data-section="forecast" hidden>
+        <div class="section-heading"><div><span class="eyebrow accent">PRICE FORECASTING</span><h1>Look one step ahead.</h1><p>Generate recursive model estimates for supported series and horizons using the saved, validated project artifacts.</p></div><div class="method-badge"><span class="live-dot"></span>Inference connected</div></div>
+        <article class="panel controls-panel forecast-controls-panel">
+          <div class="control-grid forecast-controls">
+            <div class="field-group"><label for="forecastDataset">Data view</label><select id="forecastDataset"><option value="aggregate">Aggregate</option><option value="market">Market-level</option><option value="world_bank">World Bank estimates</option></select></div>
+            <div class="field-group field-wide"><label for="forecastSeries">Commodity series</label><select id="forecastSeries"></select></div>
+            <div class="field-group"><label for="forecastModel">Forecast model</label><select id="forecastModel"></select><small id="modelAvailabilityNote"></small></div>
+            <div class="field-group"><label for="forecastHorizon">Horizon</label><select id="forecastHorizon"><option value="1">1 month</option><option value="3" selected>3 months</option><option value="6">6 months</option></select></div>
+            <button class="primary-button align-end" id="generateForecast" type="button"><span>↗</span> Generate forecast</button>
+          </div>
+          <div class="control-note"><span>ⓘ</span> Forecasts are recursively generated from historical information. Future observed prices are never used.</div>
+        </article>
+        <article class="latest-card forecast-latest-card" id="forecastLatestCard" aria-live="polite">
+          <div class="latest-icon">◷</div><div class="latest-copy"><span class="eyebrow accent">FORECAST INPUT</span><h2 id="forecastLatestPrice">Latest available recorded price: —</h2><p id="forecastLatestContext">The selected series' real observation anchors the forecast origin.</p></div>
+          <div class="latest-details"><div><span>Actual last date</span><strong id="forecastLatestDate">—</strong></div><div><span>Age</span><strong id="forecastLatestAge">—</strong></div><div><span>Freshness</span><strong id="forecastFreshness" class="freshness-badge">—</strong></div></div>
+          <div class="latest-warning" id="forecastFreshnessWarning" hidden></div>
+        </article>
+        <div id="forecastError" class="inline-alert error-alert" hidden></div>
+        <div class="forecast-result" id="forecastResult" hidden>
+          <div class="forecast-layout">
+            <article class="panel panel-chart"><div class="panel-header"><div><span class="eyebrow">ACTUAL VS ESTIMATE</span><h2 id="forecastTitle">Forecast</h2></div><span class="forecast-status"><i></i>Model estimate</span></div><div class="chart-wrap large-chart forecast-chart-wrap"><canvas id="forecastChart" aria-label="Historical and forecast price chart"></canvas></div><div class="chart-footer"><span><i class="legend-dot actual"></i>Observed price</span><span><i class="legend-dot forecast"></i>Forecast estimate</span></div></article>
+            <article class="panel forecast-meta-panel"><div class="panel-header"><div><span class="eyebrow">FORECAST DETAILS</span><h2>Method card</h2></div></div><div class="meta-list" id="forecastMeta"></div><div class="disclaimer"><span>!</span><p>Model-generated estimates are not guaranteed market prices. Recursive forecasts accumulate uncertainty as the horizon increases.</p></div></article>
+          </div>
+          <article class="panel forecast-table-panel"><div class="panel-header"><div><span class="eyebrow">ESTIMATE OUTPUT</span><h2>Forecast months</h2></div><span class="soft-badge">NGN</span></div><div class="table-scroll"><table class="data-table"><thead><tr><th>Forecast month</th><th>Predicted price</th><th>Model</th><th>Horizon</th><th>Status</th></tr></thead><tbody id="forecastTableBody"></tbody></table></div></article>
+        </div>
+        <div class="empty-state panel" id="forecastEmpty"><div class="empty-state-icon">↗</div><h2>Ready when you are</h2><p>Select a series, model and horizon, then generate a forecast from the saved project artifacts.</p></div>
+      </section>
+
+      <section class="dashboard-section" id="performance-section" data-section="performance" hidden>
+        <div class="section-heading"><div><span class="eyebrow accent">MODEL PERFORMANCE</span><h1>Compare with context.</h1><p>Review the common-test-date audit for each approved series. A model can perform well for one commodity and poorly for another.</p></div></div>
+        <article class="panel controls-panel"><div class="control-grid performance-controls"><div class="field-group field-wide"><label for="performanceSeries">Commodity series</label><select id="performanceSeries"></select></div><div class="performance-summary" id="performanceSummary">Select a series to load its evaluation.</div></div></article>
+        <div class="methodology-note"><span>ⓘ</span><p id="performanceMethodologyText">Models are compared using identical test observations within each aggregate commodity series. The original model training cutoffs were not identical; therefore, this comparison controls test-date differences but does not represent a fully controlled experiment with identical training cutoffs.</p></div>
+        <div id="performanceError" class="inline-alert error-alert" hidden></div>
+        <div class="performance-grid"><article class="panel panel-chart"><div class="panel-header"><div><span class="eyebrow">ERROR COMPARISON</span><h2>RMSE by model</h2></div><span class="soft-badge">Lower is better</span></div><div class="chart-wrap performance-chart"><canvas id="rmseChart" aria-label="RMSE model comparison chart"></canvas></div></article><article class="panel panel-chart"><div class="panel-header"><div><span class="eyebrow">ERROR COMPARISON</span><h2>MAE by model</h2></div><span class="soft-badge">Lower is better</span></div><div class="chart-wrap performance-chart"><canvas id="maeChart" aria-label="MAE model comparison chart"></canvas></div></article></div>
+        <article class="panel performance-table-panel"><div class="panel-header"><div><span class="eyebrow">EVALUATION RECORD</span><h2>Detailed metrics</h2></div><span class="soft-badge" id="performanceDates">—</span></div><div class="table-scroll"><table class="data-table metrics-table"><thead><tr><th>Model</th><th>RMSE</th><th>MAE</th><th>MAPE</th><th>R²</th><th>Bias</th><th>Test n</th><th>Validity</th></tr></thead><tbody id="performanceTableBody"></tbody></table></div></article>
+      </section>
+
+      <section class="dashboard-section" id="about-section" data-section="about" hidden>
+        <div class="section-heading"><div><span class="eyebrow accent">ABOUT THE PROJECT</span><h1>Evidence for better decisions.</h1><p>AgriPrice-NG is a research dashboard for understanding agricultural commodity prices in the Nigerian market.</p></div></div>
+        <div class="about-grid"><article class="panel about-lead"><div class="about-mark">AG</div><span class="eyebrow accent">FINAL-YEAR COMPUTER SCIENCE PROJECT</span><h2>Machine Learning Based Analysis and Prediction of Agricultural Commodities Prices in Nigerian Market.</h2><p>The platform analyzes historical WFP Nigeria Food Prices data, compares forecasting approaches, and presents 1-, 3-, and 6-month estimates for the approved series retained by the research pipeline.</p><div class="about-facts"><div><strong id="aboutCoverage">—</strong><span>Observed date coverage</span></div><div><strong id="aboutFrequency">—</strong><span>Analysis frequency</span></div><div><strong id="aboutCurrency">—</strong><span>Displayed currency</span></div></div></article><article class="panel about-method"><span class="eyebrow">METHOD IN BRIEF</span><h2>How the results are produced</h2><ol class="method-list"><li><span>01</span><div><strong>Prepare the series</strong><p>Monthly histories retain missing calendar months and preserve units, price types, and market identity.</p></div></li><li><span>02</span><div><strong>Engineer historical features</strong><p>Calendar-aware lags and rolling statistics are calculated without accessing future prices.</p></div></li><li><span>03</span><div><strong>Evaluate chronologically</strong><p>Models use chronological splits and common test observations where the audit permits comparison.</p></div></li><li><span>04</span><div><strong>Forecast recursively</strong><p>Supported forecasts feed predicted prices forward for the requested 1-, 3-, or 6-month horizon.</p></div></li></ol></article></div>
+        <article class="panel model-list-panel"><div class="panel-header"><div><span class="eyebrow">MODEL FAMILIES</span><h2>What is compared</h2></div></div><div class="model-family-grid"><div><span class="model-number">01</span><strong>Naive baseline</strong><p>Last observed calendar-month price.</p></div><div><span class="model-number">02</span><strong>Random Forest</strong><p>Tree ensemble for engineered features.</p></div><div><span class="model-number">03</span><strong>Gradient Boosting</strong><p>Sequential boosted regression trees.</p></div><div><span class="model-number">04</span><strong>XGBoost</strong><p>Regularized gradient boosting.</p></div><div><span class="model-number">05</span><strong>Hybrid stacking</strong><p>Leakage-safe base models and meta-model.</p></div><div><span class="model-number">06</span><strong>LSTM</strong><p>Exploratory sequence model for aggregate series.</p></div></div><div class="data-limitations"><strong>Scope note</strong><p>WFP observations and World Bank close estimates remain separate sources. World Bank values are modelled/imputed estimates with source-provided low/high ranges and trust scores; they are not live survey prices. Missing periods are never silently filled.</p></div></article>
+      </section>
+    </main>
+    <footer class="app-footer"><span>AgriPrice-NG</span><span>WFP Nigeria Food Prices · Read-only research dashboard</span><span id="footerStatus">Connecting to API…</span></footer>
+  </div>
+</div>
+{% endblock %}

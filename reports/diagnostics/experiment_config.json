@@ -1,0 +1,20 @@
+{
+  "source": "saved aggregate_training_features.csv and aggregate model artifacts",
+  "target_transformations": [
+    "original",
+    "log1p",
+    "price_change",
+    "percentage_change"
+  ],
+  "models": [
+    "random_forest",
+    "gradient_boosting",
+    "stacking"
+  ],
+  "baseline": [
+    "naive_last_observation",
+    "linear_time_trend"
+  ],
+  "xgboost_status": "XGBoost unavailable or failed to import: No module named 'xgboost'",
+  "future_actuals_used_for_reconstruction": false
+}

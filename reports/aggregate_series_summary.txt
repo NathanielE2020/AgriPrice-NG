@@ -1,0 +1,54 @@
+AgriPrice-NG Phase 3.1 aggregate-series coverage summary
+=========================================================
+
+Source: data/processed/commodity_monthly_aggregates.csv, read without modification.
+This file contains monthly unweighted means/medians across records for each commodity, exact unit, price type, and month.
+Retail and wholesale prices, and different units, remain separate.
+
+Aggregate rows inspected: 6,163
+Commodity/unit/price-type groups: 66
+Groups with at least 60 monthly observations: 54
+Groups with at least 96 monthly observations: 42
+Groups meeting the strict 96 observations / 80% coverage / maximum 3-month gap rule: 18
+Duplicate aggregate group-month rows detected: 0
+
+Strongest groups by the ranking rule (96-month preference, coverage, gap length, observations, market breadth):
+1. Yam | 2.5 KG | Retail: n=137, 2014-07 to 2025-11, coverage=100.00%, missing=0, max_gap=0, markets/month=1-26 (avg 14.66)
+2. Gari (white) | 100 KG | Wholesale: n=103, 2014-07 to 2023-01, coverage=100.00%, missing=0, max_gap=0, markets/month=3-13 (avg 9.13)
+3. Bread | Unit | Retail: n=102, 2014-07 to 2023-01, coverage=99.03%, missing=1, max_gap=1, markets/month=3-14 (avg 9.41)
+4. Rice (imported) | 50 KG | Wholesale: n=127, 2012-05 to 2023-01, coverage=98.45%, missing=2, max_gap=2, markets/month=1-12 (avg 6.88)
+5. Cowpeas (white) | 100 KG | Wholesale: n=101, 2014-07 to 2023-01, coverage=98.06%, missing=2, max_gap=1, markets/month=3-14 (avg 9.40)
+6. Sorghum (brown) | 100 KG | Wholesale: n=101, 2014-07 to 2023-01, coverage=98.06%, missing=2, max_gap=1, markets/month=4-13 (avg 9.31)
+7. Groundnuts (shelled) | 100 KG | Wholesale: n=101, 2014-07 to 2023-01, coverage=98.06%, missing=2, max_gap=1, markets/month=2-14 (avg 9.16)
+8. Rice (local) | 100 KG | Wholesale: n=101, 2014-07 to 2023-01, coverage=98.06%, missing=2, max_gap=1, markets/month=3-14 (avg 8.77)
+9. Cowpeas (brown) | 100 KG | Wholesale: n=101, 2014-07 to 2023-01, coverage=98.06%, missing=2, max_gap=1, markets/month=3-13 (avg 8.68)
+10. Maize (yellow) | 100 KG | Wholesale: n=101, 2014-07 to 2023-01, coverage=98.06%, missing=2, max_gap=1, markets/month=3-14 (avg 8.48)
+11. Cassava meal (gari, yellow) | 100 KG | Wholesale: n=101, 2014-07 to 2023-01, coverage=98.06%, missing=2, max_gap=1, markets/month=1-13 (avg 8.05)
+12. Fuel (petrol-gasoline) | L | Retail: n=102, 2014-05 to 2023-01, coverage=97.14%, missing=3, max_gap=1, markets/month=1-14 (avg 9.74)
+13. Fuel (diesel) | L | Retail: n=102, 2014-05 to 2023-01, coverage=97.14%, missing=3, max_gap=1, markets/month=1-14 (avg 9.44)
+14. Oil (palm) | L | Retail: n=134, 2014-05 to 2025-11, coverage=96.40%, missing=5, max_gap=3, markets/month=1-26 (avg 12.96)
+15. Rice (imported) | 2.8 KG | Retail: n=133, 2014-05 to 2025-11, coverage=95.68%, missing=6, max_gap=2, markets/month=1-25 (avg 11.18)
+
+Recommended manageable next experiment (six aggregate series):
+These are separate, interpretable series with at least 127 monthly observations and strong coverage.
+- Yam | 2.5 KG | Retail: 137 observations, coverage 100.00%, maximum missing run 0 month(s), average 14.66 contributing markets/month.
+- Rice (imported) | 50 KG | Wholesale: 127 observations, coverage 98.45%, maximum missing run 2 month(s), average 6.88 contributing markets/month.
+- Oil (palm) | L | Retail: 134 observations, coverage 96.40%, maximum missing run 3 month(s), average 12.96 contributing markets/month.
+- Rice (imported) | 2.8 KG | Retail: 133 observations, coverage 95.68%, maximum missing run 2 month(s), average 11.18 contributing markets/month.
+- Rice (local) | 2.7 KG | Retail: 131 observations, coverage 95.62%, maximum missing run 2 month(s), average 13.18 contributing markets/month.
+- Millet | 2.6 KG | Retail: 127 observations, coverage 91.37%, maximum missing run 2 month(s), average 13.58 contributing markets/month.
+
+Comparison with the five market-level series
+-----------------------------------------------
+The aggregate file provides substantially longer candidate series than the 23-49 usable market-level feature rows.
+For example, the strongest aggregate candidates have 127-137 monthly rows before feature exclusion, compared with 23-49 usable market-level rows.
+Aggregation can improve calendar coverage and reduce idiosyncratic market noise, making a 12-month window and chronological validation more feasible.
+
+Aggregation limitations
+-----------------------
+- The mean/median hides market-level dispersion, local shocks, and differences between contributing markets.
+- The number and identity of contributing markets changes by month; a stable-looking aggregate can partly reflect changing market composition.
+- A single aggregate forecast is not a forecast for every market and should not replace the approved market-level experiments.
+- Aggregates should remain separate by exact unit and price type; no unit conversion or retail/wholesale mixing is justified here.
+
+No models were trained in Phase 3.1. The six recommended series are candidates for approval before a separate aggregate-model experiment.

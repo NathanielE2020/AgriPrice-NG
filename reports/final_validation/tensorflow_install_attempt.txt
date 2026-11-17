@@ -1,0 +1,15 @@
+TensorFlow installation attempt for Phase 3.4
+==============================================
+
+Interpreter: D:\Projects\STUDENTS_PROJECT\AGRIC-PRICE-NG\.venv\Scripts\python.exe
+Command attempted: python -m pip install --progress-bar off tensorflow==2.20.0
+Compatibility check: Python 3.12, Windows AMD64; a cp312 win_amd64 TensorFlow 2.20.0 wheel was available.
+
+Observed outcome: pip resolved the dependencies and began transferring the 331.9 MB
+TensorFlow wheel, but the transfer produced no progress for an extended period. A
+bounded retry with --timeout 30 --retries 1 was also started and then stopped after
+the wheel transfer remained stalled. No tensorflow package was installed in .venv.
+
+The final validation runner therefore records the actual import error
+"No module named 'tensorflow'" and leaves LSTM metrics blank. No LSTM result is
+fabricated. XGBoost was installed successfully in the same .venv.

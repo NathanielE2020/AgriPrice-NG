@@ -1,0 +1,16 @@
+# Runtime and training dependencies.  The dashboard loads the saved scikit-
+# learn/XGBoost artifacts directly and invokes TensorFlow in a subprocess for
+# the six approved aggregate LSTM series.
+numpy>=1.23
+scikit-learn>=1.2
+joblib>=1.2
+Flask>=3.0
+gunicorn>=23.0,<24.0
+
+# Data/model packages used by the dashboard and the training commands.
+pandas>=2.0
+pyarrow>=15.0,<23.0
+xgboost>=2.0
+# TensorFlow 2.21.0 is the verified LSTM version and has CPython 3.12
+# manylinux x86_64 wheels for Linux deployment.
+tensorflow==2.21.0

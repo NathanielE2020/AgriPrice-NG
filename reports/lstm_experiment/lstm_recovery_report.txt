@@ -1,0 +1,52 @@
+AgriPrice-NG - LSTM recovery status report
+Date: 2026-11-14
+
+Outcome
+-------
+The dataset and sequence inspection completed successfully. Both isolated
+framework installation attempts were made without changing the project .venv.
+TensorFlow 2.21.0 could not be installed because the large wheel download
+stalled after a package-index parsing failure was diagnosed. The official
+CPU-only PyTorch fallback selected torch 2.15.0+cpu, but its wheel download
+also stalled and was stopped. Neither framework imports successfully.
+
+Therefore no LSTM model was trained, no test metrics were generated, and no
+forecast was created. This is an actual unavailable status, not a fabricated
+result.
+
+Environment
+-----------
+Base/project Python: 3.12.5, 64-bit AMD64, Windows 11
+TensorFlow environment: .venv-lstm (created; TensorFlow unavailable)
+PyTorch environment: .venv-lstm-torch (created; PyTorch unavailable)
+TensorFlow installation details: tensorflow_install_attempt.txt
+PyTorch installation details: pytorch_install_attempt.txt
+
+Data readiness
+--------------
+The approved aggregate file contains six independent series. Complete
+calendar-contiguous input sequences are available for every series:
+  6-month windows: 106, 120, 111, 115, 109, 131
+  12-month windows: 100, 112, 104, 103, 103, 125
+
+The existing 12-month sequence implementation in
+src/final_validation.py was inspected and is reusable in principle: it keeps
+calendar gaps invalid, scales using training sequences only, uses chronological
+validation, inverse-transforms predictions, and supports recursive forecasting.
+The existing src/lstm_experiment.py must not be reused unchanged because its
+artifact/report paths point at prior experiment locations. The Stage 1 details
+and exact split boundaries are in environment_inspection.txt.
+
+Model and data protection
+-------------------------
+data/raw was not modified. Existing tree/XGBoost/stacking models, reports,
+forecasts, and final-validation outputs were not overwritten. No LSTM artifact,
+metric, or forecast is claimed to exist.
+
+Next action if training is required
+-----------------------------------
+Retry the isolated installation when a stable package-download path is
+available, then train only after `import tensorflow` or `import torch` succeeds.
+The six series are suitable for the 12-month primary experiment and a separate
+6-month sensitivity experiment; no pooling is required to obtain sufficient
+sequence counts.

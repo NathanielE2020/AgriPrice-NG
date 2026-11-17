@@ -1,0 +1,7 @@
+series_id,sequence_window,sequence_count,status,selected_transformation,train_sequences,validation_sequences,test_sequences,notes
+Millet | 2.6 KG | Retail,12,100,unavailable,,70,15,15,TensorFlow import/install failed
+Oil (palm) | L | Retail,12,112,unavailable,,78,17,17,TensorFlow import/install failed
+Rice (imported) | 2.8 KG | Retail,12,104,unavailable,,72,16,16,TensorFlow import/install failed
+Rice (imported) | 50 KG | Wholesale,12,103,unavailable,,72,15,16,TensorFlow import/install failed
+Rice (local) | 2.7 KG | Retail,12,103,unavailable,,72,15,16,TensorFlow import/install failed
+Yam | 2.5 KG | Retail,12,125,unavailable,,87,19,19,TensorFlow import/install failed

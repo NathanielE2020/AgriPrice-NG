@@ -1,0 +1,20 @@
+iso3,country,ticker,full_name,units,food_index_weight,data_coverage,r2_imputation
+NGA,Nigeria,beans,Beans (red),2.5 KG,0.4,14.25%,0.95
+NGA,Nigeria,eggs,Eggs,30 pcs,0.3333,18.03%,0.98
+NGA,Nigeria,exchange_rate_unofficial,Unofficial exchange rate (Parallel-market Estimate)(FAO GIEWS completed with Int. Forex),USD/LCU,0,100%,n/a
+NGA,Nigeria,fish,Fish,KG,1,12.87%,0.91
+NGA,Nigeria,food_price_index,Food Price Index,"LCU, Indexed, January 2018 = 1",Laspeyres,15.15%,0.97
+NGA,Nigeria,fuel_petrol_gasoline,Fuel (petrol-gasoline),L,0,8.8%,0.99
+NGA,Nigeria,gari_fao,Gari (white),Kg,1,10.34%,0.92
+NGA,Nigeria,groundnuts,Groundnuts,2.2 KG,0.4545,15%,0.95
+NGA,Nigeria,maize_fao,Maize (white),Kg,1,11.55%,0.99
+NGA,Nigeria,maize_flour,Maize flour,2.1 KG,0.4762,13.68%,0.94
+NGA,Nigeria,meat_beef,Meat (beef),KG,1,14.79%,0.97
+NGA,Nigeria,meat_goat,Meat (goat),KG,1,13.91%,0.97
+NGA,Nigeria,milk,Milk (powder),400 G,2.5,14.66%,0.95
+NGA,Nigeria,millet,Millet,2.6 KG,0.3846,28.76%,0.96
+NGA,Nigeria,onions,Onions,0.5 KG,2,13.37%,0.96
+NGA,Nigeria,rice,Rice (imported),2.8 KG,0.1786,20.56%,0.98
+NGA,Nigeria,rice_fao,Rice (imported),Kg,0.5,9.72%,0.99
+NGA,Nigeria,sorghum_fao,Sorghum (white),Kg,1,6.77%,0.99
+NGA,Nigeria,yam,Yam,2.5 KG,0.4,20.93%,0.92

@@ -1,0 +1,32 @@
+{
+  "source": "world_bank",
+  "geography_levels": [
+    "national",
+    "market_average"
+  ],
+  "models": [
+    "random_forest",
+    "xgboost",
+    "gradient_boosting",
+    "stacking"
+  ],
+  "trained_tickers": ["beans", "rice", "millet", "maize_fao", "sorghum_fao", "yam"],
+  "lstm_status": "not_trained; existing TensorFlow artifacts remain WFP-source-specific",
+  "transforms": [
+    "original",
+    "log1p",
+    "price_change",
+    "percentage_change"
+  ],
+  "feature_columns": [
+    "price_lag_1",
+    "price_lag_2",
+    "price_lag_3",
+    "rolling_mean_3",
+    "rolling_std_3",
+    "month_sin",
+    "month_cos",
+    "trend_index"
+  ],
+  "xgboost_status": "available (3.4.1)"
+}
