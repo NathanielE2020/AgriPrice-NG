@@ -4,7 +4,9 @@
   const state = {
     overview: null,
     series: { aggregate: [], market: [], world_bank: [] },
-    dataset: document.body && document.body.dataset.deployScope === "approved_market" ? "market" : "aggregate",
+    dataset: document.body && document.body.dataset.deployScope === "approved_market"
+      ? "market"
+      : (document.body && document.body.dataset.deployScope === "world_bank" ? "world_bank" : "aggregate"),
     selectedSeries: { aggregate: null, market: null, world_bank: null },
     history: null,
     forecast: null,
@@ -273,6 +275,7 @@
   function renderOverview(overview) {
     const worldBank = overview.sources && overview.sources.world_bank && overview.sources.world_bank.available ? overview.sources.world_bank : null;
     const facts = state.dataset === "world_bank" && worldBank ? worldBank : (overview.dataset || {});
+    const championSubset = state.dataset === "world_bank" && facts.coverage_scope === "registered_champion_subset";
     const modelStatus = state.dataset === "world_bank"
       ? (overview.model_status || {}).world_bank
       : state.dataset === "aggregate"
@@ -282,8 +285,8 @@
     const stats = [
       [state.dataset === "world_bank" ? "World Bank estimates" : "Recorded observations", formatNumber(facts.historical_observations), state.dataset === "world_bank" ? "Normalized close estimates" : "Across the source dataset", "leaf"],
       ["Commodities", formatNumber(facts.commodity_count), "Represented in the data", "grain"],
-      [state.dataset === "world_bank" ? "Actual markets" : "Observed markets", formatNumber(facts.market_count), state.dataset === "world_bank" ? "Aggregate labels excluded" : "Market locations", "market"],
-      ["States", formatNumber(facts.state_count), state.dataset === "world_bank" ? "Distinct source labels" : "With observed records", "state"],
+      [state.dataset === "world_bank" ? (championSubset ? "Market rows in panel" : "Actual markets") : "Observed markets", formatNumber(facts.market_count), championSubset ? "National and market averages only" : (state.dataset === "world_bank" ? "Aggregate labels excluded" : "Market locations"), "market"],
+      ["States", formatNumber(facts.state_count), championSubset ? "Not represented in champion panel" : (state.dataset === "world_bank" ? "Distinct source labels" : "With observed records"), "state"],
       ["Model families", formatNumber(modelFamilies), `Available in ${state.dataset} view`, "model"],
     ];
     const grid = $("#statGrid");
@@ -328,7 +331,7 @@
     const values = history.map((row) => row.observed && row.price !== null ? row.price : null);
     const config = {
       type: "line",
-      data: { labels, datasets: [{ label: "Observed price", data: values, borderColor: "#367c5b", backgroundColor: "rgba(54,124,91,.10)", borderWidth: 2.2, pointRadius: 2.2, pointHoverRadius: 4, pointBackgroundColor: "#367c5b", fill: true, tension: .25, spanGaps: false }] },
+      data: { labels, datasets: [{ label: series.source === "world_bank" ? "World Bank close estimate" : "Observed price", data: values, borderColor: "#367c5b", backgroundColor: "rgba(54,124,91,.10)", borderWidth: 2.2, pointRadius: 2.2, pointHoverRadius: 4, pointBackgroundColor: "#367c5b", fill: true, tension: .25, spanGaps: false }] },
       options: chartOptions(),
     };
     const overviewConfig = { ...config, data: { ...config.data, datasets: [{ ...config.data.datasets[0], pointRadius: 1.8, borderWidth: 2, fill: false }] }, options: { ...chartOptions(), plugins: { ...chartOptions().plugins, tooltip: config.options.plugins.tooltip } } };
@@ -345,7 +348,7 @@
     const title = `${series.commodity} · ${series.unit} · ${series.price_type}${series.market ? ` · ${series.market}` : ""}`;
     $("#historyTitle").textContent = title;
     $("#overviewChartTitle").textContent = `${series.commodity} price movement`;
-    $("#overviewChartMeta").textContent = `${formatNumber(observedCount)} observed months · ${series.unit} · ${series.price_type}`;
+    $("#overviewChartMeta").textContent = `${formatNumber(observedCount)} ${series.source === "world_bank" ? "estimated months" : "observed months"} · ${series.unit} · ${series.price_type}`;
     $("#historyCoverage").textContent = `${series.first_observed_month} — ${series.last_observed_month}`;
     renderLatestObservation(series, "analysis");
   }
@@ -353,7 +356,7 @@
   function renderHistoryTable(history, series) {
     const body = $("#historyTableBody");
     const observedCount = history.filter((row) => row.observed && row.price !== null).length;
-    $("#historyCount").textContent = `${formatNumber(observedCount)} observed`;
+    $("#historyCount").textContent = `${formatNumber(observedCount)} ${series.source === "world_bank" ? "estimated" : "observed"}`;
     if (!body) return;
     body.innerHTML = history.slice().reverse().map((row) => {
       const status = row.observed && row.price !== null;
@@ -401,6 +404,9 @@
     destroyChart("forecast");
     const historical = (payload.historical || []).map((row) => ({ month: row.month, price: row.observed ? row.price : null }));
     const forecast = payload.forecast || [];
+    const isWorldBank = payload.series && payload.series.source === "world_bank";
+    const chartEyebrow = $("#forecastChartEyebrow");
+    if (chartEyebrow) chartEyebrow.textContent = isWorldBank ? "WORLD BANK ESTIMATE VS FORECAST" : "OBSERVED HISTORY VS FORECAST";
     const labels = historical.map((row) => row.month).concat(forecast.map((row) => row.forecast_month));
     const actualValues = historical.map((row) => row.price).concat(forecast.map(() => null));
     const forecastValues = historical.map(() => null).concat(forecast.map((row) => row.forecast_price));
@@ -410,18 +416,21 @@
     const config = {
       type: "line",
       data: { labels, datasets: [
-        { label: "Observed price", data: actualValues, borderColor: "#367c5b", backgroundColor: "rgba(54,124,91,.08)", borderWidth: 2.2, pointRadius: 2, pointHoverRadius: 4, pointBackgroundColor: "#367c5b", fill: true, tension: .25, spanGaps: false },
+        { label: payload.series && payload.series.source === "world_bank" ? "World Bank close estimate" : "Observed price", data: actualValues, borderColor: "#367c5b", backgroundColor: "rgba(54,124,91,.08)", borderWidth: 2.2, pointRadius: 2, pointHoverRadius: 4, pointBackgroundColor: "#367c5b", fill: true, tension: .25, spanGaps: false },
         { label: "Forecast estimate", data: forecastValues, borderColor: "#c89d42", backgroundColor: "rgba(200,157,66,.08)", borderWidth: 2.2, borderDash: [6, 4], pointRadius: 3, pointHoverRadius: 5, pointBackgroundColor: "#c89d42", fill: false, tension: .2, spanGaps: false },
       ] },
       options,
       plugins: [forecastBoundaryPlugin],
     };
     if (window.Chart) state.charts.forecast = new Chart($("#forecastChart"), config);
+    const historyLegend = $("#forecastHistoricalLegend");
+    if (historyLegend) historyLegend.textContent = payload.series && payload.series.source === "world_bank" ? "World Bank close estimate" : "Observed price";
   }
 
   function renderForecastMeta(payload) {
     const metadata = payload.metadata || {};
     const series = payload.series || {};
+    const isWorldBank = series.source === "world_bank";
     renderLatestObservation(series, "forecast");
     const warning = $("#forecastFreshnessWarning");
     if (warning) {
@@ -435,8 +444,8 @@
       ["Model", payload.model_label || formatModel(metadata.model || payload.model)],
       ["Transformation", metadata.transformation || payload.transformation],
       ["Origin month", metadata.origin_month || payload.origin_month],
-      ["Last actual date", payload.latest_observation_date || metadata.latest_observation_date || series.latest_observation_date],
-      ["Latest actual price", formatPrice(payload.latest_actual_price ?? metadata.latest_actual_price ?? series.latest_actual_price)],
+      [isWorldBank ? "Last recorded estimate month" : "Last actual date", payload.latest_observation_date || metadata.latest_observation_date || series.latest_observation_date],
+      [isWorldBank ? "Latest recorded estimate" : "Latest actual price", formatPrice(payload.latest_actual_price ?? metadata.latest_actual_price ?? series.latest_actual_price)],
       ["Horizon", `${metadata.horizon_months || payload.horizon_months} month${Number(metadata.horizon_months || payload.horizon_months) === 1 ? "" : "s"}`],
       ["Method", metadata.recursive_method || payload.recursive_method],
     ];
@@ -485,9 +494,11 @@
     const records = (payload.records || []).filter((row) => row.status === "evaluated" && row.evaluation_validity !== false);
     destroyChart("rmse");
     destroyChart("mae");
-    $("#performanceMethodologyText").textContent = dataset === "aggregate"
-      ? "Models are compared using identical test observations within each aggregate commodity series. The original model training cutoffs were not identical; therefore, this comparison controls test-date differences but does not represent a fully controlled experiment with identical training cutoffs."
-      : "These are preserved market-level chronological evaluation records for the selected series. Aggregate common-test-date metrics are not applied to market-level models, and unavailable model artifacts remain unavailable.";
+    $("#performanceMethodologyText").textContent = dataset === "world_bank"
+      ? "Prices are World Bank c_ close estimates, not necessarily direct survey prices. The production champion was selected using validation RMSE; test metrics below are an untouched audit, and other models are research comparisons only."
+      : dataset === "aggregate"
+        ? "Models are compared using identical test observations within each aggregate commodity series. The original model training cutoffs were not identical; therefore, this comparison controls test-date differences but does not represent a fully controlled experiment with identical training cutoffs."
+        : "These are preserved market-level chronological evaluation records for the selected series. Aggregate common-test-date metrics are not applied to market-level models, and unavailable model artifacts remain unavailable.";
     if (!records.length) {
       setInlineError("#performanceError", "No valid evaluation records are available for this series.");
       $("#performanceTableBody").innerHTML = "";
@@ -499,6 +510,12 @@
     const last = records.map((row) => row.last_test_date).filter(Boolean).sort().slice(-1)[0];
     $("#performanceSummary").innerHTML = `<strong>${escapeHTML(formatModel(best.model, best.model_label))}</strong> has the lowest RMSE in this series (${escapeHTML(formatNumber(best.rmse, 2))}). Test coverage: ${escapeHTML(first || "—")} — ${escapeHTML(last || "—")}.`;
     $("#performanceDates").textContent = `${first || "—"} — ${last || "—"}`;
+    if (dataset === "world_bank") {
+      const champion = records.find((row) => row.production_champion);
+      $("#performanceSummary").textContent = champion
+        ? "Registered production champion: " + formatModel(champion.model, champion.model_label) + " (selected on validation RMSE). Lowest test RMSE audit: " + formatModel(best.model, best.model_label) + " (" + formatNumber(best.rmse, 2) + "); test results did not select the champion. Coverage: " + (first || "—") + " — " + (last || "—") + "."
+        : "No registered production champion is identified for this series. Test metrics are audit results only.";
+    }
     const labels = records.map((row) => formatModel(row.model, row.model_label));
     const barConfig = (metric, name) => ({ type: "bar", data: { labels, datasets: [{ label: name, data: records.map((row) => Number(row[metric])), backgroundColor: records.map((row) => row.model === best.model ? "#2f9b6d" : "#9fc6ae"), borderRadius: 5, borderSkipped: false, barPercentage: .62, categoryPercentage: .72 }] }, options: { ...chartOptions(), indexAxis: "y", plugins: { ...chartOptions().plugins, tooltip: { ...chartOptions().plugins.tooltip, callbacks: { label: (context) => `${name}: ${formatNumber(context.parsed.x, 2)}` } } }, scales: { ...chartOptions().scales, x: { ...chartOptions().scales.y, beginAtZero: true, ticks: { color: "#87958d", font: { family: "DM Sans", size: 10 }, callback: (value) => formatNumber(value, 0) }, grid: { color: "#edf1ee" }, border: { display: false } }, y: { ...chartOptions().scales.x, ticks: { color: "#52655b", font: { family: "DM Sans", size: 10 } }, grid: { display: false }, border: { display: false } } } } });
     if (window.Chart) {

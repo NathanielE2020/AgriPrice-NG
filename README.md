@@ -132,12 +132,17 @@ method exists.
 
 The repository includes `render.yaml` and `.python-version` for a Python 3.12.5
 Render web service. The Blueprint uses the Free plan with
-`AGRIPRICE_DEPLOY_SCOPE=approved_market`. In that deployment scope the service
-loads only the five approved WFP market series and their market-level metrics;
-it does not load the aggregate table, World Bank normalized table, or start an
-LSTM subprocess during application startup. The source-level summary is read
-from the verified inspection report instead of scanning the raw Parquet file.
-The production process is a single Gunicorn worker with one thread:
+`AGRIPRICE_DEPLOY_SCOPE=world_bank`. In that deployment scope the validated
+champion registry is loaded first, then the service reads the normalized World
+Bank CSV in bounded chunks and retains only rows belonging to its 12 registered
+champion series. WFP market and aggregate datasets, the full World Bank panel,
+and WFP source-summary scan are disabled. World Bank values are `c_` close
+estimates (modelled/imputed), not necessarily direct survey observations. Local
+development remains full-scope when the variable is absent; the separate
+`approved_market` scope remains supported.
+
+The production process is a single Gunicorn worker with one thread and no
+application preload:
 
 ```text
 python -m pip install -r requirements-deploy.txt
@@ -145,33 +150,25 @@ gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 1 --timeout 120 app:app
 ```
 
 The Render environment variables are `PYTHON_VERSION=3.12.5` and
-`AGRIPRICE_DEPLOY_SCOPE=approved_market`. On Linux, leave `LSTM_PYTHON` unset
-to use the active interpreter, or set it to an explicit TensorFlow-enabled
-Python executable if LSTM inference is later enabled. At minimum, deployment
-must include:
+`AGRIPRICE_DEPLOY_SCOPE=world_bank`. World Bank champion inference does not use
+TensorFlow or LSTM. On Linux, leave `LSTM_PYTHON` unset to use the active
+interpreter if the separate WFP aggregate LSTM functionality is used in another
+scope. The World Bank deployment must include:
 
-- `data/raw/train.parquet` and `data/raw/wfp_markets_nga.csv`;
-- `data/processed/approved_monthly_reindexed.csv`,
-  `data/processed/aggregate_monthly_reindexed.csv`, and
-  `data/processed/world_bank/world_bank_monthly.csv`;
-- all approved market model directories under `models/`, all six
-  `models/final_validation/aggregate/` directories, all six
-  `models/lstm_experiment/` directories, and the twelve trained
-  `models/world_bank/` directories;
-- `reports/dataset_inspection.txt`, `reports/model_comparison.csv`,
-  `reports/common_test_date_audit/common_test_date_model_comparison.csv`,
-  `reports/common_test_date_audit/model_date_eligibility.csv`, and
+- `data/processed/world_bank/world_bank_monthly.csv`;
+- `reports/world_bank/champion_models.json` and
   `reports/world_bank/model_comparison.csv`;
+- all 12 artifacts under `models/world_bank/champions/`;
 - `app.py`, `src/`, `templates/`, `static/`, `requirements-deploy.txt`,
   `.python-version`, and `render.yaml`.
 
-`requirements.txt` remains the complete local research/training environment.
-The deployment requirements intentionally omit NumPy, Pandas, PyArrow,
-scikit-learn, XGBoost, TensorFlow, and Joblib: approved-market deployment
-serves the read-only catalogue and naive persistence forecast without loading
-those packages. The full research datasets and model artifacts remain in the
-repository for local use and reproducibility, but are not loaded by this
-deployment scope.
+`requirements-deploy.txt` pins Flask, Gunicorn, NumPy, Pandas, scikit-learn,
+Joblib, and XGBoost to versions matching the environment that produced the
+saved champion artifacts. TensorFlow and training-only dependencies are not
+included. `requirements.txt` remains the complete local research/training
+environment. The WFP raw files and processed tables, non-champion World Bank
+rows, and unrelated experimental artifacts are not required by this
+World-Bank-only service, but remain preserved for local reproducibility.
 
 The remaining reports, raw World Bank release files, and forecast outputs are
 retained for reproducibility and project review. The application does not
@@ -326,6 +323,18 @@ used and confidence intervals are returned as unavailable. The dashboard's
 `World Bank estimates` source selector exposes the normalized history, estimate
 ranges, trust scores, trained model availability, and explicit estimate
 labelling without changing the existing WFP views.
+
+The production champion–challenger registry is
+`reports/world_bank/champion_models.json`. It records one validation-selected
+champion per trained series, while the untouched test metrics and challenger
+outputs remain available in the research reports. ML champions are refit on
+training plus validation data and stored under
+`models/world_bank/champions/`; a naive champion needs no serialized artifact.
+The dashboard accepts only the registered champion for World Bank forecasting
+and fails closed when the registry is missing, stale, malformed, or references
+an unavailable artifact. The companion methodology reports are
+`reports/world_bank/champion_training_report.txt` and
+`reports/world_bank/champion_integration_report.txt`.
 
 The World Bank panel currently marks LSTM unavailable rather than reusing a
 WFP-trained sequence model. Existing TensorFlow LSTM artifacts remain

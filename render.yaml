@@ -2,7 +2,7 @@ services:
   - type: web
     name: agriprice-ng
     runtime: python
-    # Deployment scope keeps only the approved market experiment in memory.
+    # Deployment scope keeps only the 12 registered World Bank champions in memory.
     plan: free
     buildCommand: pip install --upgrade pip && pip install -r requirements-deploy.txt
     startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 1 --timeout 120 app:app
@@ -11,4 +11,4 @@ services:
       - key: PYTHON_VERSION
         value: 3.12.5
       - key: AGRIPRICE_DEPLOY_SCOPE
-        value: approved_market
+        value: world_bank

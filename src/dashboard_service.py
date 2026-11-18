@@ -31,6 +31,8 @@ REPORT_DIR = ROOT / "reports"
 MODEL_DIR = ROOT / "models"
 FINAL_MODEL_DIR = MODEL_DIR / "final_validation" / "aggregate"
 WORLD_BANK_MODEL_DIR = MODEL_DIR / "world_bank"
+WORLD_BANK_CHAMPION_REGISTRY = REPORT_DIR / "world_bank" / "champion_models.json"
+WORLD_BANK_REGISTRY_MAX_AGE_DAYS = 180
 LSTM_MODEL_DIR = MODEL_DIR / "lstm_experiment"
 LSTM_FORECAST_PATH = ROOT / "outputs" / "lstm_experiment" / "forecasts" / "recursive_forecasts.csv"
 COMMON_AUDIT_DIR = REPORT_DIR / "common_test_date_audit"
@@ -48,6 +50,15 @@ FRESHNESS_THRESHOLDS_MONTHS = {
 VALID_DATASETS = ("market", "aggregate", "world_bank")
 DEPLOY_SCOPE_ENV = "AGRIPRICE_DEPLOY_SCOPE"
 APPROVED_MARKET_SCOPE = "approved_market"
+WORLD_BANK_SCOPE = "world_bank"
+WORLD_BANK_CHAMPION_COUNT = 12
+WORLD_BANK_COLUMNS = (
+    "source", "date", "month", "commodity_ticker", "commodity", "unit", "price_type",
+    "price", "low_estimate", "high_estimate", "trust_score", "base_observation_price",
+    "is_model_estimate", "geography_level", "geography_name", "state", "market",
+    "data_coverage", "data_coverage_recent", "index_confidence_score", "last_survey_point",
+    "source_data_is_direct_observation",
+)
 VALID_HORIZONS = (1, 3, 6)
 MODEL_ORDER = (
     "naive_last_observation",
@@ -283,6 +294,32 @@ def _load_artifact(path: Path) -> tuple[Any, dict[str, Any]]:
     return model, metadata
 
 
+def _validate_world_bank_champion_artifact(
+    metadata: dict[str, Any],
+    series_id: str,
+    champion_record: dict[str, Any],
+) -> None:
+    """Reject a World Bank artifact that does not match its champion registry."""
+    expected = {
+        "source": "world_bank",
+        "series_id": series_id,
+        "selected_model": champion_record.get("selected_model"),
+        "transformation": champion_record.get("selected_transformation"),
+        "experiment_version": champion_record.get("experiment_version"),
+    }
+
+    if (
+        not isinstance(metadata, dict)
+        or any(metadata.get(key) != value for key, value in expected.items())
+        or metadata.get("production_champion") is not True
+    ):
+        raise DashboardError(
+            "model_unavailable",
+            "The registered World Bank champion artifact failed integrity validation.",
+            503,
+        )
+
+
 class DashboardService:
     """Cached read-only dashboard data service."""
 
@@ -290,10 +327,30 @@ class DashboardService:
         self.reference_date = reference_date or date.today()
         self.deploy_scope = os.environ.get(DEPLOY_SCOPE_ENV, "").strip().lower()
         self.market_only = self.deploy_scope == APPROVED_MARKET_SCOPE
-        self.default_dataset = "market" if self.market_only else "aggregate"
-        self.market_rows = self._load_market_rows()
-        self.aggregate_rows = [] if self.market_only else self._load_aggregate_rows()
-        self.world_bank_rows = [] if self.market_only else self._load_world_bank_rows()
+        self.world_bank_only = self.deploy_scope == WORLD_BANK_SCOPE
+        self.default_dataset = "market" if self.market_only else ("world_bank" if self.world_bank_only else "aggregate")
+
+        # The registry determines the only World Bank series allowed in the
+        # dedicated production scope. Load and validate it before reading the
+        # large normalized CSV. An invalid registry yields an empty filter.
+        self._world_bank_champions = self._load_world_bank_champion_registry(
+            require_expected_count=self.world_bank_only
+        )
+        champion_ids = tuple(self._world_bank_champions.get("records", {}).keys()) if self._world_bank_champions.get("available") else ()
+
+        self.market_rows = [] if self.world_bank_only else self._load_market_rows()
+        self.aggregate_rows = [] if self.market_only or self.world_bank_only else self._load_aggregate_rows()
+        self._world_bank_data_error: str | None = None
+        if self.market_only:
+            self.world_bank_rows = []
+        elif self.world_bank_only and not champion_ids:
+            self.world_bank_rows = []
+        else:
+            try:
+                self.world_bank_rows = self._load_world_bank_rows(champion_ids if self.world_bank_only else None)
+            except Exception:
+                self.world_bank_rows = []
+                self._world_bank_data_error = "The normalized World Bank champion data could not be loaded."
         # Keep an index of references to the already-loaded World Bank row
         # dictionaries.  The index makes series lookups O(1) without creating
         # another copy of the 300k-row normalized table.
@@ -303,15 +360,108 @@ class DashboardService:
         # The deployment scope deliberately avoids a full raw Parquet scan.
         # The inspection report is the authoritative source summary in that
         # mode; local development still calculates the summary dynamically.
-        self.source_summary = self._load_source_summary(skip_raw=self.market_only)
-        self._market_metrics = self._load_metrics("market")
-        self._aggregate_metrics = [] if self.market_only else self._load_metrics("aggregate")
-        self._world_bank_metrics = [] if self.market_only else self._load_metrics("world_bank")
+        self.source_summary = {} if self.world_bank_only else self._load_source_summary(skip_raw=self.market_only)
+        self._market_metrics = [] if self.world_bank_only else self._load_metrics("market")
+        self._aggregate_metrics = [] if self.market_only or self.world_bank_only else self._load_metrics("aggregate")
+        if self.market_only:
+            self._world_bank_metrics = []
+        elif self.world_bank_only and not champion_ids:
+            # An invalid registry must not trigger a broad metrics read either.
+            self._world_bank_metrics = []
+        else:
+            try:
+                self._world_bank_metrics = self._load_metrics(
+                    "world_bank", series_ids=set(champion_ids) if self.world_bank_only else None
+                )
+            except Exception:
+                self._world_bank_metrics = []
+                if self.world_bank_only:
+                    self._world_bank_data_error = "World Bank champion evaluation metrics are unavailable."
+        if self.world_bank_only and champion_ids:
+            loaded_ids = {row["series_id"] for row in self.world_bank_rows}
+            if loaded_ids != set(champion_ids):
+                self.world_bank_rows = []
+                self._world_bank_data_error = "The normalized World Bank data does not contain every registered champion series."
+            metric_ids = {row.get("series_id") for row in self._world_bank_metrics}
+            if not set(champion_ids).issubset(metric_ids):
+                self._world_bank_data_error = "World Bank champion evaluation metrics are incomplete."
+                self.world_bank_rows = []
         self._artifact_compatibility: dict[tuple[str, str, str], bool] = {}
         self._lstm_forecast_cache: dict[tuple[str, int], dict[str, Any]] = {}
         self.market_series = self._build_series("market", self.market_rows)
         self.aggregate_series = self._build_series("aggregate", self.aggregate_rows)
         self.world_bank_series = self._build_series("world_bank", self.world_bank_rows_by_series)
+
+    def _load_world_bank_champion_registry(self, require_expected_count: bool = False) -> dict[str, Any]:
+        """Load the production registry and fail closed on any integrity issue."""
+
+        unavailable = {
+            "available": False,
+            "reason": "World Bank champion registry is unavailable.",
+            "records": {},
+            "generated_at": None,
+            "champion_count": 0,
+        }
+        if self.market_only:
+            return unavailable
+        if not WORLD_BANK_CHAMPION_REGISTRY.exists():
+            unavailable["reason"] = "World Bank champion registry is missing; production forecasts are disabled."
+            return unavailable
+        try:
+            payload = json.loads(WORLD_BANK_CHAMPION_REGISTRY.read_text(encoding="utf-8"))
+            if not isinstance(payload, dict) or not isinstance(payload.get("series"), list):
+                raise ValueError("registry must contain a series list")
+            generated_at = str(payload.get("generated_at") or "")
+            parsed = datetime.fromisoformat(generated_at.replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=datetime.now().astimezone().tzinfo)
+            age_seconds = (datetime.now(parsed.tzinfo) - parsed).total_seconds()
+            if age_seconds < -300:
+                unavailable["reason"] = "World Bank champion registry timestamp is in the future."
+                unavailable["generated_at"] = generated_at
+                return unavailable
+            age_days = age_seconds / 86400
+            if age_days > WORLD_BANK_REGISTRY_MAX_AGE_DAYS:
+                unavailable["reason"] = "World Bank champion registry is stale; rerun the World Bank validation before forecasting."
+                unavailable["generated_at"] = generated_at
+                return unavailable
+            records: dict[str, dict[str, Any]] = {}
+            champion_dir = (MODEL_DIR / "world_bank" / "champions").resolve()
+            for record in payload["series"]:
+                if not isinstance(record, dict) or not record.get("series_id"):
+                    raise ValueError("registry contains an invalid series record")
+                series_id = str(record["series_id"]).strip()
+                if not series_id:
+                    raise ValueError("registry contains an empty series ID")
+                if series_id in records:
+                    raise ValueError(f"duplicate champion series ID: {series_id}")
+                model = str(record.get("selected_model") or "")
+                if model not in MODEL_ORDER or model == "lstm":
+                    raise ValueError(f"unsupported champion model for {series_id}")
+                transform = str(record.get("selected_transformation") or "none")
+                if transform not in {"none", "original", "log1p", "price_change", "percentage_change"}:
+                    raise ValueError(f"unsupported champion transformation for {series_id}")
+                artifact = record.get("artifact_path")
+                if model == "naive_last_observation":
+                    if artifact not in (None, ""):
+                        raise ValueError(f"naive champion must not require an artifact for {series_id}")
+                else:
+                    if not isinstance(artifact, str) or not artifact:
+                        raise ValueError(f"missing artifact path for {series_id}")
+                    artifact_path = (ROOT / artifact).resolve()
+                    if champion_dir not in artifact_path.parents or not artifact_path.is_file():
+                        raise ValueError(
+                            f"champion artifact must be a file inside the champion directory for {series_id}"
+                        )
+                records[series_id] = record
+            if not records:
+                raise ValueError("registry contains no series records")
+            if require_expected_count and len(records) != WORLD_BANK_CHAMPION_COUNT:
+                raise ValueError(f"registry must contain exactly {WORLD_BANK_CHAMPION_COUNT} champion series")
+            return {"available": True, "reason": "Validated World Bank champion registry.", "records": records, "generated_at": generated_at, "champion_count": len(records), "experiment_version": payload.get("experiment_version")}
+        except Exception as exc:
+            unavailable["reason"] = f"World Bank champion registry is invalid; production forecasts are disabled ({type(exc).__name__})."
+            return unavailable
 
     @staticmethod
     def _load_source_summary(skip_raw: bool = False) -> dict[str, Any]:
@@ -425,8 +575,8 @@ class DashboardService:
         return sorted(output, key=lambda item: (item["series_id"], item["month"]))
 
     @staticmethod
-    @lru_cache(maxsize=1)
-    def _load_world_bank_rows() -> list[dict[str, Any]]:
+    @lru_cache(maxsize=2)
+    def _load_world_bank_rows(champion_series_ids: tuple[str, ...] | None = None) -> list[dict[str, Any]]:
         """Load normalized World Bank estimates without mixing WFP rows."""
 
         # Keep the World Bank ingestion dependency (and its pandas import)
@@ -435,15 +585,46 @@ class DashboardService:
 
         if not NORMALIZED_FILE.exists():
             return []
-        # pandas' C CSV reader keeps dashboard startup practical for the
-        # 300k-row normalized release; this is read-only and does not alter it.
         import pandas as pd
 
-        rows = pd.read_csv(NORMALIZED_FILE).to_dict("records")
+        if champion_series_ids is None:
+            # Full local mode intentionally preserves the existing catalogue
+            # view and loading behaviour.
+            rows = pd.read_csv(NORMALIZED_FILE).to_dict("records")
+        else:
+            # Restricted deployment reads bounded chunks and materializes
+            # dictionaries only for the exact IDs validated from the registry.
+            wanted = set(champion_series_ids)
+            if not wanted:
+                return []
+            selected_rows: list[dict[str, Any]] = []
+            for chunk in pd.read_csv(
+                NORMALIZED_FILE,
+                usecols=list(WORLD_BANK_COLUMNS),
+                chunksize=25_000,
+                low_memory=False,
+            ):
+                commodity = chunk["commodity"].fillna("").astype(str)
+                geography = chunk["geography_name"].fillna("").astype(str)
+                unit = chunk["unit"].fillna("").astype(str)
+                price_type = chunk["price_type"].fillna("").astype(str)
+                series_ids = commodity + " | " + geography + " | " + unit + " | " + price_type
+                mask = series_ids.isin(wanted)
+                if not mask.any():
+                    continue
+                kept = chunk.loc[mask].copy()
+                kept["series_id"] = series_ids.loc[mask]
+                selected_rows.extend(kept.to_dict("records"))
+            rows = selected_rows
         for row in rows:
             commodity = row.get("commodity", "")
             location = row.get("geography_name", "")
-            series_id = " | ".join((commodity, location, row.get("unit", ""), row.get("price_type", "")))
+            # Parquet/CSV values may be NaN outside the approved panel; keep
+            # the established series ID convention without stringifying NaN.
+            def clean_text(value: Any) -> str:
+                return "" if pd.isna(value) else str(value)
+
+            series_id = " | ".join((clean_text(commodity), clean_text(location), clean_text(row.get("unit", "")), clean_text(row.get("price_type", ""))))
             # Mutate each record returned by pandas in place.  This preserves
             # the existing row schema and conversions while avoiding a second
             # dictionary allocation for every normalized observation.
@@ -453,10 +634,16 @@ class DashboardService:
             row["low_estimate"] = _as_float(row.get("low_estimate"))
             row["high_estimate"] = _as_float(row.get("high_estimate"))
             row["trust_score"] = _as_float(row.get("trust_score"))
+            row["base_observation_price"] = _as_float(row.get("base_observation_price"))
+            row["data_coverage"] = _as_float(row.get("data_coverage"))
+            row["data_coverage_recent"] = _as_float(row.get("data_coverage_recent"))
+            row["index_confidence_score"] = _as_float(row.get("index_confidence_score"))
             row["observed"] = price is not None
             row["is_model_estimate"] = _as_bool(row.get("is_model_estimate"))
             row["geography_level"] = row.get("geography_level", "")
             row["state"] = None if pd.isna(row.get("state")) else row.get("state")
+            row["market"] = None if pd.isna(row.get("market")) else row.get("market")
+            row["source_data_is_direct_observation"] = _as_bool(row.get("source_data_is_direct_observation"))
         rows.sort(key=lambda item: (item["series_id"], item["month"]))
         return rows
 
@@ -484,7 +671,13 @@ class DashboardService:
         if self.market_only and dataset != "market":
             raise DashboardError(
                 "dataset_unavailable",
-                "This deployment exposes only the approved market-level WFP dataset.",
+                "This approved_market deployment exposes only the approved market-level WFP dataset.",
+                404,
+            )
+        if self.world_bank_only and dataset != "world_bank":
+            raise DashboardError(
+                "dataset_unavailable",
+                "This world_bank deployment exposes only registered World Bank champion series.",
                 404,
             )
 
@@ -496,6 +689,7 @@ class DashboardService:
         small and their loaders already expose the approved series rows.
         """
 
+        self._ensure_dataset_enabled(dataset)
         if dataset == "world_bank":
             return self.world_bank_rows_by_series.get(series_id, [])
         return [row for row in self._rows(dataset) if row["series_id"] == series_id]
@@ -588,7 +782,7 @@ class DashboardService:
                         "source": "world_bank",
                         "is_model_estimate": True,
                         "price_value_type": "world_bank_close_estimate",
-                        "price_value_type": "world_bank_close_estimate",
+                        "base_observation_price": _as_float(latest.get("base_observation_price")),
                         "geography_level": latest.get("geography_level"),
                         "geography_name": latest.get("geography_name"),
                         "latest_estimate_price": self._price(last) if last else None,
@@ -611,7 +805,7 @@ class DashboardService:
     def _price(row: dict[str, Any]) -> float | None:
         return row.get("price") if "price" in row else row.get("mean_price")
 
-    def _load_metrics(self, dataset: str) -> list[dict[str, Any]]:
+    def _load_metrics(self, dataset: str, series_ids: set[str] | None = None) -> list[dict[str, Any]]:
         if dataset == "aggregate":
             return self._load_common_aggregate_metrics()
         path = REPORT_DIR / "model_comparison.csv" if dataset == "market" else REPORT_DIR / "world_bank" / "model_comparison.csv"
@@ -621,6 +815,8 @@ class DashboardService:
         output = []
         for row in rows:
             if row.get("split") != "test":
+                continue
+            if series_ids is not None and row.get("series_id") not in series_ids:
                 continue
             model = _standard_model_name(row.get("model", ""))
             output.append(
@@ -707,6 +903,37 @@ class DashboardService:
                     "notes": "Previous calendar-month price baseline; lightweight deployment path.",
                 }
             ]
+        if dataset == "world_bank":
+            record = self._world_bank_champions.get("records", {}).get(series_id) if self._world_bank_champions.get("available") else None
+            selected = str(record.get("selected_model")) if record else None
+            output: list[dict[str, Any]] = []
+            for model in MODEL_ORDER:
+                is_champion = bool(record and model == selected)
+                if is_champion:
+                    output.append({
+                        "model": model,
+                        "label": MODEL_LABELS[model],
+                        "available": True,
+                        "status": "available",
+                        "production": True,
+                        "research_only": False,
+                        "transformation": record.get("selected_transformation", "none"),
+                        "notes": "Registered World Bank production champion; close-estimate forecast.",
+                    })
+                else:
+                    output.append({
+                        "model": model,
+                        "label": MODEL_LABELS[model],
+                        "available": False,
+                        "status": "unavailable",
+                        "production": False,
+                        "research_only": bool(record),
+                        "notes": (
+                            "Research challenger; not the registered production forecast."
+                            if record else self._world_bank_champions.get("reason", "Production registry unavailable.")
+                        ),
+                    })
+            return output
         records = {row["model"]: row for row in self._metrics_for(dataset, series_id)}
         available: list[dict[str, Any]] = []
         for model in MODEL_ORDER:
@@ -823,7 +1050,12 @@ class DashboardService:
             for item in series["models"]:
                 if item["available"]:
                     market_model_counts[item["model"]] += 1
-        if not self.market_only:
+        if self.world_bank_only:
+            for series in self.world_bank_series:
+                for item in series["models"]:
+                    if item["available"]:
+                        world_bank_model_counts[item["model"]] += 1
+        elif not self.market_only:
             for series in self.aggregate_series:
                 for item in series["models"]:
                     if item["available"]:
@@ -832,6 +1064,62 @@ class DashboardService:
                 for item in series["models"]:
                     if item["available"]:
                         world_bank_model_counts[item["model"]] += 1
+        if self.world_bank_only:
+            world_bank = self._world_bank_overview()
+            dataset_facts = {
+                "source": "World Bank Nigeria Real Time Food Prices; c_ close estimates",
+                "historical_observations": world_bank.get("historical_observations", 0),
+                "commodity_count": world_bank.get("commodity_count", 0),
+                "market_count": world_bank.get("market_count"),
+                "state_count": world_bank.get("state_count"),
+                "date_start": world_bank.get("date_start"),
+                "date_end": world_bank.get("date_end"),
+                "earliest_observation_date": world_bank.get("earliest_observation_date"),
+                "latest_observation_date": world_bank.get("latest_observation_date"),
+                "frequency": "monthly",
+                "currency": "NGN",
+                "statistics_source": "filtered_world_bank_champion_rows",
+                "fallback_used": False,
+                "coverage_scope": "registered_champion_subset",
+                "source_data_is_direct_observation": False,
+                "note": "Statistics describe registered World Bank champion series only, not the full source catalogue. Prices are close estimates.",
+            }
+            registry_status = {
+                "available": self._world_bank_champions.get("available", False),
+                "reason": self._world_bank_champions.get("reason"),
+                "generated_at": self._world_bank_champions.get("generated_at"),
+                "champion_count": self._world_bank_champions.get("champion_count", 0),
+            }
+            sources = {
+                "world_bank": {**world_bank, "champion_registry": registry_status},
+                "wfp": {"available": False, "reason": "WFP datasets are disabled by AGRIPRICE_DEPLOY_SCOPE=world_bank."},
+                "aggregate": {"available": False, "reason": "WFP aggregate data is disabled by AGRIPRICE_DEPLOY_SCOPE=world_bank."},
+            }
+            model_status = {
+                "market": {},
+                "aggregate_final_validation": {},
+                "world_bank": dict(world_bank_model_counts),
+                "lstm": {"aggregate_available_series": 0, "market_available_series": 0, "inference_environment": "Not applicable to the World Bank champion panel."},
+            }
+            return {
+                "deployment_scope": WORLD_BANK_SCOPE,
+                "available_datasets": [WORLD_BANK_SCOPE],
+                "dataset": dataset_facts,
+                "freshness": {
+                    "reference_date": self.reference_date.isoformat(),
+                    "thresholds_months": dict(FRESHNESS_THRESHOLDS_MONTHS),
+                    "meaning": "Freshness describes the age of the latest available close estimate, not the date of a direct survey.",
+                },
+                "experiments": {
+                    "market_level_series": 0,
+                    "aggregate_series": 0,
+                    "world_bank_champion_series": len(self.world_bank_series),
+                    "full_world_bank_catalogue_loaded": False,
+                },
+                "model_status": model_status,
+                "sources": sources,
+            }
+
         dataset_facts = {
             **self.source_summary,
             "frequency": self.source_summary.get("frequency", "monthly"),
@@ -881,7 +1169,15 @@ class DashboardService:
                     "statistics": dataset_facts,
                     "series_count": len(self.market_series) + len(self.aggregate_series),
                 },
-                "world_bank": self._world_bank_overview(),
+                "world_bank": {
+                    **self._world_bank_overview(),
+                    "champion_registry": {
+                        "available": self._world_bank_champions.get("available", False),
+                        "reason": self._world_bank_champions.get("reason"),
+                        "generated_at": self._world_bank_champions.get("generated_at"),
+                        "champion_count": self._world_bank_champions.get("champion_count", 0),
+                    },
+                },
             }
             experiments = {
                 "market_level_series": len(self.market_series),
@@ -918,7 +1214,13 @@ class DashboardService:
             return {
                 "available": False,
                 "source": "World Bank Nigeria Real Time Food Prices",
-                "reason": "Normalized World Bank data has not been prepared.",
+                "reason": self._world_bank_data_error
+                or self._world_bank_champions.get("reason")
+                or "Normalized World Bank data has not been prepared.",
+                "series_count": 0,
+                "champion_series_count": self._world_bank_champions.get("champion_count", 0),
+                "is_model_estimate": True,
+                "source_data_is_direct_observation": False,
             }
         rows = self.world_bank_rows
         dates = []
@@ -933,7 +1235,19 @@ class DashboardService:
         market_rows = [row for row in rows if row.get("geography_level") == "market"]
         states = {row.get("state") for row in market_rows if row.get("state")}
         markets = {row.get("market") for row in market_rows if row.get("market")}
-        return {
+        survey_months = []
+        for row in rows:
+            value = row.get("last_survey_point")
+            if not value:
+                continue
+            for date_format in ("%Y-%m-%d", "%Y-%m", "%b %Y", "%B %Y"):
+                try:
+                    parsed = datetime.strptime(str(value).strip(), date_format)
+                except ValueError:
+                    continue
+                survey_months.append(parsed.strftime("%Y-%m"))
+                break
+        result = {
             "available": True,
             "source": "World Bank Nigeria Real Time Food Prices; c_ close estimates",
             "historical_observations": len(rows),
@@ -951,17 +1265,37 @@ class DashboardService:
             "is_model_estimate": True,
             "series_count": len(self.world_bank_series),
             "trained_series_count": len({row["series_id"] for row in self._world_bank_metrics}),
-            "survey_observation_period_end": "2026-10",
+            "survey_observation_period_end": max(survey_months, default=None),
             "data_coverage": _as_float(rows[0].get("data_coverage")) if rows else None,
             "data_coverage_recent": _as_float(rows[0].get("data_coverage_recent")) if rows else None,
             "index_confidence_score": _as_float(rows[0].get("index_confidence_score")) if rows else None,
-            "note": "World Bank values are modelled/imputed estimates; the November 2026 row is not treated as proof of a direct market survey.",
+            "note": "World Bank values are modelled/imputed close estimates; the latest estimated month is not treated as proof of a direct market survey.",
         }
+        if self.world_bank_only:
+            result.update({
+                "coverage_scope": "registered_champion_subset",
+                "full_source_catalogue_loaded": False,
+                "champion_series_count": len(self.world_bank_series),
+                "geography_levels": sorted({str(row.get("geography_level")) for row in rows if row.get("geography_level")}),
+                "geography_names_count": len({str(row.get("geography_name")) for row in rows if row.get("geography_name")}),
+                "market_count": len(markets),
+                "state_count": len(states),
+                "source_data_is_direct_observation": False,
+                "note": "Statistics cover only the registered champion subset (National Average and Market Average series), not the full World Bank catalogue. Prices are c_ close estimates; the latest estimated month is not presented as a direct survey date.",
+            })
+            # Coverage scores belong to individual source rows and are not
+            # reduced to an arbitrary single value for this multi-series panel.
+            result.pop("data_coverage", None)
+            result.pop("data_coverage_recent", None)
+            result.pop("index_confidence_score", None)
+        return result
 
     def series(self, dataset: str | None = None) -> dict[str, Any]:
         if dataset is None:
             if self.market_only:
                 return {"market": self.market_series}
+            if self.world_bank_only:
+                return {"world_bank": self.world_bank_series}
             return {"market": self.market_series, "aggregate": self.aggregate_series, "world_bank": self.world_bank_series}
         self._rows(dataset)  # validates dataset
         return {
@@ -1020,6 +1354,8 @@ class DashboardService:
                     {
                         "source": "world_bank",
                         "is_model_estimate": True,
+                        "price_value_type": "world_bank_close_estimate",
+                        "base_observation_price": _as_float(row.get("base_observation_price")),
                         "geography_level": row.get("geography_level"),
                         "geography_name": row.get("geography_name"),
                         "state": row.get("state"),
@@ -1076,6 +1412,14 @@ class DashboardService:
                 "Final aggregate configurations were selected on validation data and evaluated once on untouched test periods. "
                 "Market records are the existing chronological test metrics."
             )
+        if dataset == "world_bank":
+            champion = self._world_bank_champions.get("records", {}).get(series_id) if series_id else None
+            for record in records:
+                selected = bool(champion and record.get("model") == champion.get("selected_model"))
+                record["production_champion"] = selected
+                record["research_only"] = not selected
+                if selected:
+                    record["notes"] = (record.get("notes") or "") + " Registered production champion."
         return {
             "dataset": dataset,
             "series_id": series_id,
@@ -1211,6 +1555,15 @@ class DashboardService:
 
     def forecast(self, dataset: str, series_id: str, model: str, horizon: int) -> dict[str, Any]:
         series = self._validate_forecast_request(dataset, series_id, model, horizon)
+        champion_record = None
+        if dataset == "world_bank":
+            champion_record = self._world_bank_champions.get("records", {}).get(series_id)
+            if not champion_record or champion_record.get("selected_model") != model:
+                raise DashboardError(
+                    "model_unavailable",
+                    "Only the registered World Bank production champion can be forecast.",
+                    422,
+                )
         rows = self._rows_for_series(dataset, series_id)
         observed = [row for row in rows if row["observed"] and self._price(row) is not None]
         if not observed:
@@ -1278,11 +1631,21 @@ class DashboardService:
                 for row in forecast_rows
             ]
         elif dataset == "world_bank":
-            path = _model_path(dataset, series_id, model)
+            artifact = champion_record.get("artifact_path") if champion_record else None
+            if not artifact:
+                raise DashboardError("model_unavailable", "The registered World Bank champion does not have a usable artifact.", 422)
+            path = (ROOT / str(artifact)).resolve()
+            if ROOT not in path.parents:
+                raise DashboardError("model_unavailable", "The registered World Bank artifact path is invalid.", 503)
             predictor, metadata = _load_artifact(path)
+            _validate_world_bank_champion_artifact(
+                metadata,
+                series_id,
+                champion_record,
+            )
             from .world_bank_training import _recursive_forecast as world_bank_recursive_forecast
 
-            transformation = str(metadata.get("transformation", "original"))
+            transformation = str(champion_record["selected_transformation"])
             forecast_rows = world_bank_recursive_forecast(
                 predictor,
                 rows,
@@ -1357,11 +1720,25 @@ class DashboardService:
             "latest_low_estimate": series.get("latest_low_estimate"),
             "latest_high_estimate": series.get("latest_high_estimate"),
             "latest_trust_score": series.get("latest_trust_score"),
+            "base_observation_price": series.get("base_observation_price"),
+            "source_data_is_direct_observation": series.get("source_data_is_direct_observation"),
             "is_model_estimate": series.get("is_model_estimate", False),
             "price_value_type": series.get("price_value_type"),
             "freshness_status": series.get("freshness_status"),
             "observation_age_months": series.get("observation_age_months"),
         }
+        if champion_record is not None:
+            forecast_metadata["champion_selection"] = {
+                "selected_model": champion_record.get("selected_model"),
+                "selected_transformation": champion_record.get("selected_transformation"),
+                "validation_metrics": champion_record.get("validation_metrics"),
+                "validation_period": champion_record.get("validation_period"),
+                "selection_criterion": champion_record.get("selection_criterion"),
+                "experiment_version": champion_record.get("experiment_version"),
+                "selection_timestamp": champion_record.get("selection_timestamp"),
+            }
+            forecast_metadata["source_data_is_direct_observation"] = False
+            forecast_metadata["base_observation_price"] = series.get("base_observation_price")
         freshness_warning = None
         if series.get("freshness_status") in {"aging", "stale"}:
             freshness_warning = (
@@ -1385,10 +1762,13 @@ class DashboardService:
             "latest_low_estimate": series.get("latest_low_estimate"),
             "latest_high_estimate": series.get("latest_high_estimate"),
             "latest_trust_score": series.get("latest_trust_score"),
+            "base_observation_price": series.get("base_observation_price"),
+            "source_data_is_direct_observation": series.get("source_data_is_direct_observation"),
             "is_model_estimate": series.get("is_model_estimate", False),
             "price_value_type": series.get("price_value_type"),
             "freshness_status": series.get("freshness_status"),
             "observation_age_months": series.get("observation_age_months"),
+            "champion_selection": forecast_metadata.get("champion_selection"),
             "freshness_explanation": series.get("freshness_explanation"),
             "freshness_warning": freshness_warning,
             "metadata": forecast_metadata,

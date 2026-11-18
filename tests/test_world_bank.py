@@ -68,14 +68,19 @@ class WorldBankIntegrationTests(unittest.TestCase):
 
     def test_world_bank_forecast_artifact_and_unavailable_market_are_explicit(self):
         series_id = "Beans (red) | National Average | 2.5 KG | close_estimate"
+        service = DashboardService()
+        champion = service._world_bank_champions["records"][series_id]["selected_model"]
         for horizon in (1, 3, 6):
-            response = self.client.get("/api/forecast", query_string={"dataset": "world_bank", "series_id": series_id, "model": "xgboost", "horizon": horizon})
+            response = self.client.get("/api/forecast", query_string={"dataset": "world_bank", "series_id": series_id, "model": champion, "horizon": horizon})
             self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
             payload = response.get_json()
             self.assertEqual(len(payload["forecast"]), horizon)
             self.assertTrue(payload["is_model_estimate"])
             self.assertEqual(payload["confidence_intervals"], None)
-        unsupported = self.client.get("/api/forecast", query_string={"dataset": "world_bank", "series_id": "Beans (red) | Aba | 2.5 KG | close_estimate", "model": "xgboost", "horizon": 1})
+        challenger = "random_forest" if champion != "random_forest" else "gradient_boosting"
+        non_champion = self.client.get("/api/forecast", query_string={"dataset": "world_bank", "series_id": series_id, "model": challenger, "horizon": 1})
+        self.assertEqual(non_champion.status_code, 422)
+        unsupported = self.client.get("/api/forecast", query_string={"dataset": "world_bank", "series_id": "Beans (red) | Aba | 2.5 KG | close_estimate", "model": champion, "horizon": 1})
         self.assertEqual(unsupported.status_code, 422)
 
 
