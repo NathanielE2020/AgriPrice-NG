@@ -6,12 +6,17 @@ import pytest
 
 from app import create_app
 from src.wfp_nbs_dashboard_service import DashboardService
-from src.ondemand_forecasting import assess_wfp_series
+from src.ondemand_forecasting import ForecastingError, assess_wfp_series
 
 
 @pytest.fixture(scope="module")
-def client():
-    return create_app(DashboardService()).test_client()
+def service():
+    return DashboardService()
+
+
+@pytest.fixture(scope="module")
+def client(service):
+    return create_app(service).test_client()
 
 
 def test_dashboard_page_and_overview_use_only_migrated_sources(client):
@@ -103,6 +108,129 @@ def test_approved_wfp_market_series_are_present_as_actual_series(client):
         for item in series if item["price_flag"] == "actual"
     }
     assert approved.issubset(found)
+
+
+def test_forecast_catalogue_only_exposes_exact_pure_actual_wfp_ids(client, service):
+    catalogue = client.get("/api/series?dataset=wfp").get_json()
+    actual = [item for item in catalogue if item["price_flag"] == "actual"]
+    non_actual = [item for item in catalogue if item["price_flag"] != "actual"]
+    assert actual and non_actual
+    assert all(item["forecast_request_available"] for item in actual)
+    assert not any(item["forecast_request_available"] for item in non_actual)
+
+    javascript = client.get("/static/js/dashboard.js").get_data(as_text=True)
+    assert "const forecastItems = items.filter((item) => isPureActualForecastSeries(item, dataset));" in javascript
+    assert "state.forecastSelected[state.dataset] = event.target.value;" in javascript
+    assert "if (!isPureActualForecastSeries(selectedSeries, dataset))" in javascript
+    assert "series_id: seriesId" in javascript
+
+    # IDs are formed from the same exact grouping dimensions as the loaded
+    # records, with priceflag retained as a separate key.
+    for item in actual[:5]:
+        record = service._series_index[("wfp", item["series_id"])]
+        assert record["price_flag"] == "actual"
+        assert record["series_id"] == item["series_id"]
+
+
+def test_forecast_api_routes_multiple_commodity_market_ids_without_substitution(client, service, monkeypatch):
+    requested = (
+        ("Beans (red)", "Bullunkutu"),
+        ("Rice (local)", "Baga Road"),
+        ("Maize", "Illela (CBM)"),
+    )
+    records = []
+    for commodity, market in requested:
+        record = next(
+            item for item in service._series["wfp"]
+            if item["commodity"] == commodity
+            and item["market"] == market
+            and item["price_flag"] == "actual"
+            and assess_wfp_series(item)["eligible"]
+        )
+        records.append(record)
+    assert len({item["commodity"] for item in records}) == len(requested)
+    assert len({item["market"] for item in records}) == len(requested)
+
+    routed = []
+
+    def fake_generate(record, series_id, horizon, **_kwargs):
+        assessment = assess_wfp_series(record)
+        if not assessment["eligible"]:
+            raise ForecastingError(assessment["code"], assessment["reason"])
+        routed.append((record["series_id"], record["commodity"], record["market"], record["price_flag"]))
+        return {"metadata": {"series_id": series_id, "horizon": horizon}, "forecast": []}
+
+    from src import ondemand_forecasting
+
+    monkeypatch.setattr(ondemand_forecasting, "generate_wfp_forecast", fake_generate)
+    for record in records:
+        response = client.get("/api/forecast", query_string={
+            "dataset": "wfp",
+            "series_id": record["series_id"],
+            "model": "auto",
+            "mode": "on_demand",
+            "horizon": "1",
+        })
+        assert response.status_code == 200, response.get_json()
+        payload = response.get_json()
+        assert payload["series"]["series_id"] == record["series_id"]
+        assert payload["series"]["commodity"] == record["commodity"]
+        assert payload["series"]["market"] == record["market"]
+        assert payload["series"]["price_flag"] == "actual"
+    assert routed == [
+        (record["series_id"], record["commodity"], record["market"], "actual")
+        for record in records
+    ]
+
+
+def test_duplicate_commodity_market_flags_remain_separate_and_ineligible_flags_are_explained(
+    client, service, monkeypatch
+):
+    grouping_fields = ("commodity", "market_id", "market", "state", "unit", "price_type", "currency")
+    groups = {}
+    for record in service._series["wfp"]:
+        key = tuple(record[field] for field in grouping_fields)
+        groups.setdefault(key, {})[record["price_flag"]] = record
+
+    variants = next(
+        group for group in groups.values()
+        if {"actual", "aggregate", "actual,aggregate"}.issubset(group)
+        and assess_wfp_series(group["actual"])["eligible"]
+    )
+    assert len({variants[flag]["series_id"] for flag in ("actual", "aggregate", "actual,aggregate")}) == 3
+
+    aggregate_only = next(
+        record for record in service._series["wfp"]
+        if record["price_flag"] == "aggregate"
+        and "actual" not in groups[tuple(record[field] for field in grouping_fields)]
+        and "actual,aggregate" not in groups[tuple(record[field] for field in grouping_fields)]
+    )
+
+    def exact_series_probe(record, series_id, horizon, **_kwargs):
+        assessment = assess_wfp_series(record)
+        if not assessment["eligible"]:
+            raise ForecastingError(assessment["code"], assessment["reason"])
+        return {"metadata": {"series_id": series_id, "horizon": horizon}, "forecast": []}
+
+    from src import ondemand_forecasting
+
+    monkeypatch.setattr(ondemand_forecasting, "generate_wfp_forecast", exact_series_probe)
+    actual_response = client.get("/api/forecast", query_string={
+        "dataset": "wfp", "series_id": variants["actual"]["series_id"],
+        "model": "auto", "mode": "on_demand", "horizon": "1",
+    })
+    assert actual_response.status_code == 200
+    assert actual_response.get_json()["series"]["series_id"] == variants["actual"]["series_id"]
+
+    for flagged_record in (variants["aggregate"], variants["actual,aggregate"], aggregate_only):
+        response = client.get("/api/forecast", query_string={
+            "dataset": "wfp", "series_id": flagged_record["series_id"],
+            "model": "auto", "mode": "on_demand", "horizon": "1",
+        })
+        assert response.status_code == 422
+        error = response.get_json()["error"]
+        assert error["code"] == "not_direct_actual"
+        assert "aggregate or mixed-price-flag" in error["message"]
 
 
 def test_history_keeps_real_months_and_does_not_fill_gaps(client):

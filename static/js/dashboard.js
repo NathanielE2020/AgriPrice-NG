@@ -7,6 +7,7 @@
     overview: null,
     series: { wfp: [], nbs: [] },
     selected: { wfp: "", nbs: "" },
+    forecastSelected: { wfp: "", nbs: "" },
     history: [],
     charts: {},
     forecastRequestId: 0,
@@ -72,6 +73,16 @@
     return getSeries(dataset).find((item) => item.series_id === id) || null;
   }
 
+  function isPureActualForecastSeries(series, dataset) {
+    return Boolean(
+      dataset === "wfp"
+      && series
+      && series.source_key === "wfp"
+      && series.price_flag === "actual"
+      && series.forecast_request_available
+    );
+  }
+
   function configureDatasetSelectors(dataset) {
     state.dataset = dataset === "nbs" ? "nbs" : "wfp";
     ["#globalDataset", "#analysisDataset", "#forecastDataset"].forEach((selector) => {
@@ -86,29 +97,39 @@
     const current = preferredId || state.selected[dataset];
     const nextId = items.some((item) => item.series_id === current) ? current : (items[0] ? items[0].series_id : "");
     state.selected[dataset] = nextId;
-    const optionMarkup = items.map((item) => {
-      const geo = item.market || item.geography_name || "";
-      const flag = item.price_flag ? ` · ${item.price_flag}` : "";
-      const unit = item.unit || "Not stated";
-      return `<option value="${escapeHTML(item.series_id)}">${escapeHTML(item.commodity)} · ${escapeHTML(unit)} · ${escapeHTML(item.price_type)} · ${escapeHTML(geo)}${escapeHTML(flag)}</option>`;
-    }).join("");
+    const forecastItems = items.filter((item) => isPureActualForecastSeries(item, dataset));
+    let forecastId = state.forecastSelected[dataset];
+    if (!forecastItems.some((item) => item.series_id === forecastId)) {
+      forecastId = forecastItems[0] ? forecastItems[0].series_id : "";
+    }
+    state.forecastSelected[dataset] = forecastId;
     selectors.forEach((selector) => {
       const node = $(selector);
       if (!node) return;
-      node.innerHTML = optionMarkup || '<option value="">No series available</option>';
+      const isForecastSelector = selector === "#forecastSeries";
+      const choices = isForecastSelector ? forecastItems : items;
+      const selectedId = isForecastSelector ? forecastId : nextId;
+      const optionMarkup = choices.map((item) => {
+        const geo = item.market || item.geography_name || "";
+        const flag = item.price_flag ? ` · ${item.price_flag}` : "";
+        const unit = item.unit || "Not stated";
+        return `<option value="${escapeHTML(item.series_id)}">${escapeHTML(item.commodity)} · ${escapeHTML(unit)} · ${escapeHTML(item.price_type)} · ${escapeHTML(geo)}${escapeHTML(flag)}</option>`;
+      }).join("");
+      const emptyLabel = isForecastSelector
+        ? (dataset === "nbs" ? "NBS forecasting is unavailable" : "No pure-actual WFP series available")
+        : "No series available";
+      node.innerHTML = optionMarkup || `<option value="">${emptyLabel}</option>`;
       node.querySelectorAll("option").forEach((option) => {
-        const item = items.find((candidate) => candidate.series_id === option.value);
-        if (item && selector === "#forecastSeries") {
-          option.textContent += item.forecast_request_available
-            ? " [actual series; eligibility checked on selection]"
-            : (dataset === "nbs" ? " [NBS forecast unavailable]" : " [not a pure-actual series]");
+        const item = choices.find((candidate) => candidate.series_id === option.value);
+        if (item && isForecastSelector) {
+          option.textContent += " [pure priceflag=actual; history checked on request]";
         } else if (item && selector === "#performanceSeries") {
           option.textContent += item.forecast_available ? " [historical evaluation]" : " [not evaluated]";
         }
       });
-      node.value = nextId;
+      node.value = selectedId;
     });
-    updateForecastAvailability(dataset, nextId);
+    updateForecastAvailability(dataset, forecastId);
     return getSeriesItem(dataset, nextId);
   }
 
@@ -135,7 +156,7 @@
       $("#forecastResults").hidden = true;
       $("#forecastEmpty").hidden = false;
     }
-    const canCheck = Boolean(dataset === "wfp" && series && series.forecast_request_available);
+    const canCheck = isPureActualForecastSeries(series, dataset);
     if (model) {
       model.innerHTML = '<option value="auto">Chosen using chronological validation</option>';
       model.value = "auto";
@@ -454,10 +475,26 @@
   async function requestForecast() {
     const dataset = $("#forecastDataset").value;
     const seriesId = $("#forecastSeries").value;
-    const model = $("#forecastModel").value;
-    const horizon = $("#forecastHorizon").value;
     const button = $("#generateForecast");
     const requestId = ++state.forecastRequestId;
+    const selectedSeries = getSeriesItem(dataset, seriesId);
+    if (!isPureActualForecastSeries(selectedSeries, dataset)) {
+      const reason = dataset !== "wfp"
+        ? "NBS national and zone series are not supported by the WFP market forecasting engine."
+        : (selectedSeries && selectedSeries.price_flag !== "actual"
+          ? "This selection has no pure priceflag=actual market series. Aggregate and mixed-price-flag records are excluded."
+          : "Choose a WFP series with pure priceflag=actual observations.");
+      button.disabled = true;
+      button.textContent = "Forecast unavailable";
+      $("#forecastResults").hidden = true;
+      $("#forecastEmpty").hidden = false;
+      $("#forecastEmpty h2").textContent = "Forecast unavailable for this selection";
+      $("#forecastEmpty p").textContent = reason;
+      setMessage("#forecastError", reason, true);
+      return;
+    }
+    const model = $("#forecastModel").value;
+    const horizon = $("#forecastHorizon").value;
     const selectionKey = `${dataset}|${seriesId}|${horizon}`;
     button.disabled = true;
     button.textContent = "Loading saved forecast…";
@@ -483,7 +520,7 @@
       }
     } finally {
       if (requestId === state.forecastRequestId) {
-        button.disabled = !getSeriesItem(dataset, seriesId)?.forecast_request_available;
+        button.disabled = !isPureActualForecastSeries(getSeriesItem(dataset, seriesId), dataset);
         button.textContent = button.disabled ? "Forecast unavailable" : "Generate forecast";
       }
     }
@@ -528,7 +565,7 @@
       loadHistory(state.dataset, item.series_id);
     });
     $("#forecastSeries").addEventListener("change", (event) => {
-      state.selected[state.dataset] = event.target.value;
+      state.forecastSelected[state.dataset] = event.target.value;
       updateForecastAvailability(state.dataset, event.target.value);
       renderLatest(getSeriesItem(state.dataset, event.target.value));
       requestForecast();
