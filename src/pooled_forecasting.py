@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any
 
 
-POOL_FORMAT_VERSION = 2
+POOL_FORMAT_VERSION = 3
 POOL_MODELS = ("pooled_random_forest", "pooled_gradient_boosting")
 POOL_MODEL_CONFIGURATION = {
     "pooled_random_forest": "150 trees; min_samples_leaf=3; max_features=0.8; seed=42; n_jobs=1; log monthly price movement target",
@@ -301,9 +301,10 @@ def _fit_pool(
             validation_months.add(row["month"])
             validation_groups.add(row["group"])
             detail = series_validation.setdefault(row["series_id"], {
-                "actual": [], "naive_last_observation": [], "trend_baseline": [],
+                "months": [], "actual": [], "naive_last_observation": [], "trend_baseline": [],
                 **{name: [] for name in POOL_MODELS},
             })
+            detail["months"].append(row["month"])
             detail["actual"].append(truth)
             detail["naive_last_observation"].append(baseline_predictions["naive_last_observation"][-1])
             detail["trend_baseline"].append(baseline_predictions["trend_baseline"][-1])
@@ -355,12 +356,28 @@ def _fit_pool(
         "validation_training_target_last_month": _month_from_ordinal(_month_ordinal(cutoff) - 1),
         "validation_first_month": min(validation_months),
         "validation_last_month": max(validation_months),
+        "validation_months": sorted(validation_months),
         "series_validation": {
             series_id: {
                 name: _price_metrics(detail["actual"], detail[name])
                 for name in ("naive_last_observation", "trend_baseline", *POOL_MODELS)
                 if detail.get(name) and len(detail[name]) == len(detail["actual"])
             }
+            for series_id, detail in series_validation.items()
+        },
+        "series_validation_predictions": {
+            series_id: [
+                {
+                    "month": month,
+                    "actual": detail["actual"][index],
+                    "models": {
+                        name: detail[name][index]
+                        for name in ("naive_last_observation", "trend_baseline", *POOL_MODELS)
+                        if len(detail.get(name, [])) == len(detail["actual"])
+                    },
+                }
+                for index, month in enumerate(detail["months"])
+            ]
             for series_id, detail in series_validation.items()
         },
         "skipped_peer_series": skipped,
@@ -450,11 +467,13 @@ def generate_pooled_forecast(
     pool_records: list[dict[str, Any]],
     cache_dir: Path,
     as_of: date,
+    evaluation_only: bool = False,
 ) -> dict[str, Any]:
-    """Validate a compatible global strategy and forecast one exact series."""
+    """Validate a compatible pool and optionally omit future prediction steps."""
     from .ondemand_forecasting import (
         ForecastingError, _collect_actual_history, _feature_row,
-        _month_from_ordinal, _month_ordinal,
+        _month_from_ordinal, _month_ordinal, _source_age_months,
+        _check_source_freshness, forecast_policy,
     )
 
     if source_key == "wfp" and str(record.get("price_flag") or "") != "actual":
@@ -469,27 +488,22 @@ def generate_pooled_forecast(
     except ForecastingError:
         raise
     prices = collected["prices"]
-    if len(prices) < 3:
+    if not prices:
         raise ForecastingError(
             "insufficient_local_history",
-            f"This exact series has {len(prices)} valid reported observations; at least 3 are required to form a gap-aware prediction input. No other market's price was substituted.",
+            "This exact series has no valid reported observations. No other market's price was substituted.",
         )
     months = sorted(prices, key=_month_ordinal)
     origin = months[-1]
     current_month = f"{as_of.year:04d}-{as_of.month:02d}"
-    if _month_ordinal(origin) > _month_ordinal(current_month):
-        raise ForecastingError(
-            "actual_data_after_generation_date",
-            f"The latest reported observation is in {origin}, after the forecast generation month {current_month}; future training data were not used.",
-        )
     origin_date = collected["dates"].get(origin)
-    if origin_date:
-        try:
-            origin_day = date.fromisoformat(str(origin_date)[:10])
-        except ValueError:
-            origin_day = None
-        if origin_day and origin_day > as_of:
-            raise ForecastingError("actual_data_after_generation_date", "The latest source observation is after the forecast generation date; future data were not used.")
+    if not evaluation_only:
+        _check_source_freshness(source_key, origin, origin_date, as_of)
+        if len(prices) < 3:
+            raise ForecastingError(
+                "insufficient_local_history",
+                f"This exact series has {len(prices)} valid reported observations; at least 3 are required to form a gap-aware prediction input. No other market's price was substituted.",
+            )
 
     # Peer records are cut at the same as-of boundary before they participate
     # in either validation or the final pooled fit.
@@ -509,7 +523,7 @@ def generate_pooled_forecast(
     working = dict(prices)
     forecasts: list[dict[str, Any]] = []
     bridge_count = 0
-    for target_ordinal in range(origin_ordinal + 1, current_ordinal + horizon + 1):
+    for target_ordinal in range(origin_ordinal + 1, current_ordinal + horizon + 1) if not evaluation_only else []:
         target_month = _month_from_ordinal(target_ordinal)
         observations = sorted(working.items(), key=lambda item: _month_ordinal(item[0]))
         feature = _feature_row(observations, target_month, trend_origin)
@@ -545,8 +559,10 @@ def generate_pooled_forecast(
                 "temporal_status": "future_as_of_generation",
             })
 
-    origin_age = max(0, current_ordinal - origin_ordinal)
+    origin_age = _source_age_months(source_key, origin, origin_date, as_of)
+    policy = forecast_policy()
     selected_series_validation = assessment.get("series_validation", {}).get(series_id, {})
+    selected_series_validation_predictions = assessment.get("series_validation_predictions", {}).get(series_id, [])
     validation_metrics = assessment["validation_scores"][chosen]
     training_series_ids = set(bundle.get("training_series_ids", []))
     peers = []
@@ -561,12 +577,15 @@ def generate_pooled_forecast(
             "state_or_level": item.get("state") if source_key == "wfp" else item.get("geography_level"),
             "observations": int(item.get("observed_months", 0) or 0),
         })
-    history = [row for row in record.get("history", []) if row.get("month") and _month_ordinal(row["month"]) >= origin_ordinal - 23]
+    history = [] if evaluation_only else [row for row in record.get("history", []) if row.get("month") and _month_ordinal(row["month"]) >= origin_ordinal - 23]
     metadata = {
         "source": source_key.upper(), "commodity": record.get("commodity"),
+        "research_commodity_mapping": record.get("research_commodity_mapping"),
+        "mapping_status": record.get("mapping_status"),
         "market": record.get("market"), "state": record.get("state"),
         "geography_level": record.get("geography_level"), "geography_name": record.get("geography_name"),
         "methodology_regime": record.get("methodology_regime"), "unit": record.get("unit"),
+        "unit_basis": record.get("unit_basis"),
         "price_type": record.get("price_type"), "currency": record.get("currency"),
         "model": chosen,
         "model_type": "validated pooled/global model" if chosen in POOL_MODELS else "validated baseline",
@@ -575,23 +594,32 @@ def generate_pooled_forecast(
         "method": "recursive calendar-month forecast; prior model estimates feed later steps; missing actual prices are never filled",
         "validation_design": "5-fold group-held-out validation across compatible markets/geographies, with training target months strictly before the chronological 80% cutoff; validation inputs use only prior observations",
         "validation_scope": "same-source, same-commodity/item, compatible-definition pool; not an independent evaluation of only the selected series",
-        "forecast_origin_month": origin, "forecast_start_month": forecasts[0]["month"],
-        "forecast_end_month": forecasts[-1]["month"],
+        "forecast_origin_month": origin, "forecast_start_month": forecasts[0]["month"] if forecasts else None,
+        "forecast_end_month": forecasts[-1]["month"] if forecasts else None,
         "latest_actual_month_in_source": origin if source_key == "wfp" else None,
         "latest_actual_date_in_source": origin_date if source_key == "wfp" else None,
-        "latest_observation_month_in_source": origin, "latest_observation_date_in_source": origin_date,
+        "latest_observation_month_in_source": origin, "latest_observation_date_in_source": origin_date or origin,
+        "latest_source_report_date": next((row.get("source_report_date") for row in reversed(record.get("history", [])) if row.get("month") == origin), None),
         "source_age_months": origin_age,
-        "source_freshness_classification": "fresh_within_3_months" if origin_age <= 3 else "stale_for_current_market",
-        "is_current_market_forecast": origin_age <= 3,
-        "forecast_date_scope": "future_only_after_current_calendar_month",
+        "freshness_limit_months": policy["max_source_age_months"],
+        "max_forecast_bridge_months": policy["max_bridge_months"],
+        "source_freshness_classification": f"fresh_within_{policy['max_source_age_months']}_months" if origin_age <= policy["max_source_age_months"] else "stale_for_current_market",
+        "is_current_market_forecast": not evaluation_only and origin_age <= policy["max_source_age_months"],
+        "forecast_date_scope": "validation_only" if evaluation_only else "future_only_after_current_calendar_month",
         "forecast_bridge_months": bridge_count,
-        "forecast_generation_date": as_of.isoformat(), "forecast_classification": "future_as_of_generation",
+        "forecast_generation_date": as_of.isoformat(), "forecast_classification": "validation_only" if evaluation_only else "future_as_of_generation",
         "confidence_intervals": False,
         "selection_basis": "lowest RMSE across validation of naive last observation, historical trend, pooled random forest and pooled gradient boosting; all predictions are group-held-out and chronological",
         "validation_metrics": validation_metrics,
         "model_comparison_validation": [{"model": name, **metrics} for name, metrics in sorted(assessment["validation_scores"].items())],
         "selected_series_validation_metrics": selected_series_validation.get(chosen),
+        "selected_series_validation_predictions": selected_series_validation_predictions,
+        "validation_predictions": selected_series_validation_predictions,
+        "evaluation_note": (
+            "Metrics are group-held-out pool-level validation; selected-series predictions are shown only if the exact series contributed held-out rows."
+        ),
         "validation_rows": assessment["validation_rows"],
+        "validation_months": assessment.get("validation_months", []),
         "validation_first_month": assessment["validation_first_month"],
         "validation_last_month": assessment["validation_last_month"],
         "validation_cutoff_month": assessment["validation_cutoff_month"],
@@ -610,11 +638,13 @@ def generate_pooled_forecast(
         "runtime_cache_status": "hit_or_saved" if bundle else "not_persisted",
     }
     warning = (
+        "Validation-only compatible-pool comparison; no future forecast was generated."
+        if evaluation_only else
         f"A pooled strategy trained on {len(training_series_ids)} compatible series, including {len(peers)} other market/geography series where they had usable training targets. "
         f"The latest observation is {origin}{f' ({origin_date})' if origin_date else ''}; it is {origin_age} month(s) behind {current_month}. "
         f"{bridge_count} unobserved intervening month(s) were estimated internally. This is an estimate, not a live or guaranteed price."
     )
-    if origin_age > 3:
+    if not evaluation_only and origin_age > policy["max_source_age_months"]:
         warning += " The source is stale for current-market interpretation."
     return {
         "series": record, "model": chosen, "horizon": horizon,

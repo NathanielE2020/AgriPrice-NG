@@ -31,7 +31,14 @@ FEATURE_COLUMNS = (
 MIN_SUPERVISED_ROWS = 30
 MIN_TRAIN_ROWS = 20
 MIN_VALIDATION_ROWS = 6
-CACHE_FORMAT_VERSION = 4
+CACHE_FORMAT_VERSION = 5
+DEFAULT_MAX_SOURCE_AGE_MONTHS = 3
+DEFAULT_MAX_FORECAST_BRIDGE_MONTHS = 3
+DEFAULT_BASELINE_MIN_HISTORY = 12
+DEFAULT_BASELINE_MIN_TRAIN = 8
+DEFAULT_BASELINE_MIN_VALIDATION = 4
+DEFAULT_BASELINE_MAX_VALIDATION = 6
+DEFAULT_BASELINE_MAX_TARGET_GAP_MONTHS = 3
 MODEL_CONFIGURATION = {
     "random_forest": "300 trees; min_samples_leaf=2; max_features=1.0; seed=42; n_jobs=1",
     "gradient_boosting": "120 estimators; depth=2; learning_rate=0.03; Huber loss; seed=42",
@@ -61,6 +68,110 @@ def _month_ordinal(month: str) -> int:
 def _month_from_ordinal(ordinal: int) -> str:
     year, month_zero = divmod(int(ordinal), 12)
     return f"{year:04d}-{month_zero + 1:02d}"
+
+
+def forecast_policy() -> dict[str, int]:
+    """Read conservative forecast limits from environment, with safe defaults."""
+    defaults = {
+        "max_source_age_months": DEFAULT_MAX_SOURCE_AGE_MONTHS,
+        "max_bridge_months": DEFAULT_MAX_FORECAST_BRIDGE_MONTHS,
+        "baseline_min_history": DEFAULT_BASELINE_MIN_HISTORY,
+        "baseline_min_train": DEFAULT_BASELINE_MIN_TRAIN,
+        "baseline_min_validation": DEFAULT_BASELINE_MIN_VALIDATION,
+        "baseline_max_validation": DEFAULT_BASELINE_MAX_VALIDATION,
+        "baseline_max_target_gap_months": DEFAULT_BASELINE_MAX_TARGET_GAP_MONTHS,
+    }
+    names = {
+        "max_source_age_months": "AGRIPRICE_MAX_SOURCE_AGE_MONTHS",
+        "max_bridge_months": "AGRIPRICE_MAX_FORECAST_BRIDGE_MONTHS",
+        "baseline_min_history": "AGRIPRICE_BASELINE_MIN_HISTORY",
+        "baseline_min_train": "AGRIPRICE_BASELINE_MIN_TRAIN_OBSERVATIONS",
+        "baseline_min_validation": "AGRIPRICE_BASELINE_MIN_VALIDATION_OBSERVATIONS",
+        "baseline_max_validation": "AGRIPRICE_BASELINE_MAX_VALIDATION_OBSERVATIONS",
+        "baseline_max_target_gap_months": "AGRIPRICE_BASELINE_MAX_TARGET_GAP_MONTHS",
+    }
+    values: dict[str, int] = {}
+    for key, default in defaults.items():
+        raw = os.environ.get(names[key], "").strip()
+        try:
+            value = int(raw) if raw else default
+        except ValueError as exc:
+            raise ForecastingError(
+                "forecast_configuration_invalid",
+                f"{names[key]} must be a non-negative whole number.", 503,
+            ) from exc
+        if value < 0:
+            raise ForecastingError(
+                "forecast_configuration_invalid",
+                f"{names[key]} must be a non-negative whole number.", 503,
+            )
+        values[key] = value
+    if values["baseline_min_train"] < 3 or values["baseline_min_validation"] < 2:
+        raise ForecastingError(
+            "forecast_configuration_invalid",
+            "Baseline validation requires at least three training observations and two validation observations.", 503,
+        )
+    if values["baseline_max_validation"] < values["baseline_min_validation"]:
+        raise ForecastingError(
+            "forecast_configuration_invalid",
+            "The maximum baseline validation count cannot be below its minimum.", 503,
+        )
+    return values
+
+
+def _source_age_months(source_key: str, origin_month: str, origin_date: str | None, as_of: date) -> int:
+    """Calculate source age; use exact observation days only for dated WFP rows."""
+    current_month = f"{as_of.year:04d}-{as_of.month:02d}"
+    age = max(0, _month_ordinal(current_month) - _month_ordinal(origin_month))
+    if source_key == "wfp" and origin_date:
+        try:
+            actual_date = date.fromisoformat(str(origin_date)[:10])
+        except ValueError:
+            actual_date = None
+        if actual_date is not None:
+            age -= int(as_of.day < actual_date.day and age > 0)
+    return max(0, age)
+
+
+def _check_source_freshness(
+    source_key: str, origin_month: str, origin_date: str | None, as_of: date,
+) -> tuple[int, int, dict[str, int]]:
+    """Reject stale or long-gap forecast requests before fitting or bridging."""
+    policy = forecast_policy()
+    current_month = f"{as_of.year:04d}-{as_of.month:02d}"
+    current_ordinal = _month_ordinal(current_month)
+    origin_ordinal = _month_ordinal(origin_month)
+    if origin_ordinal > current_ordinal:
+        raise ForecastingError(
+            "actual_data_after_generation_date",
+            f"The latest source observation is in {origin_month}, after the forecast generation month {current_month}; future data were not used.",
+        )
+    if source_key == "wfp" and origin_date:
+        try:
+            observed_day = date.fromisoformat(str(origin_date)[:10])
+        except ValueError:
+            observed_day = None
+        if observed_day is not None and observed_day > as_of:
+            raise ForecastingError(
+                "actual_data_after_generation_date",
+                f"The latest source observation is dated {observed_day.isoformat()}, after the forecast generation date {as_of.isoformat()}; future data were not used.",
+            )
+    age = _source_age_months(source_key, origin_month, origin_date, as_of)
+    bridge = max(0, current_ordinal - origin_ordinal)
+    if age > policy["max_source_age_months"]:
+        raise ForecastingError(
+            "stale_source_data",
+            f"The latest {source_key.upper()} observation is {origin_month}"
+            f"{f' ({origin_date})' if origin_date else ''}, {age} calendar month(s) old. "
+            f"The configured maximum source age is {policy['max_source_age_months']} month(s); "
+            "this series is available for historical analysis but cannot be forecast as current market conditions.",
+        )
+    if bridge > policy["max_bridge_months"]:
+        raise ForecastingError(
+            "forecast_bridge_too_long",
+            f"The latest actual observation is {origin_month}; reaching the current forecast window would require {bridge} unobserved bridge month(s), above the configured limit of {policy['max_bridge_months']}. No bridge values were generated.",
+        )
+    return age, bridge, policy
 
 
 def _collect_actual_history(record: dict[str, Any]) -> dict[str, Any]:
@@ -209,6 +320,7 @@ def _assess_series(record: dict[str, Any], source_key: str) -> dict[str, Any]:
         }
     months = sorted(prices, key=_month_ordinal)
     feature_rows = _build_feature_rows(prices)
+    baseline_validation = _rolling_baseline_validation(prices)
     split = int(math.floor(len(feature_rows) * 0.80))
     train_count = split
     validation_count = len(feature_rows) - split
@@ -239,6 +351,7 @@ def _assess_series(record: dict[str, Any], source_key: str) -> dict[str, Any]:
         "missing_price_rows": collected["missing_price_rows"],
         "invalid_month_rows": collected["invalid_month_rows"],
         "duplicate_rows_removed": collected["duplicate_rows_removed"],
+        "baseline_validation": baseline_validation,
         "feature_rows": feature_rows,
         "price_map": prices,
         "observation_dates": collected["dates"],
@@ -275,6 +388,107 @@ def _metrics(actual: list[float], predicted: list[float]) -> dict[str, float | i
         "mape": 100.0 * mape / mape_count if mape_count else None,
         "r2": r2,
         "n": count,
+    }
+
+
+def _rolling_baseline_validation(prices: dict[str, float]) -> dict[str, Any]:
+    """Evaluate simple baselines on a short, recent rolling-origin window.
+
+    Each target is the next *observed* month. Origins advance only after an
+    actual observation; no missing month is filled and no validation target is
+    used before its forecast is made.
+    """
+    policy = forecast_policy()
+    months = sorted(prices, key=_month_ordinal)
+    n = len(months)
+    validation_count = min(policy["baseline_max_validation"], n - policy["baseline_min_train"])
+    if n < policy["baseline_min_history"] or validation_count < policy["baseline_min_validation"]:
+        return {
+            "eligible": False,
+            "reason": (
+                f"short-history baseline validation requires at least {policy['baseline_min_history']} actual observations, "
+                f"with {policy['baseline_min_train']} training and {policy['baseline_min_validation']} validation observations; found {n}."
+            ),
+            "actual_observations": n,
+            "validation_rows": 0,
+            "validation_months": [],
+            "scores": {},
+            "predictions": [],
+        }
+
+    start = n - validation_count
+    validation_months = months[start:]
+    for index in range(start, n):
+        step_gap = _month_ordinal(months[index]) - _month_ordinal(months[index - 1])
+        if step_gap > policy["baseline_max_target_gap_months"]:
+            return {
+                "eligible": False,
+                "reason": (
+                    f"short-history baseline validation was not run because the next observed target is {step_gap} calendar months "
+                    f"after its rolling origin; the configured maximum is {policy['baseline_max_target_gap_months']} months."
+                ),
+                "actual_observations": n,
+                "validation_rows": 0,
+                "validation_months": [],
+                "scores": {},
+                "predictions": [],
+            }
+
+    all_seasonal_available = all(
+        _month_from_ordinal(_month_ordinal(month) - 12) in set(months[:index])
+        for index, month in enumerate(months[start:], start=start)
+    )
+    predictions: list[dict[str, Any]] = []
+    values_by_model: dict[str, list[float]] = {
+        "naive_last_observation": [],
+        "trend_baseline": [],
+    }
+    if all_seasonal_available:
+        values_by_model["seasonal_naive_12"] = []
+
+    for index in range(start, n):
+        month = months[index]
+        past = months[:index]
+        previous = [float(prices[key]) for key in past[-3:]]
+        naive = float(prices[past[-1]])
+        gap_to_target = _month_ordinal(month) - _month_ordinal(past[-1])
+        elapsed = _month_ordinal(past[-1]) - _month_ordinal(past[-3])
+        slope = math.log(previous[0] / previous[-1]) / elapsed if elapsed > 0 else 0.0
+        trend = previous[0] * math.exp(slope * gap_to_target)
+        model_predictions = {
+            "naive_last_observation": naive,
+            "trend_baseline": trend,
+        }
+        if all_seasonal_available:
+            seasonal_month = _month_from_ordinal(_month_ordinal(month) - 12)
+            model_predictions["seasonal_naive_12"] = float(prices[seasonal_month])
+        actual = float(prices[month])
+        for name, value in model_predictions.items():
+            if not math.isfinite(value) or value <= 0:
+                return {
+                    "eligible": False,
+                    "reason": f"short-history baseline validation produced an invalid {name} prediction for {month}.",
+                    "actual_observations": n,
+                    "validation_rows": 0,
+                    "validation_months": [],
+                    "scores": {},
+                    "predictions": [],
+                }
+            values_by_model[name].append(value)
+        predictions.append({"month": month, "actual": actual, "models": model_predictions})
+
+    actuals = [float(prices[month]) for month in validation_months]
+    scores = {name: _metrics(actuals, values) for name, values in values_by_model.items()}
+    return {
+        "eligible": True,
+        "reason": "Simple baselines passed rolling-origin validation on recent observed months.",
+        "actual_observations": n,
+        "training_observations": start,
+        "validation_rows": validation_count,
+        "validation_months": validation_months,
+        "scores": scores,
+        "predictions": predictions,
+        "validation_design": "rolling-origin one-step-ahead forecasts of the next actual observation; no target values were used before their origin",
     }
 
 
@@ -451,14 +665,18 @@ def _forecast_prices(
     trend_origin: int,
     horizon: int,
     as_of: date,
+    source_key: str,
+    origin_date: str | None,
 ) -> tuple[list[dict[str, Any]], int]:
     origin_ordinal = _month_ordinal(origin)
+    _age, max_bridge, _policy = _check_source_freshness(source_key, origin, origin_date, as_of)
     current_month = f"{as_of.year:04d}-{as_of.month:02d}"
     current_ordinal = _month_ordinal(current_month)
-    if origin_ordinal > current_ordinal:
+    bridge_months = max(0, current_ordinal - origin_ordinal)
+    if bridge_months > max_bridge:
         raise ForecastingError(
-            "actual_data_after_generation_date",
-            f"The latest source observation is {origin}, after the forecast generation month {current_month}; a current future window cannot be defined safely.",
+            "forecast_bridge_too_long",
+            f"Reaching the current forecast window requires {bridge_months} unobserved bridge month(s), above the configured limit of {max_bridge}. No bridge values were generated.",
         )
     working = dict(prices)
     result: list[dict[str, Any]] = []
@@ -521,6 +739,109 @@ def _forecast_prices(
     return result, bridge_month_count
 
 
+def _short_history_baseline_result(
+    record: dict[str, Any],
+    series_id: str,
+    horizon: int,
+    source_key: str,
+    assessment: dict[str, Any],
+    as_of: date,
+    evaluation_only: bool = False,
+) -> dict[str, Any]:
+    """Return a transparently qualified baseline result for short exact series."""
+    baseline = assessment.get("baseline_validation") or {}
+    if not baseline.get("eligible"):
+        raise ForecastingError(
+            "insufficient_history",
+            baseline.get("reason") or assessment.get("reason") or "The selected exact series has insufficient history for validation.",
+        )
+    prices = assessment["price_map"]
+    origin = assessment["latest_actual_month"]
+    origin_date = assessment.get("observation_dates", {}).get(origin)
+    age, bridge, policy = _check_source_freshness(source_key, origin, origin_date, as_of) if not evaluation_only else (
+        _source_age_months(source_key, origin, origin_date, as_of),
+        max(0, _month_ordinal(f"{as_of.year:04d}-{as_of.month:02d}") - _month_ordinal(origin)),
+        forecast_policy(),
+    )
+    scores = baseline["scores"]
+    selected_model = min(scores, key=lambda name: float(scores[name]["rmse"]))
+    comparison = [{"model": name, **metrics} for name, metrics in sorted(scores.items())]
+    selected_metrics = scores[selected_model]
+    forecasts: list[dict[str, Any]] = []
+    bridge_count = 0
+    if not evaluation_only:
+        forecasts, bridge_count = _forecast_prices(
+            selected_model, None, prices, origin, _month_ordinal(min(prices, key=_month_ordinal)),
+            horizon, as_of, source_key, origin_date,
+        )
+    latest_row = next((row for row in reversed(record.get("history", [])) if row.get("month") == origin), {})
+    metadata = {
+        "source": source_key.upper(),
+        "commodity": record.get("commodity"),
+        "research_commodity_mapping": record.get("research_commodity_mapping"),
+        "mapping_status": record.get("mapping_status"),
+        "market": record.get("market"), "state": record.get("state"),
+        "geography_level": record.get("geography_level"), "geography_name": record.get("geography_name"),
+        "methodology_regime": record.get("methodology_regime"),
+        "unit": record.get("unit"), "unit_basis": record.get("unit_basis"),
+        "price_type": record.get("price_type"), "currency": record.get("currency"),
+        "model": selected_model, "model_type": "validated baseline",
+        "strategy_level": "individual_series_short_history_baseline",
+        "transformation": "original reported monthly price in source currency per exact source-defined series",
+        "method": "simple baseline forecast selected from a rolling-origin comparison; no model extrapolation or missing-price filling",
+        "validation_design": baseline["validation_design"],
+        "forecast_origin_month": origin,
+        "forecast_start_month": forecasts[0]["month"] if forecasts else None,
+        "forecast_end_month": forecasts[-1]["month"] if forecasts else None,
+        "latest_actual_month_in_source": origin if source_key == "wfp" else None,
+        "latest_actual_date_in_source": origin_date if source_key == "wfp" else None,
+        "latest_observation_month_in_source": origin,
+        "latest_observation_date_in_source": origin_date or origin,
+        "latest_source_report_date": latest_row.get("source_report_date"),
+        "source_age_months": age,
+        "freshness_limit_months": policy["max_source_age_months"],
+        "max_forecast_bridge_months": policy["max_bridge_months"],
+        "source_freshness_classification": f"fresh_within_{policy['max_source_age_months']}_months" if age <= policy["max_source_age_months"] else "stale_for_current_market",
+        "is_current_market_forecast": not evaluation_only and age <= policy["max_source_age_months"],
+        "forecast_date_scope": "validation_only" if evaluation_only else "future_only_after_current_calendar_month",
+        "forecast_bridge_months": bridge_count,
+        "forecast_generation_date": as_of.isoformat(),
+        "forecast_classification": "validation_only" if evaluation_only else "future_as_of_generation",
+        "confidence_intervals": False,
+        "selection_basis": "lowest RMSE among simple baselines on the same recent rolling-origin validation dates; no test data or advanced-model results were used",
+        "validation_metrics": selected_metrics,
+        "model_comparison_validation": comparison,
+        "validation_predictions": baseline["predictions"],
+        "validation_months": baseline["validation_months"],
+        "training_rows": baseline["training_observations"],
+        "validation_rows": baseline["validation_rows"],
+        "validation_first_month": baseline["validation_months"][0],
+        "validation_last_month": baseline["validation_months"][-1],
+        "source_observation_count": assessment["actual_observations"],
+        "usable_training_rows": assessment["actual_observations"],
+        "missing_calendar_months": assessment["missing_calendar_months"],
+        "input_window_observations": "last observed price; trend baseline uses last three actual observations",
+        "model_configurations": {key: value for key, value in MODEL_CONFIGURATION.items() if key in scores},
+        "evaluation_note": "Short-series validation is not independent across rolling origins; it is a limited one-step-ahead diagnostic, not evidence of long-horizon accuracy.",
+    }
+    history = [] if evaluation_only else [
+        row for row in record.get("history", [])
+        if row.get("month") and _month_ordinal(row["month"]) >= _month_ordinal(origin) - 23
+        and row.get("month") <= origin
+    ]
+    warning = (
+        "Validation-only model comparison; no forecast was generated."
+        if evaluation_only else
+        f"A simple validated baseline was selected for this short exact series. The latest observation is {origin}"
+        f"{f' ({origin_date})' if origin_date else ''}; it is {age} calendar month(s) old. "
+        f"{bridge_count} unobserved bridge month(s) were estimated internally, below the configured limit of {policy['max_bridge_months']}. This is an estimate, not a live or guaranteed price."
+    )
+    return {
+        "series": record, "model": selected_model, "horizon": horizon,
+        "historical": history, "forecast": forecasts, "metadata": metadata, "warning": warning,
+    }
+
+
 def _generate_forecast(
     record: dict[str, Any],
     series_id: str,
@@ -531,12 +852,17 @@ def _generate_forecast(
     root: Path = ROOT,
     as_of: date | None = None,
     pool_records: list[dict[str, Any]] | None = None,
+    evaluation_only: bool = False,
 ) -> dict[str, Any]:
-    """Fit/validate one exact source series and return only current future months."""
+    """Fit/validate one exact series; optionally return validation only."""
     if horizon not in range(1, 7):
         raise ForecastingError("invalid_horizon", "horizon must be an integer from 1 through 6 months.", 400)
     today = as_of or date.today()
     assessment = assess_wfp_series(record) if source_key == "wfp" else assess_nbs_series(record)
+    origin = assessment.get("latest_actual_month")
+    origin_date = (assessment.get("observation_dates") or {}).get(origin) if origin else None
+    if origin and not evaluation_only:
+        _check_source_freshness(source_key, origin, origin_date, today)
     if not assessment["eligible"]:
         # Sparse or irregular exact series may use a definition-compatible
         # pooled model, but aggregates, mixed WFP flags, duplicate conflicts,
@@ -552,10 +878,16 @@ def _generate_forecast(
                 pooled = generate_pooled_forecast(
                     record, series_id, horizon, source_key,
                     pool_records or [record], cache_root, today,
+                    evaluation_only=evaluation_only,
                 )
                 return pooled
             except ForecastingError as pooled_error:
                 if pooled_error.code == "pooled_validation_unavailable":
+                    baseline = assessment.get("baseline_validation") or {}
+                    if baseline.get("eligible"):
+                        return _short_history_baseline_result(
+                            record, series_id, horizon, source_key, assessment, today, evaluation_only,
+                        )
                     raise ForecastingError(
                         pooled_error.code,
                         f"Individual-series method: {assessment['reason']}. Pooled/global method unavailable: {pooled_error.message}",
@@ -571,25 +903,13 @@ def _generate_forecast(
         raise ForecastingError(assessment["code"], assessment["reason"])
 
     prices = assessment["price_map"]
-    origin = assessment["latest_actual_month"]
+    origin = str(assessment["latest_actual_month"])
     origin_date = assessment["observation_dates"].get(origin)
     current_month = f"{today.year:04d}-{today.month:02d}"
     current_ordinal = _month_ordinal(current_month)
-    if _month_ordinal(origin) > current_ordinal:
-        raise ForecastingError(
-            "actual_data_after_generation_date",
-            f"The latest source observation is in {origin}, after the forecast generation month {current_month}; future training data were not used.",
-        )
-    if origin_date:
-        try:
-            source_day = date.fromisoformat(str(origin_date)[:10])
-        except ValueError:
-            source_day = None
-        if source_day is not None and source_day > today:
-            raise ForecastingError(
-                "actual_data_after_generation_date",
-                f"The latest source observation is dated {source_day.isoformat()}, after the forecast generation date {today.isoformat()}; future training data were not used.",
-            )
+    origin_age, _bridge_candidate, policy = _source_age_months(source_key, origin, origin_date, today), max(
+        0, current_ordinal - _month_ordinal(origin)
+    ), forecast_policy()
 
     feature_rows = assessment["feature_rows"]
     split = assessment["training_rows"]
@@ -608,12 +928,14 @@ def _generate_forecast(
     selected_model: str
     selected_estimator: Any | None
     model_reuse: str
+    validation_predictions: dict[str, list[float]]
     train_started = time.perf_counter()
 
     if cached is not None:
         selected_model = str(cached["model_name"])
         selected_estimator = cached.get("estimator")
         validation_scores = cached["validation_scores"]
+        validation_predictions = cached.get("validation_predictions", {})
         model_failures = cached.get("model_failures", {})
         model_reuse = "runtime_cache_hit"
         fit_seconds = float(cached.get("fit_seconds", 0.0) or 0.0)
@@ -621,6 +943,7 @@ def _generate_forecast(
         validation_scores = {
             "naive_last_observation": _metrics(actual_validation, baseline_predictions),
         }
+        validation_predictions = {"naive_last_observation": baseline_predictions}
         trend_predictions = []
         for row in validation_rows:
             features = row["features"]
@@ -628,6 +951,7 @@ def _generate_forecast(
             slope = math.log(features["observation_lag_1"] / features["observation_lag_3"]) / gaps if gaps > 0 else 0.0
             trend_predictions.append(features["observation_lag_1"] * math.exp(slope * features["months_to_target"]))
         validation_scores["trend_baseline"] = _metrics(actual_validation, trend_predictions)
+        validation_predictions["trend_baseline"] = trend_predictions
 
         # A seasonal-naive metric is reported only on the exact same complete
         # validation dates; otherwise it is not a fair comparator.
@@ -641,6 +965,7 @@ def _generate_forecast(
             seasonal_predictions.append(float(assessment["price_map"][seasonal_month]))
         if seasonal_complete and len(seasonal_predictions) == len(validation_rows):
             validation_scores["seasonal_naive_12"] = _metrics(actual_validation, seasonal_predictions)
+            validation_predictions["seasonal_naive_12"] = seasonal_predictions
         model_failures = {}
         try:
             estimators = _make_estimators()
@@ -662,6 +987,7 @@ def _generate_forecast(
                 if len(prediction) != len(actual_validation) or not all(math.isfinite(value) for value in prediction):
                     raise ValueError("model returned invalid validation predictions")
                 validation_scores[name] = _metrics(actual_validation, prediction)
+                validation_predictions[name] = prediction
             except Exception:
                 model_failures[name] = "Validation fitting or prediction failed; this model was excluded from selection."
 
@@ -674,6 +1000,11 @@ def _generate_forecast(
                 selected_model = candidate_model
                 selected_estimator = None
                 model_reuse = f"{candidate_model}_selected"
+                break
+            if evaluation_only:
+                selected_model = candidate_model
+                selected_estimator = None
+                model_reuse = "validation_only_no_final_refit"
                 break
             latest_month = assessment["latest_actual_month"]
             registered = _registered_estimator(root, registry_entry, series_id, candidate_model, latest_month)
@@ -697,7 +1028,7 @@ def _generate_forecast(
 
     # A seasonal winner is admissible only if its recursive lag can be
     # constructed for every requested bridge and future month.
-    if selected_model == "seasonal_naive_12":
+    if selected_model == "seasonal_naive_12" and not evaluation_only:
         working_months = set(prices)
         seasonal_supported = True
         for target_ordinal in range(_month_ordinal(origin) + 1, current_ordinal + horizon + 1):
@@ -717,16 +1048,20 @@ def _generate_forecast(
                 selected_estimator = _make_estimators()[selected_model]
                 selected_estimator.fit(_matrix(feature_rows), [row["target"] for row in feature_rows])
                 model_reuse = "trained_on_demand"
-    origin_age = max(0, current_ordinal - _month_ordinal(origin))
-    forecast_rows, bridge_month_count = _forecast_prices(
-        selected_model,
-        selected_estimator,
-        prices,
-        origin,
-        min(_month_ordinal(month) for month in prices),
-        horizon,
-        today,
-    )
+    if evaluation_only:
+        forecast_rows, bridge_month_count = [], 0
+    else:
+        forecast_rows, bridge_month_count = _forecast_prices(
+            selected_model,
+            selected_estimator,
+            prices,
+            origin,
+            min(_month_ordinal(month) for month in prices),
+            horizon,
+            today,
+            source_key,
+            origin_date,
+        )
     validation_dates = [row["month"] for row in validation_rows]
     selected_metrics = validation_scores[selected_model]
 
@@ -734,17 +1069,19 @@ def _generate_forecast(
         {"model": name, **metrics}
         for name, metrics in sorted(validation_scores.items(), key=lambda item: item[0])
     ]
-    forecast_start_month = _month_from_ordinal(current_ordinal + 1)
-    forecast_end_month = _month_from_ordinal(current_ordinal + horizon)
-    forecast_classification = "future_as_of_generation"
+    forecast_start_month = _month_from_ordinal(current_ordinal + 1) if not evaluation_only else None
+    forecast_end_month = _month_from_ordinal(current_ordinal + horizon) if not evaluation_only else None
+    forecast_classification = "validation_only" if evaluation_only else "future_as_of_generation"
     temporal_phrase = "latest valid WFP actual observation" if source_key == "wfp" else "latest NBS reported observation"
     warning = (
+        "Validation-only historical model comparison; no forecast was generated."
+        if evaluation_only else
         f"Generated using the {temporal_phrase} through {origin}{f', {origin_date}' if origin_date else ''}. "
         f"The source is {origin_age} calendar month(s) behind the generation month {current_month}. "
         f"{bridge_month_count} unobserved intervening month(s) were generated internally to reach the future window; they are not returned as source observations. "
         "This is an estimate, not a live or guaranteed market price."
     )
-    if origin_age > 3:
+    if not evaluation_only and origin_age > policy["max_source_age_months"]:
         warning += " The latest source observation is stale for current-market interpretation; treat this as a model estimate based on historical information."
 
     metadata = {
@@ -755,7 +1092,10 @@ def _generate_forecast(
         "geography_level": record.get("geography_level"),
         "geography_name": record.get("geography_name"),
         "methodology_regime": record.get("methodology_regime"),
+        "research_commodity_mapping": record.get("research_commodity_mapping"),
+        "mapping_status": record.get("mapping_status"),
         "unit": record.get("unit"),
+        "unit_basis": record.get("unit_basis"),
         "price_type": record.get("price_type"),
         "currency": record.get("currency"),
         "model": selected_model,
@@ -770,11 +1110,14 @@ def _generate_forecast(
         "latest_actual_month_in_source": origin if source_key == "wfp" else None,
         "latest_actual_date_in_source": origin_date if source_key == "wfp" else None,
         "latest_observation_month_in_source": origin,
-        "latest_observation_date_in_source": origin_date,
+        "latest_observation_date_in_source": origin_date or origin,
+        "latest_source_report_date": next((row.get("source_report_date") for row in reversed(record.get("history", [])) if row.get("month") == origin), None),
         "source_age_months": origin_age,
-        "source_freshness_classification": "fresh_within_3_months" if origin_age <= 3 else "stale_for_current_market",
-        "is_current_market_forecast": origin_age <= 3,
-        "forecast_date_scope": "future_only_after_current_calendar_month",
+        "freshness_limit_months": policy["max_source_age_months"],
+        "max_forecast_bridge_months": policy["max_bridge_months"],
+        "source_freshness_classification": f"fresh_within_{policy['max_source_age_months']}_months" if origin_age <= policy["max_source_age_months"] else "stale_for_current_market",
+        "is_current_market_forecast": not evaluation_only and origin_age <= policy["max_source_age_months"],
+        "forecast_date_scope": "validation_only" if evaluation_only else "future_only_after_current_calendar_month",
         "forecast_bridge_months": bridge_month_count,
         "forecast_generation_date": today.isoformat(),
         "forecast_classification": forecast_classification,
@@ -782,6 +1125,18 @@ def _generate_forecast(
         "selection_basis": "lowest chronological validation RMSE among Random Forest, Gradient Boosting, last-observation and gap-adjusted trend baselines; seasonal-naive is included only on complete shared validation months; no random split or test-set selection",
         "validation_metrics": selected_metrics,
         "model_comparison_validation": comparison,
+        "validation_predictions": [
+            {
+                "month": row["month"],
+                "actual": float(row["target"]),
+                "models": {
+                    name: float(values[index])
+                    for name, values in validation_predictions.items()
+                    if index < len(values) and math.isfinite(float(values[index]))
+                },
+            }
+            for index, row in enumerate(validation_rows)
+        ],
         "validation_months": validation_dates,
         "training_first_month": train_rows[0]["month"],
         "training_last_month": train_rows[-1]["month"],
@@ -807,6 +1162,7 @@ def _generate_forecast(
         "model_reuse": model_reuse,
         "fit_seconds": fit_seconds,
         "runtime_artifact_persistence": "OS temporary directory; ephemeral on Render and rebuilt after service restart",
+        "evaluation_note": "Validation metrics describe the exact chronological validation dates; test metrics were not used for model selection.",
     }
 
     bundle = {
@@ -816,6 +1172,7 @@ def _generate_forecast(
         "model_name": selected_model,
         "estimator": selected_estimator,
         "validation_scores": validation_scores,
+        "validation_predictions": validation_predictions,
         "model_failures": model_failures,
         "fit_seconds": fit_seconds,
     }
@@ -835,10 +1192,10 @@ def _generate_forecast(
         "selection_basis": metadata["selection_basis"],
         "model_configurations": MODEL_CONFIGURATION,
     }
-    cache_persisted = _save_runtime_cache(cache_root, series_id, bundle, cache_metadata) if cached is None else True
+    cache_persisted = _save_runtime_cache(cache_root, series_id, bundle, cache_metadata) if cached is None and not evaluation_only else bool(cached)
     if model_reuse != "runtime_cache_hit" and cache_persisted:
         metadata["model_reuse"] = model_reuse
-    metadata["runtime_cache_status"] = "hit" if cached is not None else ("saved" if cache_persisted else "not_persisted")
+    metadata["runtime_cache_status"] = "validation_only" if evaluation_only else ("hit" if cached is not None else ("saved" if cache_persisted else "not_persisted"))
 
     origin_ordinal = _month_ordinal(origin)
     context_start = _month_from_ordinal(origin_ordinal - 23)
@@ -866,10 +1223,11 @@ def generate_wfp_forecast(
     root: Path = ROOT,
     as_of: date | None = None,
     pool_records: list[dict[str, Any]] | None = None,
+    evaluation_only: bool = False,
 ) -> dict[str, Any]:
-    """Forecast an exact pure-actual WFP market series."""
+    """Forecast or evaluate an exact pure-actual WFP market series."""
     return _generate_forecast(
-        record, series_id, horizon, "wfp", registry_entry, cache_dir, root, as_of, pool_records,
+        record, series_id, horizon, "wfp", registry_entry, cache_dir, root, as_of, pool_records, evaluation_only,
     )
 
 
@@ -880,8 +1238,9 @@ def generate_nbs_forecast(
     cache_dir: Path | None = None,
     as_of: date | None = None,
     pool_records: list[dict[str, Any]] | None = None,
+    evaluation_only: bool = False,
 ) -> dict[str, Any]:
-    """Forecast one exact NBS reported item/geography series, without WFP data."""
+    """Forecast or evaluate one exact NBS item/geography series, without WFP data."""
     return _generate_forecast(
-        record, series_id, horizon, "nbs", None, cache_dir, ROOT, as_of, pool_records,
+        record, series_id, horizon, "nbs", None, cache_dir, ROOT, as_of, pool_records, evaluation_only,
     )

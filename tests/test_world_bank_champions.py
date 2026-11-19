@@ -18,6 +18,10 @@ def test_performance_api_never_substitutes_historical_champion_metrics():
     client = create_app(DashboardService()).test_client()
     series = client.get("/api/series?dataset=nbs").get_json()[0]
     payload = client.get("/api/performance", query_string={"dataset": "nbs", "series_id": series["series_id"]}).get_json()
-    assert payload["records"] == []
     assert payload["legacy_results_included"] is False
-    assert payload["status"] == "not_trained"
+    assert payload["status"] in {"validation_evaluated", "not_eligible", "not_trained"}
+    if payload["status"] == "validation_evaluated":
+        assert payload["summary"]["evaluation_period"] == "validation"
+        assert all(row["n"] > 0 for row in payload["records"] if row["status"] == "validation_evaluated")
+    else:
+        assert payload["records"] == []

@@ -280,7 +280,7 @@ async function main() {
   await trigger("forecastHorizon", "change");
   await trigger("generateForecast", "click");
   assert.equal(getNode("#forecastStatusTitle").textContent, "Future estimate · recent source data");
-  assert.match(getNode("#forecastStatusMessage").textContent, /within the last three months/);
+  assert.match(getNode("#forecastStatusMessage").textContent, /within the 3-month freshness limit/);
   assert.equal(getNode("#forecastFreshness").textContent, "Fresh · within 3 months");
   assert.match(getNode("#forecastSelectedModel").textContent, /^Baseline forecast: naive last observation$/);
   assert.deepEqual(charts.at(-1).config.data.datasets.map((dataset) => dataset.label), ["Historical WFP actual", "Future baseline estimate"]);

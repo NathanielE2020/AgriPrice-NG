@@ -240,6 +240,11 @@ class DashboardService:
                     "geography_level": fields[1],
                     "geography_name": fields[2],
                     "methodology_regime": fields[6],
+                    "research_commodity_mapping": row.get("research_commodity_mapping", ""),
+                    "mapping_status": row.get("mapping_status", ""),
+                    "mapping_rationale": row.get("mapping_rationale", ""),
+                    "unit_basis": row.get("unit_basis", ""),
+                    "price_measure": row.get("price_measure", ""),
                     "history": [],
                 }
                 grouped[fields] = record
@@ -253,6 +258,9 @@ class DashboardService:
                 "geography_level": fields[1],
                 "geography_name": fields[2],
                 "methodology_regime": fields[6],
+                "source_file": row.get("source_file", ""),
+                "source_report_date": row.get("source_report_date", ""),
+                "source_publication_date": row.get("source_publication_date", ""),
                 "highest_state_and_price_raw": row.get("highest_state_and_price_raw", ""),
                 "lowest_state_and_price_raw": row.get("lowest_state_and_price_raw", ""),
             })
@@ -291,11 +299,13 @@ class DashboardService:
         history = record["history"]
         valid = [row for row in history if row["price"] is not None]
         record["observed_months"] = len(valid)
-        record["first_observed_month"] = history[0]["month"] if history else ""
-        record["last_observed_month"] = history[-1]["month"] if history else ""
+        record["first_observed_month"] = valid[0]["month"] if valid else ""
+        record["last_observed_month"] = valid[-1]["month"] if valid else ""
         record["latest_observation_date"] = (
-            history[-1].get("last_observation_date") or history[-1]["month"] if history else ""
+            valid[-1].get("last_observation_date") or valid[-1]["month"] if valid else ""
         )
+        record["latest_source_report_date"] = valid[-1].get("source_report_date", "") if valid else ""
+        record["latest_source_publication_date"] = valid[-1].get("source_publication_date", "") if valid else ""
         record["latest_price"] = valid[-1]["price"] if valid else None
         try:
             latest_date = date.fromisoformat(str(record["latest_observation_date"])[:10])
@@ -397,6 +407,29 @@ class DashboardService:
 
     def _public_series(self, record: dict[str, Any]) -> dict[str, Any]:
         public = {key: value for key, value in record.items() if key != "history"}
+        try:
+            from .ondemand_forecasting import ForecastingError, _source_age_months, forecast_policy
+
+            policy = forecast_policy()
+            latest_month = record.get("last_observed_month")
+            if latest_month:
+                age = _source_age_months(
+                    str(record.get("source_key") or ""),
+                    str(latest_month),
+                    str(record.get("latest_observation_date") or "") or None,
+                    self.reference_date,
+                )
+                public["forecast_source_age_months"] = age
+                public["forecast_freshness_limit_months"] = policy["max_source_age_months"]
+                public["forecast_freshness"] = "fresh" if age <= policy["max_source_age_months"] else "stale"
+            else:
+                public["forecast_source_age_months"] = None
+                public["forecast_freshness_limit_months"] = policy["max_source_age_months"]
+                public["forecast_freshness"] = "unavailable"
+        except ForecastingError:
+            public["forecast_source_age_months"] = None
+            public["forecast_freshness_limit_months"] = None
+            public["forecast_freshness"] = "unavailable"
         training = self._training_series.get(record["series_id"], {})
         eligibility = self._eligibility_by_series.get(record["series_id"], {})
         public.update({
@@ -475,11 +508,31 @@ class DashboardService:
                 chart.setdefault(row.get("target_month", ""), {})[row.get("model", "")] = {
                     "actual": actual, "predicted": predicted,
                 }
+            for result in records:
+                if result["status"] != "trained_and_evaluated":
+                    continue
+                prediction_count = sum(
+                    result["model"] in day for day in chart.values()
+                )
+                if not prediction_count or prediction_count != (result["n"] or 0):
+                    result.update({
+                        "status": "unavailable",
+                        "rmse": None, "mae": None, "mape": None,
+                        "r2": None, "bias": None,
+                        "unavailable_reason": (
+                            f"Saved metrics report {result['n']} test observations but only "
+                            f"{prediction_count} aligned actual/prediction rows are available; metrics are not presented as evaluated."
+                        ),
+                    })
+            evaluated_records = [
+                result for result in records if result["status"] == "trained_and_evaluated"
+            ]
             return {
                 "dataset": dataset, "series": series_public, "records": records,
                 "summary": {
                     "champion_model": self._training_series.get(series_id, {}).get("champion"),
                     "selection_basis": "validation RMSE; test metrics were not used for selection",
+                    "evaluation_period": "test",
                     "test_date_count": len(chart),
                     "test_first_month": min(chart) if chart else None,
                     "test_last_month": max(chart) if chart else None,
@@ -489,8 +542,101 @@ class DashboardService:
                     {"month": month, "models": values}
                     for month, values in sorted(chart.items()) if month
                 ],
-                "status": "evaluated",
-                "message": "Test metrics are audit results only; the champion was chosen on validation data.",
+                "status": "evaluated" if evaluated_records else "not_evaluated",
+                "message": (
+                    "Test metrics are audit results only; the champion was chosen on validation data."
+                    if evaluated_records else
+                    "No model has aligned saved test predictions and metrics for this exact series."
+                ),
+                "legacy_results_included": False,
+            }
+        if selected is not None:
+            try:
+                evaluated = self.forecast(
+                    dataset, series_id, model="auto", horizon=1,
+                    mode="on_demand", evaluation_only=True,
+                )
+            except DashboardError as error:
+                return {
+                    "dataset": dataset, "series": series_public, "records": [],
+                    "summary": None, "predictions_by_date": [],
+                    "status": "not_eligible", "message": error.message,
+                    "unavailable_code": error.code, "legacy_results_included": False,
+                }
+            metadata = evaluated.get("metadata", {})
+            comparisons = metadata.get("model_comparison_validation") or []
+            records = [{
+                "model": row.get("model"), "status": "validation_evaluated",
+                "rmse": _float_or_none(row.get("rmse")),
+                "mae": _float_or_none(row.get("mae")),
+                "mape": _float_or_none(row.get("mape")),
+                "r2": _float_or_none(row.get("r2")),
+                "bias": _float_or_none(row.get("bias")),
+                "n": _integer(row.get("n"), 0),
+                "validation_rmse": _float_or_none(row.get("rmse")),
+                "validation_n": _integer(row.get("n"), 0),
+                "evaluation_scope": metadata.get("validation_scope", "exact selected series"),
+                "champion_selected_on_validation": row.get("model") == evaluated.get("model"),
+                "unavailable_reason": "",
+            } for row in comparisons]
+            failed = metadata.get("model_failures") or metadata.get("failed_models") or []
+            if isinstance(failed, dict):
+                failed = list(failed)
+            for name in failed:
+                if any(row["model"] == name for row in records):
+                    continue
+                records.append({
+                    "model": name, "status": "unavailable",
+                    "rmse": None, "mae": None, "mape": None, "r2": None,
+                    "bias": None, "n": 0, "validation_rmse": None,
+                    "validation_n": 0, "evaluation_scope": metadata.get("validation_scope", "exact selected series"),
+                    "champion_selected_on_validation": False,
+                    "unavailable_reason": "Model validation fitting or prediction failed; no metric is reported.",
+                })
+            validation_predictions = metadata.get("validation_predictions") or []
+            chart = []
+            for item in validation_predictions:
+                actual = _float_or_none(item.get("actual"))
+                if actual is None:
+                    continue
+                model_values = item.get("models") or {}
+                chart.append({
+                    "month": item.get("month"),
+                    "models": {
+                        name: {"actual": actual, "predicted": value}
+                        for name, raw_value in model_values.items()
+                        if (value := _float_or_none(raw_value)) is not None
+                    },
+                })
+            dates = metadata.get("validation_months") or [row.get("month") for row in chart]
+            global_n = max((_integer(row.get("n"), 0) for row in comparisons), default=0)
+            selected_series_metrics = metadata.get("selected_series_validation_metrics") or metadata.get("validation_metrics") or {}
+            selected_series_n = _integer(selected_series_metrics.get("n"), 0)
+            evaluation_scope = metadata.get("validation_scope", "exact selected series")
+            message = (
+                "On-demand models and baselines were compared on chronological validation data; no test period was used for selection."
+                if metadata.get("strategy_level") != "pooled_global" else
+                "Metrics are group-held-out, chronological results for the compatible source/definition pool. They are not an independent evaluation of the selected series; exact-series validation is shown only when that series contributed held-out predictions."
+            )
+            if metadata.get("strategy_level") == "pooled_global" and selected_series_n == 0:
+                message += " The selected exact series has no held-out validation predictions in this pool."
+            return {
+                "dataset": dataset, "series": series_public, "records": records,
+                "summary": {
+                    "evaluation_period": "validation",
+                    "champion_model": evaluated.get("model"),
+                    "selection_basis": metadata.get("selection_basis"),
+                    "validation_scope": evaluation_scope,
+                    "validation_date_count": len(dates),
+                    "validation_first_month": min(dates) if dates else metadata.get("validation_first_month"),
+                    "validation_last_month": max(dates) if dates else metadata.get("validation_last_month"),
+                    "validation_observations": global_n,
+                    "selected_series_validation_observations": selected_series_n,
+                    "forecast_classification": "validation_only",
+                },
+                "predictions_by_date": chart,
+                "status": "validation_evaluated" if records else "not_eligible",
+                "message": message if records else (metadata.get("evaluation_note") or "No validated predictions are available for this selection."),
                 "legacy_results_included": False,
             }
         eligibility = self._eligibility_by_series.get(series_id or "", {})
@@ -513,6 +659,7 @@ class DashboardService:
         model: str = "auto",
         horizon: int = 1,
         mode: str = "",
+        evaluation_only: bool = False,
     ) -> dict[str, Any]:
         record = self._require_series(dataset, series_id)
         if horizon not in range(1, 7):
@@ -545,6 +692,7 @@ class DashboardService:
                         root=ROOT,
                         as_of=self.reference_date,
                         pool_records=pool_records,
+                        evaluation_only=evaluation_only,
                     )
                 else:
                     generated = generate_nbs_forecast(
@@ -554,6 +702,7 @@ class DashboardService:
                         cache_dir=self.forecast_cache_dir,
                         as_of=self.reference_date,
                         pool_records=pool_records,
+                        evaluation_only=evaluation_only,
                     )
         except ForecastingError as exc:
             raise DashboardError(exc.code, exc.message, exc.status_code) from exc

@@ -116,6 +116,68 @@ def test_series_catalogue_keeps_source_identities_separate(client):
     assert {item["methodology_regime"] for item in payload["nbs"]} == {"pre_2025_cpi_rebase", "post_2025_cpi_rebase"}
 
 
+def test_nbs_revised_rice_labels_map_for_context_but_remain_exact_series(client):
+    nbs = client.get("/api/series?dataset=nbs").get_json()
+    old_local = next(
+        item for item in nbs
+        if item["commodity"] == "Rice local sold loose"
+        and item["geography_level"] == "national"
+    )
+    new_local = next(
+        item for item in nbs
+        if item["commodity"] == "Local Rice (Broken)"
+        and item["geography_level"] == "national"
+    )
+    agric = next(
+        item for item in nbs
+        if item["commodity"] == "Rice agric sold loose"
+        and item["geography_level"] == "national"
+    )
+    assert old_local["research_commodity_mapping"] == new_local["research_commodity_mapping"] == "Rice (local)"
+    assert old_local["methodology_regime"] == "pre_2025_cpi_rebase"
+    assert old_local["last_observed_month"] == "2024-12"
+    assert new_local["methodology_regime"] == "post_2025_cpi_rebase"
+    assert new_local["last_observed_month"] == "2026-05"
+    assert old_local["series_id"] != new_local["series_id"]
+    assert agric["mapping_status"] == "related_variant_requires_review"
+    assert agric["series_id"] not in {old_local["series_id"], new_local["series_id"]}
+    assert old_local["unit"] == new_local["unit"] == "Not stated in workbook"
+    javascript = client.get("/static/js/dashboard.js").get_data(as_text=True)
+    assert "mapped research group" in javascript
+    assert "research mappings are descriptive only" in client.get("/").get_data(as_text=True)
+
+
+def test_current_source_cutoffs_make_all_normalized_series_stale_for_forecasting(client):
+    payload = client.get("/api/series").get_json()
+    for dataset in ("wfp", "nbs"):
+        observed = [item for item in payload[dataset] if item["observed_months"] > 0]
+        if dataset == "wfp":
+            observed = [item for item in observed if item.get("price_flag") == "actual"]
+        assert observed
+        assert all(item["forecast_freshness"] == "stale" for item in observed)
+
+
+def test_maiduguri_local_rice_81_month_actual_gap_is_rejected(client):
+    record = next(
+        item for item in client.get("/api/series?dataset=wfp").get_json()
+        if item["commodity"] == "Rice (milled, local)"
+        and item["market"] == "Maiduguri"
+        and item["unit"] == "50 KG"
+        and item["price_type"] == "Wholesale"
+        and item["price_flag"] == "actual"
+    )
+    assert record["last_observed_month"] == "2020-02"
+    response = client.get("/api/forecast", query_string={
+        "dataset": "wfp", "series_id": record["series_id"],
+        "model": "auto", "mode": "on_demand", "horizon": "1",
+    })
+    assert response.status_code == 422
+    error = response.get_json()["error"]
+    assert error["code"] == "stale_source_data"
+    assert "81 calendar month(s) old" in error["message"]
+    assert "No bridge values were generated" not in error["message"]
+
+
 def test_approved_wfp_market_series_are_present_as_actual_series(client):
     series = client.get("/api/series?dataset=wfp").get_json()
     approved = {
@@ -364,13 +426,19 @@ def test_history_date_filters_and_invalid_requests(client):
     assert client.get("/api/history", query_string={"dataset": "nbs", "series_id": "missing"}).status_code == 404
 
 
-def test_ineligible_series_has_no_metrics_and_forecast_is_unavailable(client):
+def test_performance_reports_only_real_validation_or_test_predictions(client):
     item = client.get("/api/series?dataset=wfp").get_json()[0]
     performance = client.get("/api/performance", query_string={"dataset": "wfp", "series_id": item["series_id"]})
     assert performance.status_code == 200
     body = performance.get_json()
-    assert body["status"] in {"not_trained", "not_eligible"}
-    assert body["records"] == []
+    assert body["status"] in {"not_trained", "not_eligible", "validation_evaluated"}
+    if body["status"] == "validation_evaluated":
+        assert body["summary"]["evaluation_period"] == "validation"
+        assert body["records"]
+        assert all(row["n"] > 0 for row in body["records"] if row["status"] == "validation_evaluated")
+        assert all(row["validation_rmse"] is not None for row in body["records"] if row["status"] == "validation_evaluated")
+    else:
+        assert body["records"] == []
     assert body["legacy_results_included"] is False
 
     for horizon in ("1", "3", "6"):
@@ -435,42 +503,77 @@ def test_saved_forecasts_performance_and_unavailable_combinations(client):
     assert unsupported_model.get_json()["error"]["code"] == "model_unavailable"
 
 
-def test_on_demand_forecasts_a_registered_wfp_series_from_current_calendar(tmp_path):
+def test_unregistered_series_gets_validation_comparison_not_a_blank_performance_page(tmp_path):
+    from datetime import date
+
+    service = DashboardService(reference_date=date(2026, 11, 19), forecast_cache_dir=tmp_path)
+    candidate = next(
+        item for item in service._series["wfp"]
+        if item["commodity"] == "Bananas" and item["market"] == "Abba Gamaram"
+        and item["price_flag"] == "actual" and item["series_id"] not in service._training_series
+    )
+    client = create_app(service).test_client()
+    response = client.get("/api/performance", query_string={
+        "dataset": "wfp", "series_id": candidate["series_id"],
+    })
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["status"] == "validation_evaluated"
+    assert payload["summary"]["evaluation_period"] == "validation"
+    assert payload["summary"]["validation_first_month"]
+    assert payload["summary"]["validation_last_month"]
+    assert payload["summary"]["validation_scope"] == "exact selected series"
+    assert any(row["model"] == "naive_last_observation" for row in payload["records"])
+    assert all(row["n"] > 0 and row["rmse"] is not None for row in payload["records"] if row["status"] == "validation_evaluated")
+    assert payload["predictions_by_date"]
+    prediction_months = [item["month"] for item in payload["predictions_by_date"]]
+    assert len(prediction_months) == len(set(prediction_months))
+    assert min(prediction_months) == payload["summary"]["validation_first_month"]
+    assert max(prediction_months) == payload["summary"]["validation_last_month"]
+
+
+def test_recent_wfp_series_can_forecast_at_a_recent_reference_date(tmp_path):
+    from datetime import date
+
+    service = DashboardService(reference_date=date(2026, 7, 19), forecast_cache_dir=tmp_path)
+    record = next(
+        item for item in service._series["wfp"]
+        if item["commodity"] == "Bananas" and item["market"] == "Abba Gamaram"
+        and item["price_flag"] == "actual"
+    )
+    assert record["last_observed_month"] == "2026-04"
+    response = create_app(service).test_client().get("/api/forecast", query_string={
+        "dataset": "wfp", "series_id": record["series_id"],
+        "model": "auto", "mode": "on_demand", "horizon": "1",
+    })
+    assert response.status_code == 200, response.get_json()
+    payload = response.get_json()
+    assert payload["metadata"]["latest_actual_date_in_source"] == "2026-04-15"
+    assert payload["metadata"]["source_age_months"] == 3
+    assert payload["metadata"]["forecast_bridge_months"] == 3
+    assert payload["metadata"]["is_current_market_forecast"] is True
+    assert payload["forecast"][0]["month"] == "2026-08"
+
+
+def test_registered_stale_wfp_series_is_not_projected_to_current_month(tmp_path):
     from datetime import date
 
     service = DashboardService(reference_date=date(2026, 11, 19), forecast_cache_dir=tmp_path)
     registered = next(iter(service._training_series))
     record = service._series_index[("wfp", registered)]
     client = create_app(service).test_client()
-    for horizon in range(1, 7):
-        result = client.get("/api/forecast", query_string={
-            "dataset": "wfp", "series_id": registered, "model": "auto",
-            "mode": "on_demand", "horizon": str(horizon),
-        })
-        assert result.status_code == 200, result.get_json()
-        payload = result.get_json()
-        assert payload["series"]["series_id"] == registered
-        assert payload["series"]["commodity"] == record["commodity"]
-        assert payload["series"]["market"] == record["market"]
-        origin = payload["metadata"]["forecast_origin_month"]
-        assert payload["metadata"]["latest_actual_month_in_source"] == origin
-        assert len(payload["forecast"]) == horizon
-        current_ordinal = date(2026, 11, 19).year * 12 + date(2026, 11, 19).month - 1
-        expected_months = []
-        for step in range(1, horizon + 1):
-            ordinal = current_ordinal + step
-            expected_months.append(f"{ordinal // 12:04d}-{ordinal % 12 + 1:02d}")
-        assert [row["month"] for row in payload["forecast"]] == expected_months
-        assert all(row["temporal_status"] == "future_as_of_generation" for row in payload["forecast"])
-        assert payload["metadata"]["forecast_start_month"] == expected_months[0]
-        assert payload["metadata"]["forecast_end_month"] == expected_months[-1]
-        assert payload["metadata"]["source_age_months"] >= 0
-        assert payload["metadata"]["validation_metrics"]["n"] >= 6
-        assert payload["metadata"]["selection_basis"].startswith("lowest chronological validation RMSE")
-        assert "not a live or guaranteed market price" in payload["warning"]
+    response = client.get("/api/forecast", query_string={
+        "dataset": "wfp", "series_id": registered, "model": "auto",
+        "mode": "on_demand", "horizon": "1",
+    })
+    assert response.status_code == 422
+    error = response.get_json()["error"]
+    assert error["code"] == "stale_source_data"
+    assert record["last_observed_month"] in error["message"]
+    assert "cannot be forecast as current market conditions" in error["message"]
 
 
-def test_on_demand_forecasts_a_qualified_series_without_saved_forecasts(tmp_path):
+def test_qualified_but_stale_wfp_series_is_not_a_current_forecast(tmp_path):
     from datetime import date
 
     service = DashboardService(reference_date=date(2026, 11, 19), forecast_cache_dir=tmp_path)
@@ -485,11 +588,8 @@ def test_on_demand_forecasts_a_qualified_series_without_saved_forecasts(tmp_path
         "dataset": "wfp", "series_id": candidate["series_id"],
         "mode": "on_demand", "horizon": "1",
     })
-    assert response.status_code == 200, response.get_json()
-    payload = response.get_json()
-    assert payload["series"]["series_id"] == candidate["series_id"]
-    assert payload["metadata"]["actual_observation_count"] >= 30
-    assert payload["forecast"][0]["month"] > payload["metadata"]["forecast_origin_month"]
+    assert response.status_code == 422, response.get_json()
+    assert response.get_json()["error"]["code"] == "stale_source_data"
 
 
 def test_on_demand_api_excludes_aggregate_flags_and_keeps_nbs_separate(client):
@@ -510,8 +610,7 @@ def test_on_demand_api_excludes_aggregate_flags_and_keeps_nbs_separate(client):
         "model": "auto", "mode": "on_demand", "horizon": "1",
     })
     assert response.status_code == 422
-    assert response.get_json()["error"]["code"] == "insufficient_local_history"
-    assert "at least 3 are required" in response.get_json()["error"]["message"]
+    assert response.get_json()["error"]["code"] in {"stale_source_data", "insufficient_local_history", "insufficient_history"}
 
     nbs_series = next(
         item for item in client.get("/api/series?dataset=nbs").get_json()
@@ -524,13 +623,15 @@ def test_on_demand_api_excludes_aggregate_flags_and_keeps_nbs_separate(client):
         "model": "auto", "mode": "on_demand", "horizon": "1",
     })
     assert response.status_code == 422
-    assert response.get_json()["error"]["code"] == "pooled_validation_unavailable"
-    assert "Individual-series method" in response.get_json()["error"]["message"]
-    assert "at least 5" in response.get_json()["error"]["message"]
+    assert response.get_json()["error"]["code"] == "stale_source_data"
+    assert "2026-05" in response.get_json()["error"]["message"]
 
 
-def test_real_nbs_zone_forecast_uses_group_held_out_pooled_validation(client, service, tmp_path):
-    service.forecast_cache_dir = tmp_path
+def test_real_nbs_post_rebase_zone_forecast_uses_group_held_out_validation(tmp_path):
+    from datetime import date
+
+    service = DashboardService(reference_date=date(2026, 7, 19), forecast_cache_dir=tmp_path)
+    client = create_app(service).test_client()
     candidate = next(
         item for item in service._series["nbs"]
         if item["geography_level"] == "zone"
@@ -551,14 +652,14 @@ def test_real_nbs_zone_forecast_uses_group_held_out_pooled_validation(client, se
         assert metadata["training_series_count"] >= 5
         assert metadata["validation_training_target_last_month"] < metadata["validation_cutoff_month"]
         assert metadata["source"] == "NBS"
-        expected_months = [
-            "2026-12", "2027-01", "2027-02", "2027-03", "2027-04", "2027-05",
-        ][:horizon]
+        assert metadata["methodology_regime"] == "post_2025_cpi_rebase"
+        assert metadata["forecast_bridge_months"] == 2
+        expected_months = ["2026-08", "2026-09", "2026-10", "2026-11", "2026-12", "2027-01"][:horizon]
         assert [row["month"] for row in payload["forecast"]] == expected_months
         assert all(row["temporal_status"] == "future_as_of_generation" for row in payload["forecast"])
 
 
-def test_real_sparse_wfp_series_uses_only_same_commodity_compatible_peers(tmp_path):
+def test_real_extremely_sparse_old_wfp_series_is_rejected_as_stale(tmp_path):
     from datetime import date
 
     service = DashboardService(reference_date=date(2026, 11, 19), forecast_cache_dir=tmp_path)
@@ -568,20 +669,12 @@ def test_real_sparse_wfp_series_uses_only_same_commodity_compatible_peers(tmp_pa
         if item["commodity"] == "Bananas" and item["market"] == "Bolori Stores"
         and item["price_flag"] == "actual" and item["observed_months"] == 4
     )
-    for horizon in range(1, 7):
-        response = client.get("/api/forecast", query_string={
-            "dataset": "wfp", "series_id": candidate["series_id"],
-            "model": "auto", "mode": "on_demand", "horizon": str(horizon),
-        })
-        assert response.status_code == 200, response.get_json()
-        payload = response.get_json()
-        metadata = payload["metadata"]
-        assert metadata["strategy_level"] == "pooled_global"
-        assert metadata["pool_definition"] == "same exact commodity, unit, price type and currency"
-        assert metadata["commodity"] == "Bananas"
-        assert metadata["validation_metrics"]["n"] >= 12
-        assert len(payload["forecast"]) == horizon
-        assert all(row["month"] > "2026-11" for row in payload["forecast"])
+    response = client.get("/api/forecast", query_string={
+        "dataset": "wfp", "series_id": candidate["series_id"],
+        "model": "auto", "mode": "on_demand", "horizon": "1",
+    })
+    assert response.status_code == 422
+    assert response.get_json()["error"]["code"] == "stale_source_data"
 
 
 def test_training_metrics_recompute_from_saved_predictions():

@@ -92,12 +92,12 @@ def test_runtime_cache_reuses_model_without_retraining(tmp_path, monkeypatch):
 
 
 def test_insufficient_history_reports_actual_usable_counts():
-    record = _monthly_record(count=20)
+    record = _monthly_record(count=10)
     assessment = assess_wfp_series(record)
     assert not assessment["eligible"]
     assert assessment["usable_training_rows"] < 30
     with pytest.raises(ForecastingError, match="gap-aware supervised rows"):
-        generate_wfp_forecast(record, record["series_id"], 1)
+        generate_wfp_forecast(record, record["series_id"], 1, as_of=date(2019, 10, 19))
 
 
 def test_latest_calendar_gap_is_not_filled_or_treated_as_previous_month():
@@ -151,21 +151,26 @@ def test_invalid_prices_are_excluded_without_interpolation():
     assert assessment["missing_calendar_months"] == 1
 
 
-def test_future_forecast_is_relative_to_current_calendar_not_stale_origin(tmp_path):
+def test_stale_origin_is_rejected_before_a_long_recursive_bridge(tmp_path):
     record = _monthly_record()
-    outcome = generate_wfp_forecast(record, record["series_id"], 6, cache_dir=tmp_path, as_of=date(2026, 11, 19))
-    months = [row["month"] for row in outcome["forecast"]]
-    assert months == ["2026-12", "2027-01", "2027-02", "2027-03", "2027-04", "2027-05"]
-    assert all(row["temporal_status"] == "future_as_of_generation" for row in outcome["forecast"])
-    assert outcome["metadata"]["forecast_origin_month"] == "2023-06"
-    assert outcome["metadata"]["forecast_start_month"] == "2026-12"
-    assert outcome["metadata"]["forecast_end_month"] == "2027-05"
-    assert outcome["metadata"]["source_age_months"] == 41
-    assert outcome["metadata"]["source_freshness_classification"] == "stale_for_current_market"
-    assert outcome["metadata"]["is_current_market_forecast"] is False
-    assert outcome["metadata"]["forecast_date_scope"] == "future_only_after_current_calendar_month"
-    assert outcome["metadata"]["forecast_bridge_months"] == 41
-    assert "stale for current-market interpretation" in outcome["warning"]
+    with pytest.raises(ForecastingError) as caught:
+        generate_wfp_forecast(record, record["series_id"], 6, cache_dir=tmp_path, as_of=date(2026, 11, 19))
+    assert caught.value.code == "stale_source_data"
+    assert "41 calendar month(s) old" in caught.value.message
+    assert "cannot be forecast as current market conditions" in caught.value.message
+
+
+def test_recent_origin_uses_only_a_short_bounded_calendar_bridge(tmp_path):
+    record = _monthly_record()
+    outcome = generate_wfp_forecast(
+        record, record["series_id"], 2, cache_dir=tmp_path,
+        as_of=date(2023, 8, 19),
+    )
+    assert outcome["metadata"]["source_age_months"] == 2
+    assert outcome["metadata"]["forecast_bridge_months"] == 2
+    assert outcome["metadata"]["freshness_limit_months"] == 3
+    assert outcome["metadata"]["max_forecast_bridge_months"] == 3
+    assert [row["month"] for row in outcome["forecast"]] == ["2023-09", "2023-10"]
 
 
 def test_observation_dated_after_generation_day_is_rejected_before_training(monkeypatch):
@@ -232,10 +237,26 @@ def test_pooled_fallback_uses_compatible_peers_and_cuts_future_peer_observations
 
     result = generate_wfp_forecast(
         selected, selected["series_id"], 1, cache_dir=tmp_path,
-        as_of=date(2019, 12, 19), pool_records=peers,
+        as_of=date(2019, 1, 19), pool_records=peers,
     )
     assert result["metadata"]["strategy_level"] == "pooled_global"
-    assert result["metadata"]["training_last_month"] == "2019-12"
+    assert result["metadata"]["training_last_month"] == "2019-01"
     assert result["metadata"]["validation_training_target_last_month"] < result["metadata"]["validation_cutoff_month"]
     assert all(item["commodity"] == "Maize" for item in result["metadata"]["other_series_contributors"])
     assert all(row["temporal_status"] == "future_as_of_generation" for row in result["forecast"])
+
+
+def test_short_exact_history_can_use_a_rolling_origin_baseline_only(tmp_path):
+    record = _monthly_record(count=17)
+    result = generate_wfp_forecast(
+        record, record["series_id"], 2, cache_dir=tmp_path,
+        as_of=date(2020, 6, 19), pool_records=[record],
+    )
+    metadata = result["metadata"]
+    assert metadata["strategy_level"] == "individual_series_short_history_baseline"
+    assert metadata["model_type"] == "validated baseline"
+    assert metadata["validation_rows"] == 6
+    assert len(metadata["validation_predictions"]) == metadata["validation_rows"]
+    assert {item["month"] for item in metadata["validation_predictions"]} == set(metadata["validation_months"])
+    assert metadata["selection_basis"].startswith("lowest RMSE among simple baselines")
+    assert result["forecast"]

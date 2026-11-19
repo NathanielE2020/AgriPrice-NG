@@ -116,7 +116,10 @@
       const geo = item.market || item.geography_name || "";
       const flag = item.price_flag ? ` · ${item.price_flag}` : "";
       const regime = item.methodology_regime ? ` · ${item.methodology_regime.replaceAll("_", " ")}` : "";
-      return `<option value="${escapeHTML(item.series_id)}">${escapeHTML(item.commodity)} · ${escapeHTML(item.unit || "Not stated")} · ${escapeHTML(item.price_type)} · ${escapeHTML(geo)}${escapeHTML(flag)}${escapeHTML(regime)}</option>`;
+      const mapping = dataset === "nbs" && item.research_commodity_mapping
+        ? ` · research mapping: ${item.research_commodity_mapping}${item.mapping_status ? ` (${item.mapping_status.replaceAll("_", " ")})` : ""}`
+        : "";
+      return `<option value="${escapeHTML(item.series_id)}">${escapeHTML(item.commodity)} · ${escapeHTML(item.unit || "Not stated")} · ${escapeHTML(item.price_type)} · ${escapeHTML(geo)}${escapeHTML(flag)}${escapeHTML(regime)}${escapeHTML(mapping)}</option>`;
     };
     if (analysisNode) {
       analysisNode.innerHTML = items.map(optionMarkup).join("") || '<option value="">No series available</option>';
@@ -136,12 +139,11 @@
         const geo = item.market || item.geography_name || "";
         const flag = item.price_flag ? ` · ${item.price_flag}` : "";
         const regime = item.methodology_regime ? ` · ${item.methodology_regime.replaceAll("_", " ")}` : "";
-        return `<option value="${escapeHTML(item.series_id)}">${escapeHTML(item.commodity)} · ${escapeHTML(item.unit || "Not stated")} · ${escapeHTML(item.price_type)} · ${escapeHTML(geo)}${escapeHTML(flag)}${escapeHTML(regime)}</option>`;
+        const mapping = dataset === "nbs" && item.research_commodity_mapping
+          ? ` · research mapping: ${item.research_commodity_mapping}${item.mapping_status ? ` (${item.mapping_status.replaceAll("_", " ")})` : ""}`
+          : "";
+        return `<option value="${escapeHTML(item.series_id)}">${escapeHTML(item.commodity)} · ${escapeHTML(item.unit || "Not stated")} · ${escapeHTML(item.price_type)} · ${escapeHTML(geo)}${escapeHTML(flag)}${escapeHTML(regime)}${escapeHTML(mapping)}</option>`;
       }).join("") || '<option value="">No series available</option>';
-      performanceNode.querySelectorAll("option").forEach((option) => {
-        const item = items.find((candidate) => candidate.series_id === option.value);
-        if (item) option.textContent += item.forecast_available ? " [historical evaluation]" : " [not evaluated]";
-      });
       performanceNode.value = performanceId;
     }
     return getSeriesItem(dataset, performanceId);
@@ -159,19 +161,23 @@
   }
 
   function renderForecastLatest(series) {
-    const age = series && series.observation_age_months !== null && series.observation_age_months !== undefined && Number.isFinite(Number(series.observation_age_months))
-      ? Number(series.observation_age_months)
+    const rawAge = series?.forecast_source_age_months ?? series?.observation_age_months;
+    const age = series && rawAge !== null && rawAge !== undefined && Number.isFinite(Number(rawAge))
+      ? Number(rawAge)
       : null;
-    const freshnessLabel = series ? ({
-      fresh: "Fresh · within 3 months",
-      recent: "Recent · 4–6 months",
-      aging: "Aging · 7–12 months",
-      stale: "Stale · over 12 months",
-      unavailable: "Unavailable",
-    }[series.freshness] || (age === null ? "Unavailable" : `${age} month(s) old`)) : "Select a series";
+    const rawFreshnessLimit = series?.forecast_freshness_limit_months;
+    const freshnessLimit = rawFreshnessLimit !== null && rawFreshnessLimit !== undefined && Number.isFinite(Number(rawFreshnessLimit))
+      ? Number(series.forecast_freshness_limit_months)
+      : 3;
+    const forecastFreshness = series?.forecast_freshness || series?.freshness;
+    const freshnessLabel = !series ? "Select a series" : age === null
+      ? "Unavailable"
+      : (forecastFreshness === "fresh" || age <= freshnessLimit
+        ? `Fresh · within ${formatNumber(freshnessLimit)} months`
+        : `Stale for forecasting · ${formatNumber(age)} month(s) old`);
     const values = series ? {
       forecastLatestPrice: `Latest reported: ${formatPrice(series.latest_price)}`,
-      forecastLatestContext: `${series.source} · ${series.commodity} · ${series.market || series.geography_name || "geography not stated"} · ${series.unit || "unit not stated"} · ${series.price_type}. This is a source observation, not a forecast.`,
+      forecastLatestContext: `${series.source} · ${series.commodity}${series.research_commodity_mapping ? ` (research mapping: ${series.research_commodity_mapping}; ${String(series.mapping_status || "mapping status unavailable").replaceAll("_", " ")})` : ""} · ${series.market || series.geography_name || "geography not stated"} · ${series.methodology_regime ? String(series.methodology_regime).replaceAll("_", " ") + " · " : ""}${series.unit || "unit not stated"} · ${series.price_type}. This is a source observation, not a forecast.`,
       forecastLatestDate: series.latest_observation_date ? String(series.latest_observation_date).slice(0, 10) : formatMonth(series.last_observed_month),
       forecastLatestAge: age === null ? "n/a" : `${formatNumber(age)} month(s) old`,
       forecastFreshness: freshnessLabel,
@@ -189,7 +195,7 @@
     const freshnessElement = document.getElementById("forecastFreshness");
     if (freshnessElement?.classList) {
       ["fresh", "recent", "aging", "stale", "unavailable"].forEach((name) => freshnessElement.classList.remove(`freshness-${name}`));
-      const status = series && ["fresh", "recent", "aging", "stale"].includes(series.freshness) ? series.freshness : "unavailable";
+      const status = series && age !== null ? (age <= freshnessLimit ? "fresh" : "stale") : "unavailable";
       freshnessElement.classList.add(`freshness-${status}`);
     }
   }
@@ -220,7 +226,7 @@
     }
     if (note) note.textContent = canCheck
       ? (dataset === "nbs"
-        ? `${formatNumber(series.observed_months)} NBS reported months (${series.first_observed_month} – ${series.last_observed_month}); this exact geography is assessed independently when requested.`
+        ? `${formatNumber(series.observed_months)} NBS reported months (${series.first_observed_month} – ${series.last_observed_month}); the original item label, CPI regime and geography stay separate. Research mapping is descriptive only.`
         : `${formatNumber(series.observed_months)} reported WFP months (${series.first_observed_month} – ${series.last_observed_month}); priceflag=${series.price_flag || "not stated"}. Pure-actual eligibility and compatible-pool support are checked when requested.`)
       : (needsExactChoice
         ? `This ${dataset === "nbs" ? "geography" : "market"} has multiple exact price series. Select the required unit and price type before forecasting.`
@@ -263,7 +269,13 @@
     if (prior && commodities.includes(prior.commodity)) commodity = prior.commodity;
     if (!commodities.includes(commodity)) commodity = commodities[0];
     state.forecastCommodity[dataset] = commodity;
-    commodityNode.innerHTML = commodities.map((name) => `<option value="${escapeHTML(name)}">${escapeHTML(name)}</option>`).join("");
+    commodityNode.innerHTML = commodities.map((name) => {
+      const item = candidates.find((candidate) => candidate.commodity === name);
+      const mapped = dataset === "nbs" && item?.research_commodity_mapping
+        ? ` — mapped research group: ${item.research_commodity_mapping}${item.mapping_status ? ` (${item.mapping_status.replaceAll("_", " ")})` : ""}`
+        : "";
+      return `<option value="${escapeHTML(name)}">${escapeHTML(name + mapped)}</option>`;
+    }).join("");
     commodityNode.disabled = false;
     commodityNode.value = commodity;
 
@@ -289,7 +301,10 @@
     const prompt = variants.length > 1 ? '<option value="">Choose exact unit and price type</option>' : "";
     seriesNode.innerHTML = prompt + variants.map((item) => {
       const regime = item.methodology_regime ? ` · ${item.methodology_regime.replaceAll("_", " ")}` : "";
-      const label = `${item.unit || "Unit not stated"} · ${item.price_type} · ${dataset === "wfp" ? "actual" : "NBS report"}${regime} · ${formatNumber(item.observed_months)} months`;
+      const mapping = dataset === "nbs" && item.research_commodity_mapping
+        ? ` · mapped: ${item.research_commodity_mapping}${item.mapping_status ? ` (${item.mapping_status.replaceAll("_", " ")})` : ""}`
+        : "";
+      const label = `${item.unit || "Unit not stated"} · ${item.price_type} · ${dataset === "wfp" ? "actual" : "NBS report"}${regime} · ${formatNumber(item.observed_months)} months${mapping}`;
       return `<option value="${escapeHTML(item.series_id)}">${escapeHTML(label)}</option>`;
     }).join("") || '<option value="">No reported series available</option>';
     seriesNode.disabled = !variants.length;
@@ -299,7 +314,10 @@
       if (!item) return;
       const flag = item.price_flag ? `priceflag=${item.price_flag}` : "NBS reported average";
       const regime = item.methodology_regime ? ` | ${item.methodology_regime.replaceAll("_", " ")}` : "";
-      option.textContent = `${item.unit || "Unit not stated"} | ${item.price_type} | ${flag}${regime} | ${formatNumber(item.observed_months)} months`;
+      const mapping = dataset === "nbs" && item.research_commodity_mapping
+        ? ` | maps to ${item.research_commodity_mapping}${item.mapping_status ? ` (${item.mapping_status.replaceAll("_", " ")})` : ""}`
+        : "";
+      option.textContent = `${item.unit || "Unit not stated"} | ${item.price_type} | ${flag}${regime} | ${formatNumber(item.observed_months)} months | latest ${item.last_observed_month || "unknown"}${mapping}`;
     });
     updateForecastAvailability(dataset, seriesId);
   }
@@ -506,24 +524,32 @@
       if (requestId !== state.performanceRequestId || dataset !== state.dataset || seriesId !== state.performanceSelected[dataset]) return;
       const summary = payload.summary || {};
       $("#performanceSummary").textContent = payload.message || "No validated evaluation records are available.";
-      $("#performanceDates").textContent = summary.test_date_count
-        ? `${formatNumber(summary.test_date_count)} common test dates · ${summary.test_first_month} — ${summary.test_last_month} · ${summary.forecast_classification || "historical experiment"}`
+      const validation = summary.evaluation_period === "validation";
+      const dateCount = validation ? summary.validation_date_count : summary.test_date_count;
+      const firstDate = validation ? summary.validation_first_month : summary.test_first_month;
+      const lastDate = validation ? summary.validation_last_month : summary.test_last_month;
+      const periodLabel = validation ? "chronological validation dates" : "common historical test dates";
+      const scopeLabel = summary.validation_scope ? ` · ${summary.validation_scope}` : "";
+      $("#performanceDates").textContent = dateCount
+        ? `${formatNumber(dateCount)} ${periodLabel} · ${firstDate} — ${lastDate}${scopeLabel}${summary.forecast_classification ? ` · ${summary.forecast_classification}` : ""}`
         : "No evaluation dates";
       const labels = { naive_last_observation: "Naive last observation", random_forest: "Random Forest", xgboost: "XGBoost", gradient_boosting: "Gradient Boosting", stacking: "Hybrid stacking", lstm: "LSTM" };
       $("#performanceTableBody").innerHTML = (payload.records || []).map((row) => {
         const champion = row.champion_selected_on_validation ? " · champion by validation" : "";
-        const status = row.status === "trained_and_evaluated" ? `Evaluated${champion}` : (row.unavailable_reason || "Unavailable");
+        const status = ["trained_and_evaluated", "validation_evaluated"].includes(row.status)
+          ? `${row.status === "validation_evaluated" ? "Validation evaluated" : "Test evaluated"}${champion}${row.evaluation_scope ? ` · ${row.evaluation_scope}` : ""}`
+          : (row.unavailable_reason || "Unavailable");
         return `<tr><td>${escapeHTML(labels[row.model] || row.model)}${row.champion_selected_on_validation ? " ★" : ""}</td><td>${formatNumber(row.rmse, 2)}</td><td>${formatNumber(row.mae, 2)}</td><td>${row.mape === null ? "—" : `${formatNumber(row.mape, 2)}%`}</td><td>${formatNumber(row.r2, 3)}</td><td>${formatNumber(row.bias, 2)}</td><td>${escapeHTML(status)}</td></tr>`;
       }).join("");
-      setMessage("#performanceError", payload.status === "evaluated" ? "" : (payload.message || "No test metrics are available."), payload.status !== "evaluated");
-      drawPerformance(payload.predictions_by_date || []);
+      setMessage("#performanceError", ["evaluated", "validation_evaluated"].includes(payload.status) ? "" : (payload.message || "No validation or test metrics are available."), !["evaluated", "validation_evaluated"].includes(payload.status));
+      drawPerformance(payload.predictions_by_date || [], summary.evaluation_period || "test");
     } catch (error) {
       if (requestId !== state.performanceRequestId || dataset !== state.dataset || seriesId !== state.performanceSelected[dataset]) return;
       setMessage("#performanceError", error.message, true);
     }
   }
 
-  function drawPerformance(rows) {
+  function drawPerformance(rows, evaluationPeriod = "test") {
     clearChart("performance");
     const canvas = $("#performanceChart");
     const empty = $("#performanceChartEmpty");
@@ -550,7 +576,7 @@
     if (empty) empty.hidden = true;
     state.charts.performance = new Chart(canvas, {
       type: "line", data: { labels: rows.map((row) => row.month), datasets },
-      options: { responsive: true, maintainAspectRatio: false, interaction: { intersect: false, mode: "index" }, plugins: { legend: { display: true } }, scales: { x: { title: { display: true, text: "Common chronological test month" }, ticks: { maxTicksLimit: 12 } }, y: { title: { display: true, text: "Price in source NGN/unit" } } } },
+      options: { responsive: true, maintainAspectRatio: false, interaction: { intersect: false, mode: "index" }, plugins: { legend: { display: true } }, scales: { x: { title: { display: true, text: evaluationPeriod === "validation" ? "Chronological validation month" : "Common chronological test month" }, ticks: { maxTicksLimit: 12 } }, y: { title: { display: true, text: "Price in source NGN/unit" } } } },
     });
   }
 
@@ -595,10 +621,11 @@
       || metadata.latest_actual_month_in_source;
     setText("forecastLatestDate", latestObservation ? String(latestObservation).slice(0, 10) : "Not reported");
     const rawSourceAge = metadata.source_age_months;
+    const freshnessLimit = Number.isFinite(Number(metadata.freshness_limit_months)) ? Number(metadata.freshness_limit_months) : 3;
     if (rawSourceAge !== null && rawSourceAge !== undefined && Number.isFinite(Number(rawSourceAge))) {
       const sourceAge = Number(rawSourceAge);
       setText("forecastLatestAge", formatNumber(sourceAge) + " month(s) old");
-      setText("forecastFreshness", sourceAge <= 3 ? "Fresh · within 3 months" : "Stale · " + formatNumber(sourceAge) + " month(s)");
+      setText("forecastFreshness", sourceAge <= freshnessLimit ? `Fresh · within ${formatNumber(freshnessLimit)} months` : "Stale · " + formatNumber(sourceAge) + " month(s)");
     }
     setText("forecastOriginGenerated", `Origin ${metadata.forecast_origin_month || "n/a"} · Generated ${metadata.forecast_generation_date || "n/a"}`);
     setText("forecastRmse", formatNumber(metric.rmse, 2));
@@ -654,10 +681,11 @@
     const classification = metadata.forecast_classification || "unverified";
     const rawAge = metadata.source_age_months ?? series.observation_age_months;
     const age = rawAge !== null && rawAge !== undefined && Number.isFinite(Number(rawAge)) ? Number(rawAge) : null;
+    const freshnessLimit = Number.isFinite(Number(metadata.freshness_limit_months)) ? Number(metadata.freshness_limit_months) : 3;
     const freshness = String(series.freshness || "unavailable").toLowerCase();
     const isFresh = typeof metadata.is_current_market_forecast === "boolean"
       ? metadata.is_current_market_forecast
-      : (age !== null ? age <= 3 : freshness === "fresh");
+      : (age !== null ? age <= freshnessLimit : freshness === "fresh");
     let style = "stale";
     let title = "Forecast status unverified";
     let message = "The forecast dates or source recency could not be confirmed. Do not treat this as a current market forecast.";
@@ -674,7 +702,7 @@
     } else if (classification === "future_as_of_generation" && isFresh) {
       style = "current";
       title = "Future estimate · recent source data";
-      message = "All requested dates are future as of the generation date, based on a source observation recorded within the last three months. Estimates are not guaranteed prices.";
+      message = `All requested dates are future as of the generation date, based on a source observation within the ${formatNumber(freshnessLimit)}-month freshness limit. Estimates are not guaranteed prices.`;
     } else if (classification === "future_as_of_generation") {
       style = "stale";
       title = `Future projection · ${freshness === "unavailable" ? "source age unavailable" : `${freshness} source data`}`;
@@ -691,6 +719,9 @@
   }
 
   function forecastUnavailableTitle(error) {
+    if (error?.code === "stale_source_data") return "Forecast unavailable — the source is too old for current conditions";
+    if (error?.code === "forecast_bridge_too_long") return "Forecast unavailable — too many unobserved months to bridge";
+    if (error?.code === "insufficient_history") return "Forecast unavailable — limited history did not support baseline validation";
     if (error?.code === "non_future_forecast_dates") return "Forecast unavailable — dates are not verifiably future-only";
     if (error?.code === "insufficient_local_history") return "Forecast unavailable: insufficient local history";
     if (error?.code === "pooled_validation_unavailable") return "Forecast unavailable: no validated compatible pool";

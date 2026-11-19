@@ -39,7 +39,12 @@ def test_runtime_reports_only_registered_series_and_rejects_unavailable_forecast
     series = client.get("/api/series?dataset=wfp").get_json()[0]
     assert series["models"] == []
     performance = client.get("/api/performance", query_string={"dataset": "wfp", "series_id": series["series_id"]}).get_json()
-    assert performance["records"] == []
+    assert performance["status"] in {"validation_evaluated", "not_eligible", "not_trained"}
+    if performance["status"] == "validation_evaluated":
+        assert performance["summary"]["evaluation_period"] == "validation"
+        assert all(row["n"] > 0 for row in performance["records"] if row["status"] == "validation_evaluated")
+    else:
+        assert performance["records"] == []
     forecast = client.get("/api/forecast", query_string={"dataset": "wfp", "series_id": series["series_id"], "model": "naive", "horizon": 1})
     assert forecast.status_code == 422
     assert forecast.get_json()["error"]["code"] == "forecast_unavailable"
