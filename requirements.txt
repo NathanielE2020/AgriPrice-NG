@@ -1,4 +1,8 @@
-# Production dashboard runtime. The active Flask application reads normalized
-# CSV/JSON files and saved forecasts; it does not load model frameworks.
+# Production dashboard runtime. On-demand WFP forecasting uses scikit-learn
+# estimators and joblib-compatible artifacts; TensorFlow and XGBoost are not
+# imported by this inference path.
 Flask==3.1.3
 gunicorn==23.0.0
+numpy==2.5.4
+scikit-learn==1.9.1
+joblib==1.6.0

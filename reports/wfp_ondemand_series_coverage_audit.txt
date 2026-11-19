@@ -1,0 +1,35 @@
+AgriPrice-NG WFP on-demand series coverage audit
+Audit date: 2026-11-19
+Inputs: existing data/processed/wfp_monthly.csv through the DashboardService normalized loader; no source files were changed.
+Scope: actual-flag WFP market series whose labels are relevant to rice, maize, cassava, yam, beans, tomatoes, or palm oil. Distinct labels, markets, states, units, currencies, price types, and flags remain separate.
+
+Exact grouping and filtering traced
+- DashboardService._load_wfp groups by commodity, market_id, market, admin1/state, unit, pricetype, currency, and priceflag; its series ID hashes that exact tuple. It does not merge markets or units.
+- On-demand assess_wfp_series accepts only source_key='wfp' and exact price_flag='actual'. It validates YYYY-MM months and finite positive prices, counts distinct valid months, rejects conflicting prices for a repeated month, and only removes exact same-month/same-price duplicates.
+- Calendar-lag rows require actual prices in each of the prior three calendar months. No gap is interpolated or replaced by the previous available month.
+- Eligibility requires >=30 complete lag rows, an 80/20 chronological split with >=20 training and >=6 validation rows, plus actual observations for the latest month and its two preceding calendar months.
+- The older research experiment's >=96 observation/70-15-15 thresholds are separate and are not used by this on-demand eligibility check.
+
+Coverage findings
+WFP market series in dashboard index: 3432; exact priceflag=actual groups: 1101.
+Actual priceflag distribution over all WFP series: {'actual': 1101, 'actual,aggregate': 608, 'aggregate': 1723}.
+Relevant actual-flag commodity/market/unit/price-type/currency groups audited: 544.
+Relevant groups with >=1 valid actual month since 2024-01: 69; split by number of such months: {'1': 69}.
+All recent groups have latest month 2026-04; the latest exact observation date among them is 2026-04-15.
+Of recent groups, 51 have >=30 usable historical lag rows but fail only the terminal three-consecutive-month check; 18 fail the 30-row minimum as well; 17 have only one valid actual month in their entire series.
+Within direct in-scope labels (excluding cowpeas, maize flour, and processed cassava proxies), 53 groups have recent observations; 40 have >=30 usable lag rows, while 13 are one-observation-only new market histories.
+Direct recent groups by original commodity label: {'Beans (red)': 8, 'Beans (white)': 8, 'Oil (palm)': 8, 'Rice (imported)': 5, 'Rice (local)': 8, 'Tomatoes': 8, 'Yam': 8}; direct in-scope categories with no recent actual group: ['Cassava', 'Maize'].
+Related/processed labels with recent records, kept separate from the seven raw commodity categories: {'Cowpeas': 8, 'Maize flour': 8}.
+Markets represented in recent groups: ['Abba Gamaram (2394, Borno)', 'Bade (Gashua) (2388, Yobe)', 'Budum (2384, Borno)', 'Custom (2395, Borno)', 'Gamboru (3193, Borno)', 'Kashuwan Shanu (3184, Borno)', 'Monday (2397, Borno)', 'Tashan Bama (2398, Borno)']; markets represented only by single-observation new histories: ['Gamboru (3193, Borno)', 'Kashuwan Shanu (3184, Borno)']; markets with older histories and recent appended points: ['Abba Gamaram (2394, Borno)', 'Bade (Gashua) (2388, Yobe)', 'Budum (2384, Borno)', 'Custom (2395, Borno)', 'Monday (2397, Borno)', 'Tashan Bama (2398, Borno)'].
+Relevant groups eligible under current on-demand rules: 130; eligible with latest actual since 2024-01: 0; eligible but stale before 2024-01: 130.
+Latest actual month among relevant groups: 2026-04; latest actual month among eligible relevant groups: 2023-06.
+Latest exact source observation date across all actual WFP groups: 2026-04-15.
+Coverage classifications: {'eligible_but_stale': 130, 'insufficient_total_observations_or_calendar_lags': 195, 'long_history_but_stale_latest_actual': 150, 'only_one_to_three_actual_months_since_2024': 69}.
+Normalized monthly rows in the audited groups: 23188; invalid month rows: 0; invalid prices: 0; missing prices: 0; duplicate rows removed: 0.
+
+Interpretation
+Recent actual rows occur in some of the same exact market-level groups that have older history, and also in newly observed market groups. They are not missing because of a priceflag, date-parse, or group-key bug. The older groups with 30+ usable lag rows have a single April 2026 point after a long gap; February and March 2026 are absent, so the newest actual cannot support the next calendar-month feature vector.
+No audited series has two or more actual months since January 2024. 17 series are single-month histories with no usable lag rows. 51 series have at least 30 usable historical lag rows but fail only the latest three-consecutive-actual-month requirement. Other recent groups below the row threshold: Cowpeas at Abba Gamaram: 41 valid months, 28 usable lag rows.
+A long series whose latest actual is stale can pass structural eligibility yet still cannot represent current market conditions. Ignoring the April 2026 observation to forecast from a stale 2023 origin would discard the latest source value and would not make a current forecast.
+Processed cassava products such as gari are explicitly labeled as proxies only and are not treated as raw cassava. Maize flour, rice variants, bean variants, and Yam (Abuja) likewise retain separate original labels.
+No model was trained and no forecast was generated by this audit.

@@ -5,7 +5,9 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import logging
 import re
+import threading
 from collections import defaultdict
 from datetime import date, datetime
 from pathlib import Path
@@ -101,8 +103,10 @@ class DashboardService:
     deploy_scope = "wfp_nbs"
     default_dataset = "wfp"
 
-    def __init__(self, reference_date: date | None = None):
+    def __init__(self, reference_date: date | None = None, forecast_cache_dir: Path | None = None):
         self.reference_date = reference_date or date.today()
+        self.forecast_cache_dir = forecast_cache_dir
+        self._forecast_lock = threading.RLock()
         self._training_registry = self._load_training_registry()
         self._training_metrics = _read_optional_dict_rows(TRAINING_METRICS)
         self._training_predictions = _read_optional_dict_rows(TRAINING_PREDICTIONS)
@@ -364,17 +368,18 @@ class DashboardService:
                 "trained_series_count": trained_series_count,
                 "historical_forecast_series_count": historical_forecast_count,
                 "current_market_forecast_series_count": 0,
+                "on_demand_wfp_forecasting_enabled": True,
                 "registry_available": bool(self._training_series),
                 "message": (
-                    "Historical WFP experiments are available; generated forecasts are not current-market prices."
+                    "Historical model artifacts are available. Eligible pure-actual WFP series are forecast on request after chronological validation; forecast origins may be stale and are not live prices."
                     if self._training_series else
-                    "No model has been trained on the migrated WFP/NBS source scope."
+                    "On-demand WFP forecasting is enabled for eligible pure-actual series; no historical model registry is available."
                 ),
             },
             "training_note": (
-                "Historical WFP test results and recursive forecasts are available. NBS models remain unavailable because each stable post-rebase series is too short."
+                "Historical WFP test results remain audit-only. Pure-actual WFP series can be forecast on request when their history passes chronological validation; NBS models remain unavailable because stable post-rebase histories are too short."
                 if self._training_series else
-                "No model trained on the migrated WFP/NBS source scope is currently registered."
+                "No historical model is registered. On-demand pure-actual WFP forecasting remains available when a selected series passes its eligibility checks."
             ),
         }
 
@@ -396,6 +401,11 @@ class DashboardService:
             "forecast_origin_month": training.get("forecast_origin_month"),
             "forecast_classification": training.get("forecast_classification"),
             "training_note": training.get("historical_forecast_note") or eligibility.get("eligibility_reason", ""),
+            "forecast_request_available": bool(
+                record.get("source_key") == "wfp"
+                and record.get("price_flag") == "actual"
+                and int(record.get("observed_months", 0) or 0) > 0
+            ),
         })
         return public
 
@@ -491,17 +501,74 @@ class DashboardService:
             "legacy_results_included": False,
         }
 
-    def forecast(self, dataset: str, series_id: str, model: str, horizon: int) -> dict[str, Any]:
+    def forecast(
+        self,
+        dataset: str,
+        series_id: str,
+        model: str = "auto",
+        horizon: int = 1,
+        mode: str = "",
+    ) -> dict[str, Any]:
         record = self._require_series(dataset, series_id)
         if horizon not in (1, 3, 6):
             raise DashboardError("invalid_horizon", "horizon must be 1, 3, or 6 months.", 400)
-        if not model:
-            raise DashboardError("missing_model", "A model selection is required.", 400)
+        if mode not in ("", "on_demand", "historical"):
+            raise DashboardError("invalid_forecast_mode", "mode must be on_demand or historical.", 400)
+        model = (model or "auto").strip()
+        # Explicit model-name requests preserve the historical saved-forecast
+        # API. The live dashboard requests model=auto&mode=on_demand.
+        if mode == "historical" or (mode == "" and model not in ("", "auto")):
+            return self._saved_historical_forecast(dataset, series_id, record, model, horizon)
         if dataset != "wfp":
-            raise DashboardError("forecast_unavailable", "No trained forecast is available for this NBS series.", 422)
+            count = int(record.get("observed_months", 0) or 0)
+            latest = record.get("last_observed_month") or "unavailable"
+            raise DashboardError(
+                "nbs_forecast_unavailable",
+                f"NBS forecasting is not supported for this series: it has {count} reported monthly observations through {latest}. NBS national/zone histories remain separate and are too short for a defensible post-rebase training and validation experiment.",
+                422,
+            )
+        if model not in ("", "auto"):
+            raise DashboardError("invalid_model_selection", "On-demand forecasts select the model from chronological validation; use model=auto.", 400)
+        from .ondemand_forecasting import ForecastingError, generate_wfp_forecast
+        try:
+            with self._forecast_lock:
+                generated = generate_wfp_forecast(
+                    record,
+                    series_id,
+                    horizon,
+                    registry_entry=self._training_series.get(series_id),
+                    cache_dir=self.forecast_cache_dir,
+                    root=ROOT,
+                    as_of=self.reference_date,
+                )
+        except ForecastingError as exc:
+            raise DashboardError(exc.code, exc.message, exc.status_code) from exc
+        except Exception as exc:
+            logging.getLogger(__name__).exception("On-demand WFP forecast failed for %s", series_id)
+            raise DashboardError(
+                "forecast_generation_failed",
+                "Forecast training or prediction failed. No forecast was returned; the source data were not changed.",
+                500,
+            ) from exc
+        generated["dataset"] = dataset
+        generated["series"] = self._public_series(record)
+        return generated
+
+    def _saved_historical_forecast(
+        self,
+        dataset: str,
+        series_id: str,
+        record: dict[str, Any],
+        model: str,
+        horizon: int,
+    ) -> dict[str, Any]:
+        if not model:
+            raise DashboardError("missing_model", "A model selection is required for a saved historical forecast.", 400)
+        if dataset != "wfp":
+            raise DashboardError("forecast_unavailable", "No historical saved forecast is available for this NBS series.", 422)
         registry = self._training_series.get(series_id)
         if not registry or not registry.get("forecast_available"):
-            raise DashboardError("forecast_unavailable", "No validated recursive forecast is available for this series.", 422)
+            raise DashboardError("forecast_unavailable", "No saved historical forecast is registered for this series. Use model=auto for on-demand eligibility checks.", 422)
         if model != registry.get("champion"):
             raise DashboardError(
                 "model_unavailable",
@@ -549,6 +616,8 @@ class DashboardService:
                 "latest_actual_date_in_source": registry.get("latest_actual_date"),
                 "forecast_generation_date": rows[0].get("forecast_generation_date"),
                 "forecast_classification": registry.get("forecast_classification", "historical_only"),
+                "selection_basis": registry.get("champion_selection_basis"),
+                "validation_metrics": {"rmse": registry.get("champion_validation_rmse")},
                 "confidence_intervals": False,
             },
             "warning": "Historical-only projection; this is not a current or guaranteed market price.",
