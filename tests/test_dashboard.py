@@ -56,6 +56,7 @@ def test_latest_value_dom_matches_render_latest_and_local_assets_load(client):
         "forecastStatusTitle",
         "forecastStatusMessage",
         "forecastSubject",
+        "forecastSource",
         "forecastSelectedHorizon",
         "forecastSelectedModel",
         "forecastOriginGenerated",
@@ -71,7 +72,7 @@ def test_latest_value_dom_matches_render_latest_and_local_assets_load(client):
     assert '<details class="panel forecast-methodology" id="forecastMethodology">' in html
     assert "Multi-month forecasts are recursive" in html
     assert "naive last-observation baseline" in html
-    assert "Missing calendar months remain missing" in html
+    assert "Missing months are not interpolated or forward-filled" in html
 
     for asset_path in ("/static/js/dashboard.js", "/static/css/dashboard.css"):
         assert client.get(asset_path).status_code == 200
@@ -107,11 +108,12 @@ def test_series_catalogue_keeps_source_identities_separate(client):
     payload = client.get("/api/series").get_json()
     assert set(payload) == {"wfp", "nbs"}
     assert len(payload["wfp"]) == 3_432
-    assert len(payload["nbs"]) == 589
+    assert len(payload["nbs"]) == 596
     assert all(item["source"] == "WFP" for item in payload["wfp"])
     assert all(item["source"] == "NBS" for item in payload["nbs"])
     assert all(item["price_flag"] for item in payload["wfp"])
     assert all(item["geography_level"] in {"national", "zone"} for item in payload["nbs"])
+    assert {item["methodology_regime"] for item in payload["nbs"]} == {"pre_2025_cpi_rebase", "post_2025_cpi_rebase"}
 
 
 def test_approved_wfp_market_series_are_present_as_actual_series(client):
@@ -130,18 +132,20 @@ def test_approved_wfp_market_series_are_present_as_actual_series(client):
     assert approved.issubset(found)
 
 
-def test_forecast_catalogue_only_exposes_exact_pure_actual_wfp_ids(client, service):
+def test_forecast_catalogue_exposes_every_exact_wfp_flag_for_an_eligibility_attempt(client, service):
     catalogue = client.get("/api/series?dataset=wfp").get_json()
     actual = [item for item in catalogue if item["price_flag"] == "actual"]
     non_actual = [item for item in catalogue if item["price_flag"] != "actual"]
     assert actual and non_actual
     assert all(item["forecast_request_available"] for item in actual)
-    assert not any(item["forecast_request_available"] for item in non_actual)
+    assert all(item["forecast_request_available"] for item in non_actual)
+    assert len({item["commodity"] for item in catalogue if item["forecast_request_available"]}) == 43
+    assert len({item["commodity"] for item in client.get("/api/series?dataset=nbs").get_json()}) == 86
 
     javascript = client.get("/static/js/dashboard.js").get_data(as_text=True)
-    assert 'getSeries(dataset).filter((item) => isPureActualForecastSeries(item, dataset))' in javascript
+    assert 'getSeries(dataset).filter((item) => isForecastRequestableSeries(item, dataset))' in javascript
     assert 'state.forecastSelected[dataset] = event.target.value;' in javascript
-    assert "if (!isPureActualForecastSeries(selectedSeries, dataset))" in javascript
+    assert "if (!isForecastRequestableSeries(selectedSeries, dataset))" in javascript
     assert 'model: "auto", mode: "on_demand"' in javascript
     assert "series_id: seriesId" in javascript
 
@@ -318,16 +322,33 @@ def test_history_keeps_real_months_and_does_not_fill_gaps(client):
 
 def test_nbs_history_is_a_distinct_reported_average_series(client):
     series = client.get("/api/series?dataset=nbs").get_json()
-    item = next(row for row in series if row["commodity"] == "Yam Tuber" and row["geography_level"] == "national")
+    item = next(row for row in series if row["commodity"] == "Yam Tuber" and row["geography_level"] == "national" and row["methodology_regime"] == "post_2025_cpi_rebase")
     result = client.get("/api/history", query_string={"dataset": "nbs", "series_id": item["series_id"]})
     assert result.status_code == 200
     payload = result.get_json()
     assert payload["series"]["source"] == "NBS"
+    assert payload["series"]["methodology_regime"] == "post_2025_cpi_rebase"
     assert payload["series"]["unit"] == "Not stated in workbook"
     assert len(payload["history"]) == 17
     assert [row["month"] for row in payload["history"]] == [
         f"{year}-{month:02d}" for year, months in ((2025, range(1, 13)), (2026, range(1, 6))) for month in months
     ]
+
+
+def test_nbs_cpi_methodology_regimes_are_distinct_series(client):
+    series = client.get("/api/series?dataset=nbs").get_json()
+    chicken = [
+        row for row in series
+        if row["commodity"] == "Chicken Wings" and row["geography_level"] == "national" and row["geography_name"] == "Nigeria"
+    ]
+    assert {row["methodology_regime"] for row in chicken} == {"pre_2025_cpi_rebase", "post_2025_cpi_rebase"}
+    pre = next(row for row in chicken if row["methodology_regime"] == "pre_2025_cpi_rebase")
+    post = next(row for row in chicken if row["methodology_regime"] == "post_2025_cpi_rebase")
+    assert pre["series_id"] != post["series_id"]
+    for item, expected in ((pre, ["2024-11", "2024-12"]), (post, [f"2025-{month:02d}" for month in range(1, 13)] + [f"2026-{month:02d}" for month in range(1, 6)])):
+        history = client.get("/api/history", query_string={"dataset": "nbs", "series_id": item["series_id"]}).get_json()["history"]
+        assert [row["month"] for row in history] == expected
+        assert {row["methodology_regime"] for row in history} == {item["methodology_regime"]}
 
 
 def test_history_date_filters_and_invalid_requests(client):
@@ -356,7 +377,7 @@ def test_ineligible_series_has_no_metrics_and_forecast_is_unavailable(client):
         response = client.get("/api/forecast", query_string={"dataset": "wfp", "series_id": item["series_id"], "model": "random_forest", "horizon": horizon})
         assert response.status_code == 422
         assert response.get_json()["error"]["code"] == "forecast_unavailable"
-    assert client.get("/api/forecast", query_string={"dataset": "wfp", "series_id": item["series_id"], "model": "random_forest", "horizon": "2"}).status_code == 400
+    assert client.get("/api/forecast", query_string={"dataset": "wfp", "series_id": item["series_id"], "model": "random_forest", "horizon": "7"}).status_code == 400
 
 
 def test_old_or_unknown_datasets_are_not_available(client):
@@ -414,14 +435,14 @@ def test_saved_forecasts_performance_and_unavailable_combinations(client):
     assert unsupported_model.get_json()["error"]["code"] == "model_unavailable"
 
 
-def test_on_demand_forecasts_a_registered_wfp_series_from_latest_actual(tmp_path):
+def test_on_demand_forecasts_a_registered_wfp_series_from_current_calendar(tmp_path):
     from datetime import date
 
     service = DashboardService(reference_date=date(2026, 11, 19), forecast_cache_dir=tmp_path)
     registered = next(iter(service._training_series))
     record = service._series_index[("wfp", registered)]
     client = create_app(service).test_client()
-    for horizon in (1, 3, 6):
+    for horizon in range(1, 7):
         result = client.get("/api/forecast", query_string={
             "dataset": "wfp", "series_id": registered, "model": "auto",
             "mode": "on_demand", "horizon": str(horizon),
@@ -434,10 +455,16 @@ def test_on_demand_forecasts_a_registered_wfp_series_from_latest_actual(tmp_path
         origin = payload["metadata"]["forecast_origin_month"]
         assert payload["metadata"]["latest_actual_month_in_source"] == origin
         assert len(payload["forecast"]) == horizon
-        assert [row["month"] for row in payload["forecast"]] == [
-            f"{int(origin[:4]) + (int(origin[5:]) + step - 1) // 12:04d}-{(int(origin[5:]) + step - 1) % 12 + 1:02d}"
-            for step in range(1, horizon + 1)
-        ]
+        current_ordinal = date(2026, 11, 19).year * 12 + date(2026, 11, 19).month - 1
+        expected_months = []
+        for step in range(1, horizon + 1):
+            ordinal = current_ordinal + step
+            expected_months.append(f"{ordinal // 12:04d}-{ordinal % 12 + 1:02d}")
+        assert [row["month"] for row in payload["forecast"]] == expected_months
+        assert all(row["temporal_status"] == "future_as_of_generation" for row in payload["forecast"])
+        assert payload["metadata"]["forecast_start_month"] == expected_months[0]
+        assert payload["metadata"]["forecast_end_month"] == expected_months[-1]
+        assert payload["metadata"]["source_age_months"] >= 0
         assert payload["metadata"]["validation_metrics"]["n"] >= 6
         assert payload["metadata"]["selection_basis"].startswith("lowest chronological validation RMSE")
         assert "not a live or guaranteed market price" in payload["warning"]
@@ -476,23 +503,85 @@ def test_on_demand_api_excludes_aggregate_flags_and_keeps_nbs_separate(client):
 
     short_actual = next(
         item for item in client.get("/api/series?dataset=wfp").get_json()
-        if item["price_flag"] == "actual" and item["observed_months"] < 10
+        if item["price_flag"] == "actual" and item["observed_months"] < 3
     )
     response = client.get("/api/forecast", query_string={
         "dataset": "wfp", "series_id": short_actual["series_id"],
         "model": "auto", "mode": "on_demand", "horizon": "1",
     })
     assert response.status_code == 422
-    assert response.get_json()["error"]["code"] == "insufficient_or_gapped_history"
-    assert "complete calendar-lag training rows" in response.get_json()["error"]["message"]
+    assert response.get_json()["error"]["code"] == "insufficient_local_history"
+    assert "at least 3 are required" in response.get_json()["error"]["message"]
 
-    nbs_series = client.get("/api/series?dataset=nbs").get_json()[0]
+    nbs_series = next(
+        item for item in client.get("/api/series?dataset=nbs").get_json()
+        if item["geography_level"] == "national"
+        and item["methodology_regime"] == "post_2025_cpi_rebase"
+        and item["observed_months"] >= 15
+    )
     response = client.get("/api/forecast", query_string={
         "dataset": "nbs", "series_id": nbs_series["series_id"],
         "model": "auto", "mode": "on_demand", "horizon": "1",
     })
     assert response.status_code == 422
-    assert response.get_json()["error"]["code"] == "nbs_forecast_unavailable"
+    assert response.get_json()["error"]["code"] == "pooled_validation_unavailable"
+    assert "Individual-series method" in response.get_json()["error"]["message"]
+    assert "at least 5" in response.get_json()["error"]["message"]
+
+
+def test_real_nbs_zone_forecast_uses_group_held_out_pooled_validation(client, service, tmp_path):
+    service.forecast_cache_dir = tmp_path
+    candidate = next(
+        item for item in service._series["nbs"]
+        if item["geography_level"] == "zone"
+        and item["methodology_regime"] == "post_2025_cpi_rebase"
+        and item["observed_months"] >= 15
+    )
+    for horizon in range(1, 7):
+        response = client.get("/api/forecast", query_string={
+            "dataset": "nbs", "series_id": candidate["series_id"],
+            "model": "auto", "mode": "on_demand", "horizon": str(horizon),
+        })
+        assert response.status_code == 200, response.get_json()
+        payload = response.get_json()
+        metadata = payload["metadata"]
+        assert metadata["strategy_level"] == "pooled_global"
+        assert metadata["validation_group_count"] >= 4
+        assert metadata["validation_metrics"]["n"] >= 12
+        assert metadata["training_series_count"] >= 5
+        assert metadata["validation_training_target_last_month"] < metadata["validation_cutoff_month"]
+        assert metadata["source"] == "NBS"
+        expected_months = [
+            "2026-12", "2027-01", "2027-02", "2027-03", "2027-04", "2027-05",
+        ][:horizon]
+        assert [row["month"] for row in payload["forecast"]] == expected_months
+        assert all(row["temporal_status"] == "future_as_of_generation" for row in payload["forecast"])
+
+
+def test_real_sparse_wfp_series_uses_only_same_commodity_compatible_peers(tmp_path):
+    from datetime import date
+
+    service = DashboardService(reference_date=date(2026, 11, 19), forecast_cache_dir=tmp_path)
+    client = create_app(service).test_client()
+    candidate = next(
+        item for item in service._series["wfp"]
+        if item["commodity"] == "Bananas" and item["market"] == "Bolori Stores"
+        and item["price_flag"] == "actual" and item["observed_months"] == 4
+    )
+    for horizon in range(1, 7):
+        response = client.get("/api/forecast", query_string={
+            "dataset": "wfp", "series_id": candidate["series_id"],
+            "model": "auto", "mode": "on_demand", "horizon": str(horizon),
+        })
+        assert response.status_code == 200, response.get_json()
+        payload = response.get_json()
+        metadata = payload["metadata"]
+        assert metadata["strategy_level"] == "pooled_global"
+        assert metadata["pool_definition"] == "same exact commodity, unit, price type and currency"
+        assert metadata["commodity"] == "Bananas"
+        assert metadata["validation_metrics"]["n"] >= 12
+        assert len(payload["forecast"]) == horizon
+        assert all(row["month"] > "2026-11" for row in payload["forecast"])
 
 
 def test_training_metrics_recompute_from_saved_predictions():

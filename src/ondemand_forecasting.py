@@ -1,9 +1,10 @@
-"""Request-time WFP market forecasting with chronological validation.
+"""Request-time WFP/NBS forecasting with gap-aware chronological validation.
 
 This module is intentionally separate from the approved historical research
-pipeline. It uses only one exact WFP ``priceflag=actual`` market series at a
-time, never fills missing prices, and writes reusable artifacts only to a
-runtime cache (Render's filesystem is ephemeral).
+pipeline. It handles one exact WFP ``priceflag=actual`` market series or one
+exact NBS item/geography/methodology-regime series at a time. It never fills
+missing prices and writes reusable artifacts only to a runtime cache (Render's
+filesystem is ephemeral).
 """
 
 from __future__ import annotations
@@ -23,17 +24,21 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 FEATURE_COLUMNS = (
-    "lag_1", "lag_2", "lag_3", "rolling_mean_3", "rolling_std_3",
+    "observation_lag_1", "observation_lag_2", "observation_lag_3", "rolling_mean_3", "rolling_std_3",
+    "months_to_target", "gap_lag_1_to_lag_2", "gap_lag_2_to_lag_3",
     "month_sin", "month_cos", "trend_month",
 )
 MIN_SUPERVISED_ROWS = 30
 MIN_TRAIN_ROWS = 20
 MIN_VALIDATION_ROWS = 6
-CACHE_FORMAT_VERSION = 1
+CACHE_FORMAT_VERSION = 4
 MODEL_CONFIGURATION = {
     "random_forest": "300 trees; min_samples_leaf=2; max_features=1.0; seed=42; n_jobs=1",
     "gradient_boosting": "120 estimators; depth=2; learning_rate=0.03; Huber loss; seed=42",
+    "trend_baseline": "extrapolated log-price trend over the last three actual observations; gap-adjusted",
+    "seasonal_naive_12": "same-calendar-month observation 12 months earlier; available only when every validation/future lag is observed or generated recursively",
 }
+BASELINE_MODELS = {"naive_last_observation", "trend_baseline", "seasonal_naive_12"}
 
 
 class ForecastingError(Exception):
@@ -109,7 +114,7 @@ def _collect_actual_history(record: dict[str, Any]) -> dict[str, Any]:
         month_list = ", ".join(sorted(duplicate_conflicts))
         raise ForecastingError(
             "conflicting_monthly_observations",
-            f"The selected WFP series has conflicting source prices for {month_list}. The records were not combined.",
+            f"The selected series has conflicting source prices for {month_list}. The records were not combined.",
         )
 
     return {
@@ -122,21 +127,34 @@ def _collect_actual_history(record: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _feature_row(prices: dict[str, float], target_month: str, trend_origin: int) -> dict[str, float] | None:
-    target_ordinal = _month_ordinal(target_month)
-    prior = [prices.get(_month_from_ordinal(target_ordinal - offset)) for offset in (1, 2, 3)]
-    if any(value is None for value in prior):
+def _feature_row(
+    observations: list[tuple[str, float]],
+    target_month: str,
+    trend_origin: int,
+) -> dict[str, float] | None:
+    """Build features from the three prior observations, retaining real month gaps."""
+    if len(observations) < 3:
         return None
-    numeric = [float(value) for value in prior]
-    mean = sum(numeric) / 3.0
+    previous = observations[-3:]
+    target_ordinal = _month_ordinal(target_month)
+    previous_ordinals = [_month_ordinal(month) for month, _ in previous]
+    values = [float(value) for _, value in reversed(previous)]
+    latest_ordinal, second_ordinal, third_ordinal = reversed(previous_ordinals)
+    months_to_target = target_ordinal - latest_ordinal
+    if months_to_target <= 0:
+        return None
+    mean = sum(values) / 3.0
     month_number = target_ordinal % 12 + 1
     angle = 2.0 * math.pi * month_number / 12.0
     return {
-        "lag_1": numeric[0],
-        "lag_2": numeric[1],
-        "lag_3": numeric[2],
+        "observation_lag_1": values[0],
+        "observation_lag_2": values[1],
+        "observation_lag_3": values[2],
         "rolling_mean_3": mean,
-        "rolling_std_3": math.sqrt(sum((value - mean) ** 2 for value in numeric) / 3.0),
+        "rolling_std_3": math.sqrt(sum((value - mean) ** 2 for value in values) / 3.0),
+        "months_to_target": float(months_to_target),
+        "gap_lag_1_to_lag_2": float(latest_ordinal - second_ordinal),
+        "gap_lag_2_to_lag_3": float(second_ordinal - third_ordinal),
         "month_sin": math.sin(angle),
         "month_cos": math.cos(angle),
         "trend_month": float(target_ordinal - trend_origin),
@@ -144,31 +162,37 @@ def _feature_row(prices: dict[str, float], target_month: str, trend_origin: int)
 
 
 def _build_feature_rows(prices: dict[str, float]) -> list[dict[str, Any]]:
+    """Create next-observed-month training rows; absent months are never filled."""
     if not prices:
         return []
-    ordinals = sorted(_month_ordinal(month) for month in prices)
-    trend_origin = ordinals[0]
+    ordered_months = sorted(prices, key=_month_ordinal)
+    trend_origin = _month_ordinal(ordered_months[0])
     rows: list[dict[str, Any]] = []
-    for ordinal in range(ordinals[0], ordinals[-1] + 1):
-        month = _month_from_ordinal(ordinal)
-        target = prices.get(month)
-        if target is None:
-            continue
-        features = _feature_row(prices, month, trend_origin)
+    for target_index in range(3, len(ordered_months)):
+        target_month = ordered_months[target_index]
+        prior_months = ordered_months[target_index - 3:target_index]
+        observations = [(month, float(prices[month])) for month in prior_months]
+        features = _feature_row(observations, target_month, trend_origin)
         if features is not None:
-            rows.append({"month": month, "target": float(target), "features": features})
+            rows.append({
+                "month": target_month,
+                "target": float(prices[target_month]),
+                "features": features,
+                "prior_observation_months": prior_months,
+            })
     return rows
 
 
-def assess_wfp_series(record: dict[str, Any]) -> dict[str, Any]:
-    """Return request-time eligibility facts for one exact series, without fitting."""
-    if record.get("source_key") != "wfp" and record.get("source") != "WFP":
-        return {"eligible": False, "code": "source_not_supported", "reason": "On-demand forecasting is currently supported for WFP market data only."}
-    if str(record.get("price_flag", "")) != "actual":
+def _assess_series(record: dict[str, Any], source_key: str) -> dict[str, Any]:
+    source_label = "WFP" if source_key == "wfp" else "NBS"
+    record_source = str(record.get("source_key") or "").lower()
+    if record_source != source_key and str(record.get("source") or "").upper() != source_label:
+        return {"eligible": False, "code": "source_not_supported", "reason": f"This series is not from the selected {source_label} source."}
+    if source_key == "wfp" and str(record.get("price_flag", "")) != "actual":
         return {
             "eligible": False,
             "code": "not_direct_actual",
-            "reason": "This WFP series is aggregate or mixed-price-flag data. Forecast training requires a pure priceflag=actual market series.",
+            "reason": "This WFP series is aggregate or mixed-price-flag data. Forecasting requires a pure priceflag=actual market series.",
         }
     try:
         collected = _collect_actual_history(record)
@@ -179,7 +203,7 @@ def assess_wfp_series(record: dict[str, Any]) -> dict[str, Any]:
     if not prices:
         return {
             "eligible": False, "code": "no_valid_actual_prices",
-            "reason": "No finite, positive actual monthly prices remain after validating this series.",
+            "reason": f"No finite, positive reported monthly prices remain in this {source_label} series.",
             "actual_observations": 0,
             **{key: value for key, value in collected.items() if key != "prices"},
         }
@@ -188,35 +212,23 @@ def assess_wfp_series(record: dict[str, Any]) -> dict[str, Any]:
     split = int(math.floor(len(feature_rows) * 0.80))
     train_count = split
     validation_count = len(feature_rows) - split
-    origin = months[-1]
-    origin_ordinal = _month_ordinal(origin)
-    missing_recent = [
-        _month_from_ordinal(value)
-        for value in range(origin_ordinal - 2, origin_ordinal + 1)
-        if _month_from_ordinal(value) not in prices
-    ]
     calendar_span = _month_ordinal(months[-1]) - _month_ordinal(months[0]) + 1
     reasons: list[str] = []
     if len(feature_rows) < MIN_SUPERVISED_ROWS:
         reasons.append(
-            f"only {len(feature_rows)} complete calendar-lag training rows are available; at least {MIN_SUPERVISED_ROWS} are required"
+            f"only {len(feature_rows)} gap-aware supervised rows can be formed from {actual_count} valid actual observations; at least {MIN_SUPERVISED_ROWS} are required"
         )
     if train_count < MIN_TRAIN_ROWS:
         reasons.append(f"the chronological training partition has {train_count} rows; at least {MIN_TRAIN_ROWS} are required")
     if validation_count < MIN_VALIDATION_ROWS:
         reasons.append(f"the chronological validation partition has {validation_count} rows; at least {MIN_VALIDATION_ROWS} are required")
-    if missing_recent:
-        reasons.append(
-            "the latest actual observation is not preceded by three consecutive actual calendar months; missing required months: "
-            + ", ".join(missing_recent)
-        )
     return {
         "eligible": not reasons,
         "code": "eligible" if not reasons else "insufficient_or_gapped_history",
         "reason": "; ".join(reasons),
         "actual_observations": actual_count,
         "first_actual_month": months[0],
-        "latest_actual_month": origin,
+        "latest_actual_month": months[-1],
         "usable_training_rows": len(feature_rows),
         "training_rows": train_count,
         "validation_rows": validation_count,
@@ -230,7 +242,18 @@ def assess_wfp_series(record: dict[str, Any]) -> dict[str, Any]:
         "feature_rows": feature_rows,
         "price_map": prices,
         "observation_dates": collected["dates"],
+        "source": source_key,
     }
+
+
+def assess_wfp_series(record: dict[str, Any]) -> dict[str, Any]:
+    """Assess one exact pure-actual WFP market series without fitting models."""
+    return _assess_series(record, "wfp")
+
+
+def assess_nbs_series(record: dict[str, Any]) -> dict[str, Any]:
+    """Assess one exact NBS item/geography series without combining it with WFP."""
+    return _assess_series(record, "nbs")
 
 
 def _metrics(actual: list[float], predicted: list[float]) -> dict[str, float | int | None]:
@@ -337,9 +360,9 @@ def _load_runtime_cache(cache_dir: Path, series_id: str, cache_key: str) -> dict
             return None
         if bundle.get("series_id") != series_id or bundle.get("feature_columns") != list(FEATURE_COLUMNS):
             return None
-        if bundle.get("model_name") not in {"naive_last_observation", *MODEL_CONFIGURATION}:
+        if bundle.get("model_name") not in {"naive_last_observation", "trend_baseline", "seasonal_naive_12", "random_forest", "gradient_boosting"}:
             return None
-        if bundle.get("model_name") != "naive_last_observation" and bundle.get("estimator") is None:
+        if bundle.get("model_name") not in BASELINE_MODELS and bundle.get("estimator") is None:
             return None
         if not isinstance(bundle.get("validation_scores"), dict) or bundle["model_name"] not in bundle["validation_scores"]:
             return None
@@ -427,63 +450,153 @@ def _forecast_prices(
     origin: str,
     trend_origin: int,
     horizon: int,
-) -> list[dict[str, Any]]:
+    as_of: date,
+) -> tuple[list[dict[str, Any]], int]:
     origin_ordinal = _month_ordinal(origin)
+    current_month = f"{as_of.year:04d}-{as_of.month:02d}"
+    current_ordinal = _month_ordinal(current_month)
+    if origin_ordinal > current_ordinal:
+        raise ForecastingError(
+            "actual_data_after_generation_date",
+            f"The latest source observation is {origin}, after the forecast generation month {current_month}; a current future window cannot be defined safely.",
+        )
     working = dict(prices)
     result: list[dict[str, Any]] = []
-    for step in range(1, horizon + 1):
-        target_month = _month_from_ordinal(origin_ordinal + step)
+    bridge_month_count = 0
+    final_ordinal = current_ordinal + horizon
+    for target_ordinal in range(origin_ordinal + 1, final_ordinal + 1):
+        target_month = _month_from_ordinal(target_ordinal)
         if model_name == "naive_last_observation":
-            prediction = working[origin]
+            previous_month = max(working, key=_month_ordinal)
+            prediction = working[previous_month]
         else:
-            feature = _feature_row(working, target_month, trend_origin)
+            observations = sorted(working.items(), key=lambda item: _month_ordinal(item[0]))
+            feature = _feature_row(observations, target_month, trend_origin)
             if feature is None:
                 raise ForecastingError(
                     "forecast_history_gap",
-                    f"The forecast cannot construct calendar lag features for {target_month} without inventing missing monthly prices.",
+                    f"The forecast cannot construct gap-aware historical features for {target_month}; no missing actual values were filled.",
                 )
-            try:
-                prediction = _predict(estimator, feature)
-            except Exception as exc:
-                raise ForecastingError(
-                    "forecast_prediction_failed",
-                    "The selected model failed while generating a recursive prediction. No forecast was returned.",
-                    500,
-                ) from exc
+            if model_name == "trend_baseline":
+                gaps = feature["gap_lag_1_to_lag_2"] + feature["gap_lag_2_to_lag_3"]
+                slope = math.log(feature["observation_lag_1"] / feature["observation_lag_3"]) / gaps if gaps > 0 else 0.0
+                try:
+                    prediction = feature["observation_lag_1"] * math.exp(slope * feature["months_to_target"])
+                except OverflowError as exc:
+                    raise ForecastingError("forecast_prediction_failed", "The gap-adjusted trend baseline overflowed; no forecast was returned.", 500) from exc
+            elif model_name == "seasonal_naive_12":
+                seasonal_month = _month_from_ordinal(target_ordinal - 12)
+                if seasonal_month not in working:
+                    raise ForecastingError(
+                        "seasonal_history_unavailable",
+                        f"A same-calendar-month observation or recursively generated estimate is not available for {seasonal_month}; the seasonal baseline was not substituted.",
+                    )
+                prediction = working[seasonal_month]
+            else:
+                try:
+                    prediction = _predict(estimator, feature)
+                except Exception as exc:
+                    raise ForecastingError(
+                        "forecast_prediction_failed",
+                        "The selected model failed while generating a recursive prediction. No forecast was returned.",
+                        500,
+                    ) from exc
+        if not math.isfinite(prediction) or prediction <= 0:
+            raise ForecastingError("forecast_prediction_failed", "The selected strategy produced a non-positive or non-finite price; no forecast was returned.", 500)
         working[target_month] = prediction
-        result.append({
-            "date": target_month,
-            "month": target_month,
-            "price": prediction,
-            "step": step,
-            "quality_flag": "model_estimate",
-        })
-    return result
+        if target_ordinal > current_ordinal:
+            step = len(result) + 1
+            result.append({
+                "date": target_month,
+                "month": target_month,
+                "price": prediction,
+                "step": step,
+                "quality_flag": "model_estimate",
+                "temporal_status": "future_as_of_generation",
+            })
+        else:
+            # These recursively predicted bridge values let the model reach the
+            # current future calendar. They are never returned as actual history.
+            bridge_month_count += 1
+    return result, bridge_month_count
 
 
-def generate_wfp_forecast(
+def _generate_forecast(
     record: dict[str, Any],
     series_id: str,
     horizon: int,
+    source_key: str,
     registry_entry: dict[str, Any] | None = None,
     cache_dir: Path | None = None,
     root: Path = ROOT,
     as_of: date | None = None,
+    pool_records: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Validate, select, train/reuse, cache, and recursively forecast one series."""
-    if horizon not in (1, 3, 6):
-        raise ForecastingError("invalid_horizon", "horizon must be 1, 3, or 6 months.", 400)
-    assessment = assess_wfp_series(record)
+    """Fit/validate one exact source series and return only current future months."""
+    if horizon not in range(1, 7):
+        raise ForecastingError("invalid_horizon", "horizon must be an integer from 1 through 6 months.", 400)
+    today = as_of or date.today()
+    assessment = assess_wfp_series(record) if source_key == "wfp" else assess_nbs_series(record)
     if not assessment["eligible"]:
+        # Sparse or irregular exact series may use a definition-compatible
+        # pooled model, but aggregates, mixed WFP flags, duplicate conflicts,
+        # and records without usable local inputs are never substituted.
+        if assessment["code"] == "insufficient_or_gapped_history":
+            cache_override = os.environ.get("AGRIPRICE_MODEL_CACHE_DIR", "").strip()
+            cache_root = Path(cache_dir) if cache_dir is not None else (
+                Path(cache_override) if cache_override else Path(tempfile.gettempdir()) / "agriprice-ng" / "runtime-models"
+            )
+            from .pooled_forecasting import generate_pooled_forecast
+
+            try:
+                pooled = generate_pooled_forecast(
+                    record, series_id, horizon, source_key,
+                    pool_records or [record], cache_root, today,
+                )
+                return pooled
+            except ForecastingError as pooled_error:
+                if pooled_error.code == "pooled_validation_unavailable":
+                    raise ForecastingError(
+                        pooled_error.code,
+                        f"Individual-series method: {assessment['reason']}. Pooled/global method unavailable: {pooled_error.message}",
+                        pooled_error.status_code,
+                    ) from pooled_error
+                raise
+            except Exception as exc:
+                raise ForecastingError(
+                    "forecast_generation_failed",
+                    "The compatible pooled strategy could not complete safely; no forecast was returned.",
+                    500,
+                ) from exc
         raise ForecastingError(assessment["code"], assessment["reason"])
 
     prices = assessment["price_map"]
+    origin = assessment["latest_actual_month"]
+    origin_date = assessment["observation_dates"].get(origin)
+    current_month = f"{today.year:04d}-{today.month:02d}"
+    current_ordinal = _month_ordinal(current_month)
+    if _month_ordinal(origin) > current_ordinal:
+        raise ForecastingError(
+            "actual_data_after_generation_date",
+            f"The latest source observation is in {origin}, after the forecast generation month {current_month}; future training data were not used.",
+        )
+    if origin_date:
+        try:
+            source_day = date.fromisoformat(str(origin_date)[:10])
+        except ValueError:
+            source_day = None
+        if source_day is not None and source_day > today:
+            raise ForecastingError(
+                "actual_data_after_generation_date",
+                f"The latest source observation is dated {source_day.isoformat()}, after the forecast generation date {today.isoformat()}; future training data were not used.",
+            )
+
     feature_rows = assessment["feature_rows"]
     split = assessment["training_rows"]
     train_rows = feature_rows[:split]
     validation_rows = feature_rows[split:]
     actual_validation = [float(row["target"]) for row in validation_rows]
-    baseline_predictions = [float(row["features"]["lag_1"]) for row in validation_rows]
+    baseline_predictions = [float(row["features"]["observation_lag_1"]) for row in validation_rows]
     cache_override = os.environ.get("AGRIPRICE_MODEL_CACHE_DIR", "").strip()
     cache_root = Path(cache_dir) if cache_dir is not None else (
         Path(cache_override) if cache_override else Path(tempfile.gettempdir()) / "agriprice-ng" / "runtime-models"
@@ -508,6 +621,26 @@ def generate_wfp_forecast(
         validation_scores = {
             "naive_last_observation": _metrics(actual_validation, baseline_predictions),
         }
+        trend_predictions = []
+        for row in validation_rows:
+            features = row["features"]
+            gaps = features["gap_lag_1_to_lag_2"] + features["gap_lag_2_to_lag_3"]
+            slope = math.log(features["observation_lag_1"] / features["observation_lag_3"]) / gaps if gaps > 0 else 0.0
+            trend_predictions.append(features["observation_lag_1"] * math.exp(slope * features["months_to_target"]))
+        validation_scores["trend_baseline"] = _metrics(actual_validation, trend_predictions)
+
+        # A seasonal-naive metric is reported only on the exact same complete
+        # validation dates; otherwise it is not a fair comparator.
+        seasonal_predictions = []
+        seasonal_complete = True
+        for row in validation_rows:
+            seasonal_month = _month_from_ordinal(_month_ordinal(row["month"]) - 12)
+            if seasonal_month not in assessment["price_map"]:
+                seasonal_complete = False
+                break
+            seasonal_predictions.append(float(assessment["price_map"][seasonal_month]))
+        if seasonal_complete and len(seasonal_predictions) == len(validation_rows):
+            validation_scores["seasonal_naive_12"] = _metrics(actual_validation, seasonal_predictions)
         model_failures = {}
         try:
             estimators = _make_estimators()
@@ -537,10 +670,10 @@ def generate_wfp_forecast(
         model_reuse = "baseline_selected"
         ranked_models = sorted(validation_scores, key=lambda name: float(validation_scores[name]["rmse"]))
         for candidate_model in ranked_models:
-            if candidate_model == "naive_last_observation":
+            if candidate_model in BASELINE_MODELS:
                 selected_model = candidate_model
                 selected_estimator = None
-                model_reuse = "baseline_selected"
+                model_reuse = f"{candidate_model}_selected"
                 break
             latest_month = assessment["latest_actual_month"]
             registered = _registered_estimator(root, registry_entry, series_id, candidate_model, latest_month)
@@ -562,16 +695,37 @@ def generate_wfp_forecast(
 
         fit_seconds = time.perf_counter() - train_started
 
-    month_dates = assessment["observation_dates"]
-    origin = assessment["latest_actual_month"]
-    origin_date = month_dates.get(origin)
-    forecast_rows = _forecast_prices(
+    # A seasonal winner is admissible only if its recursive lag can be
+    # constructed for every requested bridge and future month.
+    if selected_model == "seasonal_naive_12":
+        working_months = set(prices)
+        seasonal_supported = True
+        for target_ordinal in range(_month_ordinal(origin) + 1, current_ordinal + horizon + 1):
+            target_month = _month_from_ordinal(target_ordinal)
+            seasonal_month = _month_from_ordinal(target_ordinal - 12)
+            if seasonal_month not in working_months:
+                seasonal_supported = False
+                break
+            working_months.add(target_month)
+        if not seasonal_supported:
+            alternatives = [name for name in validation_scores if name != "seasonal_naive_12"]
+            selected_model = min(alternatives, key=lambda name: float(validation_scores[name]["rmse"]))
+            if selected_model in BASELINE_MODELS:
+                selected_estimator = None
+                model_reuse = f"{selected_model}_selected"
+            else:
+                selected_estimator = _make_estimators()[selected_model]
+                selected_estimator.fit(_matrix(feature_rows), [row["target"] for row in feature_rows])
+                model_reuse = "trained_on_demand"
+    origin_age = max(0, current_ordinal - _month_ordinal(origin))
+    forecast_rows, bridge_month_count = _forecast_prices(
         selected_model,
         selected_estimator,
         prices,
         origin,
         min(_month_ordinal(month) for month in prices),
         horizon,
+        today,
     )
     validation_dates = [row["month"] for row in validation_rows]
     selected_metrics = validation_scores[selected_model]
@@ -580,51 +734,64 @@ def generate_wfp_forecast(
         {"model": name, **metrics}
         for name, metrics in sorted(validation_scores.items(), key=lambda item: item[0])
     ]
-    today = as_of or date.today()
-    current_month = f"{today.year:04d}-{today.month:02d}"
-    for row in forecast_rows:
-        row["temporal_status"] = "future_as_of_generation" if row["month"] > current_month else "after_origin_not_current"
-    future_flags = [row["month"] > current_month for row in forecast_rows]
-    all_dates_future = all(future_flags)
-    any_date_future = any(future_flags)
-    forecast_classification = (
-        "future_as_of_generation" if all_dates_future else
-        "mixed_horizon_relative_to_generation" if any_date_future else
-        "historical_projection_from_latest_actual"
-    )
-    origin_age = max(0, (today.year - int(origin[:4])) * 12 + today.month - int(origin[5:7]))
+    forecast_start_month = _month_from_ordinal(current_ordinal + 1)
+    forecast_end_month = _month_from_ordinal(current_ordinal + horizon)
+    forecast_classification = "future_as_of_generation"
+    temporal_phrase = "latest valid WFP actual observation" if source_key == "wfp" else "latest NBS reported observation"
     warning = (
-        f"Generated from the latest valid WFP actual observation ({origin}{f', {origin_date}' if origin_date else ''}). "
-        f"That observation is {origin_age} month(s) old as of {today.isoformat()}; this is not a live or guaranteed market price."
+        f"Generated using the {temporal_phrase} through {origin}{f', {origin_date}' if origin_date else ''}. "
+        f"The source is {origin_age} calendar month(s) behind the generation month {current_month}. "
+        f"{bridge_month_count} unobserved intervening month(s) were generated internally to reach the future window; they are not returned as source observations. "
+        "This is an estimate, not a live or guaranteed market price."
     )
-    if not any_date_future:
-        warning += " The requested forecast dates are after their data origin but are not future dates as of today; treat them only as historical projections."
-    elif not all_dates_future:
-        warning += " Some requested forecast dates are already past as of today; inspect each row's period status and do not interpret these as current prices."
+    if origin_age > 3:
+        warning += " The latest source observation is stale for current-market interpretation; treat this as a model estimate based on historical information."
 
     metadata = {
+        "source": source_key.upper(),
         "commodity": record.get("commodity"),
         "market": record.get("market"),
         "state": record.get("state"),
+        "geography_level": record.get("geography_level"),
+        "geography_name": record.get("geography_name"),
+        "methodology_regime": record.get("methodology_regime"),
         "unit": record.get("unit"),
         "price_type": record.get("price_type"),
         "currency": record.get("currency"),
         "model": selected_model,
-        "transformation": "original WFP actual price in source currency per reported unit",
+        "model_type": "individual-series model" if selected_model not in BASELINE_MODELS else "validated baseline",
+        "strategy_level": "individual_series",
+        "transformation": "original reported monthly price in source currency per source-defined series",
         "method": "recursive calendar-month forecast; previous model predictions feed later steps; missing actual prices are never filled",
+        "validation_design": "chronological 80/20 split of observed-month supervised rows; validation is rolling-origin one-step prediction using only history available before each target month",
         "forecast_origin_month": origin,
-        "latest_actual_month_in_source": origin,
-        "latest_actual_date_in_source": origin_date,
+        "forecast_start_month": forecast_start_month,
+        "forecast_end_month": forecast_end_month,
+        "latest_actual_month_in_source": origin if source_key == "wfp" else None,
+        "latest_actual_date_in_source": origin_date if source_key == "wfp" else None,
+        "latest_observation_month_in_source": origin,
+        "latest_observation_date_in_source": origin_date,
+        "source_age_months": origin_age,
+        "source_freshness_classification": "fresh_within_3_months" if origin_age <= 3 else "stale_for_current_market",
+        "is_current_market_forecast": origin_age <= 3,
+        "forecast_date_scope": "future_only_after_current_calendar_month",
+        "forecast_bridge_months": bridge_month_count,
         "forecast_generation_date": today.isoformat(),
         "forecast_classification": forecast_classification,
         "confidence_intervals": False,
-        "selection_basis": "lowest chronological validation RMSE, including the naive last-observation baseline; no random split or test-set selection",
+        "selection_basis": "lowest chronological validation RMSE among Random Forest, Gradient Boosting, last-observation and gap-adjusted trend baselines; seasonal-naive is included only on complete shared validation months; no random split or test-set selection",
         "validation_metrics": selected_metrics,
         "model_comparison_validation": comparison,
         "validation_months": validation_dates,
-        "training_first_month": feature_rows[0]["month"],
-        "training_last_month": feature_rows[-1]["month"],
-        "actual_observation_count": assessment["actual_observations"],
+        "training_first_month": train_rows[0]["month"],
+        "training_last_month": train_rows[-1]["month"],
+        "validation_first_month": validation_rows[0]["month"],
+        "validation_last_month": validation_rows[-1]["month"],
+        "final_model_fit_rows": len(feature_rows),
+        "final_model_fit_first_month": feature_rows[0]["month"],
+        "final_model_fit_last_month": feature_rows[-1]["month"],
+        "actual_observation_count": assessment["actual_observations"] if source_key == "wfp" else None,
+        "source_observation_count": assessment["actual_observations"],
         "usable_training_rows": len(feature_rows),
         "training_rows": len(train_rows),
         "validation_rows": len(validation_rows),
@@ -633,7 +800,8 @@ def generate_wfp_forecast(
         "invalid_price_rows_excluded": assessment["invalid_price_rows"],
         "invalid_month_rows_excluded": assessment["invalid_month_rows"],
         "exact_duplicate_rows_removed": assessment["duplicate_rows_removed"],
-        "input_window_months": 3,
+        "input_window_observations": 3,
+        "feature_columns": list(FEATURE_COLUMNS),
         "model_configurations": MODEL_CONFIGURATION,
         "model_failures": model_failures,
         "model_reuse": model_reuse,
@@ -657,7 +825,7 @@ def generate_wfp_forecast(
         "series_id": series_id,
         "feature_columns": list(FEATURE_COLUMNS),
         "model_name": selected_model,
-        "target": "WFP priceflag=actual monthly price",
+        "target": f"{source_key.upper()} reported monthly series price",
         "target_transformation": metadata["transformation"],
         "forecast_origin_month": origin,
         "training_first_month": feature_rows[0]["month"],
@@ -687,3 +855,33 @@ def generate_wfp_forecast(
         "metadata": metadata,
         "warning": warning,
     }
+
+
+def generate_wfp_forecast(
+    record: dict[str, Any],
+    series_id: str,
+    horizon: int,
+    registry_entry: dict[str, Any] | None = None,
+    cache_dir: Path | None = None,
+    root: Path = ROOT,
+    as_of: date | None = None,
+    pool_records: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Forecast an exact pure-actual WFP market series."""
+    return _generate_forecast(
+        record, series_id, horizon, "wfp", registry_entry, cache_dir, root, as_of, pool_records,
+    )
+
+
+def generate_nbs_forecast(
+    record: dict[str, Any],
+    series_id: str,
+    horizon: int,
+    cache_dir: Path | None = None,
+    as_of: date | None = None,
+    pool_records: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Forecast one exact NBS reported item/geography series, without WFP data."""
+    return _generate_forecast(
+        record, series_id, horizon, "nbs", None, cache_dir, ROOT, as_of, pool_records,
+    )

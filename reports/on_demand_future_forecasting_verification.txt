@@ -1,0 +1,40 @@
+AgriPrice-NG on-demand future forecasting verification
+Run date: 2026-11-19
+
+Finding
+-------
+The prior dashboard could return saved research projections anchored at historical model origins (including 2023), rather than dates after the current calendar month. Its on-demand WFP eligibility check also required three consecutive actual calendar months at the latest origin. That continuity gate excluded newer, irregular market series, and the earlier recursion advanced from the last actual month even when the resulting dates were already past.
+
+The on-demand implementation now trains/evaluates exact WFP actual market series and exact NBS item/geography series independently. It builds supervised rows only for actually observed target months. Features use the three preceding actual observations, elapsed months to target, gaps between prior observations, prior-only price summary statistics, target-month seasonality, and a calendar trend. A chronological 80/20 split selects between Random Forest, Gradient Boosting, and the naive last-observation baseline; validation is rolling-origin one-step, and the lowest validation RMSE wins. There is no random split or interpolation. After selection, the model is refit on all eligible observed-month rows.
+
+For a forecast generated in November 2026, the first returned month is December 2026. When the latest observation is older, recursive model estimates may be used internally to bridge from its month to November 2026. These bridge values are not actual history, are not returned as observations, and are counted in response metadata. Only the requested future months are returned. Forecast intervals are not implemented.
+
+Coverage against the existing normalized datasets
+-------------------------------------------------
+- WFP: 1,101 pure priceflag=actual market series were assessed; 744 meet the unchanged requirements of at least 30 usable supervised rows, at least 20 training rows, and at least 6 chronological validation rows. The latest actual month among these eligible series is April 2026. None has a source observation within the last three calendar months as of this run. The number 744 indicates sample eligibility only, not forecast reliability.
+- NBS: 596 exact item/geography/methodology-regime series are now assessed separately (301 pre-rebase, 295 post-rebase). The January 2025 CPI-rebase boundary is not crossed within a series. The latest post-rebase report month is May 2026. No series meets the same minimum training/validation requirements; the longest post-rebase series has 17 observed months and yields 14 gap-aware supervised rows. A real API request returned HTTP 422 with 14 usable rows, 11 chronological training rows, and 3 validation rows, rather than a prediction.
+- Historical analysis remains separate from forecasting eligibility. Missing months are absent in history responses and no actual prices are interpolated or forward-filled. WFP aggregate/mixed-price-flag groups cannot enter the WFP forecast path.
+
+Real API smoke test
+-------------------
+Request: GET /api/forecast?dataset=wfp&series_id=<exact selected ID>&model=auto&mode=on_demand&horizon=6
+HTTP result: 200
+Series: Beans (red) | Abba Gamaram | 2.5 KG | Retail | priceflag=actual
+Actual observations: 77; missing calendar months in observed span: 42; usable supervised rows: 74.
+Chronological selection split: 59 training rows and 15 validation rows. All compared validation scores use the same 15 validation target months.
+Latest actual: 2026-04 (2026-04-15). Forecast generated: 2026-11-19. Source age: 7 calendar months. Seven unobserved intervening months were estimated internally to reach the future window.
+Selected model: naive_last_observation, because it had the lowest validation RMSE. Its prediction is consequently flat; this is an observed selection outcome, not a claim that prices will remain constant.
+
+Validation comparison (15 observations; RMSE, MAE, MAPE, R2):
+- Naive last observation: 347.12, 195.36, 10.64%, -0.3935
+- Gradient Boosting: 448.78, 368.86, 19.53%, -1.3292
+- Random Forest: 494.46, 411.39, 21.82%, -1.8275
+
+Future prices returned by the real API (source currency/unit, NGN per 2.5 KG):
+- 1 month: 2026-12 — 2,483.33
+- 3 months: 2026-12 — 2,483.33; 2027-01 — 2,483.33; 2027-02 — 2,483.33
+- 6 months: 2026-12 — 2,483.33; 2027-01 — 2,483.33; 2027-02 — 2,483.33; 2027-03 — 2,483.33; 2027-04 — 2,483.33; 2027-05 — 2,483.33
+
+Interpretation
+--------------
+The example proves that the endpoint now generates future calendar dates from the actual dataset and that all three estimators are evaluated honestly. It is not evidence of a reliable current-market forecast: the last actual is seven months old, the history has 42 missing months, validation R2 is negative for every candidate, and the naive baseline wins. The dashboard therefore labels the result a stale-source future projection, shows the source cutoff and validation metrics, and explicitly warns against interpreting it as a current market price.

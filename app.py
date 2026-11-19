@@ -50,11 +50,11 @@ def create_app(service=None) -> Flask:
         mode = request.args.get("mode", "")
         horizon_text = request.args.get("horizon", "")
         if not horizon_text:
-            raise DashboardError("missing_horizon", "horizon is required and must be 1, 3, or 6.", 400)
+            raise DashboardError("missing_horizon", "horizon is required and must be an integer from 1 through 6.", 400)
         try:
             horizon = int(horizon_text)
         except ValueError as exc:
-            raise DashboardError("invalid_horizon", "horizon must be 1, 3, or 6.", 400) from exc
+            raise DashboardError("invalid_horizon", "horizon must be an integer from 1 through 6.", 400) from exc
         return jsonify(dashboard.forecast(dataset, series_id, model, horizon, mode=mode))
 
     @app.errorhandler(DashboardError)

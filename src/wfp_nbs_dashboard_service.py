@@ -220,6 +220,7 @@ class DashboardService:
                 row.get("item_label", ""), row.get("geography_level", ""),
                 row.get("geography_name", ""), row.get("unit", ""),
                 row.get("price_type", ""), row.get("currency", ""),
+                row.get("methodology_regime", ""),
             )
             record = grouped.get(fields)
             if record is None:
@@ -238,6 +239,7 @@ class DashboardService:
                     "category": "",
                     "geography_level": fields[1],
                     "geography_name": fields[2],
+                    "methodology_regime": fields[6],
                     "history": [],
                 }
                 grouped[fields] = record
@@ -250,6 +252,7 @@ class DashboardService:
                 "source_observation_count": 1,
                 "geography_level": fields[1],
                 "geography_name": fields[2],
+                "methodology_regime": fields[6],
                 "highest_state_and_price_raw": row.get("highest_state_and_price_raw", ""),
                 "lowest_state_and_price_raw": row.get("lowest_state_and_price_raw", ""),
             })
@@ -258,7 +261,10 @@ class DashboardService:
         for record in rows:
             record["history"].sort(key=lambda item: item["month"])
             self._finalize_series("nbs", record)
-        self._series["nbs"] = sorted(rows, key=lambda item: (item["commodity"], item["geography_level"], item["geography_name"]))
+        self._series["nbs"] = sorted(rows, key=lambda item: (
+            item["commodity"], item["geography_level"], item["geography_name"],
+            item["methodology_regime"], item["unit"], item["price_type"],
+        ))
 
         periods = [item["month"] for record in rows for item in record["history"] if item["month"]]
         history = [item for record in rows for item in record["history"]]
@@ -371,15 +377,15 @@ class DashboardService:
                 "on_demand_wfp_forecasting_enabled": True,
                 "registry_available": bool(self._training_series),
                 "message": (
-                    "Historical model artifacts are available. Eligible pure-actual WFP series are forecast on request after chronological validation; forecast origins may be stale and are not live prices."
+                    "Historical model artifacts are available. Exact WFP and NBS series can be assessed independently for on-demand forecasting; origins may be stale and are not live prices."
                     if self._training_series else
-                    "On-demand WFP forecasting is enabled for eligible pure-actual series; no historical model registry is available."
+                    "On-demand WFP and NBS forecasting is enabled for exact series that pass chronological training and validation requirements."
                 ),
             },
             "training_note": (
-                "Historical WFP test results remain audit-only. Pure-actual WFP series can be forecast on request when their history passes chronological validation; NBS models remain unavailable because stable post-rebase histories are too short."
+                "Historical WFP test results remain audit-only. WFP and NBS source series are forecast independently only when they pass gap-aware chronological training and validation checks."
                 if self._training_series else
-                "No historical model is registered. On-demand pure-actual WFP forecasting remains available when a selected series passes its eligibility checks."
+                "No historical model is registered. On-demand WFP and NBS forecasting remains available when an exact selected series passes its eligibility checks."
             ),
         }
 
@@ -402,8 +408,7 @@ class DashboardService:
             "forecast_classification": training.get("forecast_classification"),
             "training_note": training.get("historical_forecast_note") or eligibility.get("eligibility_reason", ""),
             "forecast_request_available": bool(
-                record.get("source_key") == "wfp"
-                and record.get("price_flag") == "actual"
+                record.get("source_key") in SUPPORTED_DATASETS
                 and int(record.get("observed_months", 0) or 0) > 0
             ),
         })
@@ -510,8 +515,8 @@ class DashboardService:
         mode: str = "",
     ) -> dict[str, Any]:
         record = self._require_series(dataset, series_id)
-        if horizon not in (1, 3, 6):
-            raise DashboardError("invalid_horizon", "horizon must be 1, 3, or 6 months.", 400)
+        if horizon not in range(1, 7):
+            raise DashboardError("invalid_horizon", "horizon must be an integer from 1 through 6 months.", 400)
         if mode not in ("", "on_demand", "historical"):
             raise DashboardError("invalid_forecast_mode", "mode must be on_demand or historical.", 400)
         model = (model or "auto").strip()
@@ -519,32 +524,41 @@ class DashboardService:
         # API. The live dashboard requests model=auto&mode=on_demand.
         if mode == "historical" or (mode == "" and model not in ("", "auto")):
             return self._saved_historical_forecast(dataset, series_id, record, model, horizon)
-        if dataset != "wfp":
-            count = int(record.get("observed_months", 0) or 0)
-            latest = record.get("last_observed_month") or "unavailable"
-            raise DashboardError(
-                "nbs_forecast_unavailable",
-                f"NBS forecasting is not supported for this series: it has {count} reported monthly observations through {latest}. NBS national/zone histories remain separate and are too short for a defensible post-rebase training and validation experiment.",
-                422,
-            )
         if model not in ("", "auto"):
             raise DashboardError("invalid_model_selection", "On-demand forecasts select the model from chronological validation; use model=auto.", 400)
-        from .ondemand_forecasting import ForecastingError, generate_wfp_forecast
+        from .ondemand_forecasting import ForecastingError, generate_nbs_forecast, generate_wfp_forecast
+        from .pooled_forecasting import compatibility_key
+        pool_records = [
+            item for item in self._series[dataset]
+            if compatibility_key(item, dataset) == compatibility_key(record, dataset)
+            and (dataset != "wfp" or item.get("price_flag") == "actual")
+        ]
         try:
             with self._forecast_lock:
-                generated = generate_wfp_forecast(
-                    record,
-                    series_id,
-                    horizon,
-                    registry_entry=self._training_series.get(series_id),
-                    cache_dir=self.forecast_cache_dir,
-                    root=ROOT,
-                    as_of=self.reference_date,
-                )
+                if dataset == "wfp":
+                    generated = generate_wfp_forecast(
+                        record,
+                        series_id,
+                        horizon,
+                        registry_entry=self._training_series.get(series_id),
+                        cache_dir=self.forecast_cache_dir,
+                        root=ROOT,
+                        as_of=self.reference_date,
+                        pool_records=pool_records,
+                    )
+                else:
+                    generated = generate_nbs_forecast(
+                        record,
+                        series_id,
+                        horizon,
+                        cache_dir=self.forecast_cache_dir,
+                        as_of=self.reference_date,
+                        pool_records=pool_records,
+                    )
         except ForecastingError as exc:
             raise DashboardError(exc.code, exc.message, exc.status_code) from exc
         except Exception as exc:
-            logging.getLogger(__name__).exception("On-demand WFP forecast failed for %s", series_id)
+            logging.getLogger(__name__).exception("On-demand %s forecast failed for %s", dataset.upper(), series_id)
             raise DashboardError(
                 "forecast_generation_failed",
                 "Forecast training or prediction failed. No forecast was returned; the source data were not changed.",

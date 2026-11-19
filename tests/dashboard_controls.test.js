@@ -58,7 +58,7 @@ function makeSeries(id, commodity, market, flag) {
   return {
     series_id: id, source_key: "wfp", source: "WFP", commodity, market, market_id: market,
     admin1: "Kano", unit: "KG", price_type: "Retail", price_flag: flag,
-    forecast_request_available: flag === "actual", forecast_available: false,
+    forecast_request_available: true, forecast_available: false,
     observed_months: 90, first_observed_month: "2018-01", last_observed_month: isFresh ? "2026-11" : "2026-04",
     latest_observation_date: isFresh ? "2026-11-15" : "2026-04-15", latest_price: 500, observation_age_months: isFresh ? 0 : 7,
     currency: "NGN", freshness: isFresh ? "fresh" : "aging",
@@ -108,7 +108,10 @@ global.fetch = async (url) => {
   if (parsed.pathname === "/api/overview") return apiResponse(overview);
   if (parsed.pathname === "/api/series") return apiResponse({
     wfp: records,
-    nbs: [{ ...makeSeries("nbs-yam", "Yam Tuber", "National", "actual"), source_key: "nbs", source: "NBS", forecast_request_available: false }],
+    nbs: [
+      { ...makeSeries("nbs-yam-post", "Yam Tuber", "National", "actual"), source_key: "nbs", source: "NBS", market: null, market_id: null, geography_level: "national", geography_name: "Nigeria", methodology_regime: "post_2025_cpi_rebase", forecast_request_available: true, observed_months: 17, first_observed_month: "2025-01", last_observed_month: "2026-05", observation_age_months: 6, freshness: "recent" },
+      { ...makeSeries("nbs-yam-pre", "Yam Tuber", "National", "actual"), source_key: "nbs", source: "NBS", market: null, market_id: null, geography_level: "national", geography_name: "Nigeria", methodology_regime: "pre_2025_cpi_rebase", forecast_request_available: true, observed_months: 2, first_observed_month: "2024-11", last_observed_month: "2024-12", observation_age_months: 23, freshness: "stale" },
+    ],
   });
   if (parsed.pathname === "/api/history") {
     const selected = records.find((record) => record.series_id === parsed.searchParams.get("series_id"));
@@ -116,34 +119,43 @@ global.fetch = async (url) => {
   }
   if (parsed.pathname === "/api/performance") return apiResponse({ status: "not_evaluated", message: "No evaluation", records: [], predictions_by_date: [] });
   if (parsed.pathname === "/api/forecast") {
+    if (parsed.searchParams.get("dataset") === "nbs") {
+      const nbsId = parsed.searchParams.get("series_id");
+      const message = nbsId === "nbs-yam-pre"
+        ? "Only 0 gap-aware supervised rows are usable from 2 NBS observations; at least 30 are required."
+        : "Only 14 gap-aware supervised rows are usable from 17 NBS observations; at least 30 are required.";
+      return apiResponse({ error: { code: "insufficient_or_gapped_history", message } }, 422);
+    }
     if (parsed.searchParams.get("series_id") === "beans-insufficient") {
-      return apiResponse({ error: { code: "insufficient_or_gapped_history", message: "Only 17 calendar rows are usable; insufficient history." } }, 422);
+      return apiResponse({ error: { code: "insufficient_or_gapped_history", message: "Only 17 gap-aware supervised rows are usable; insufficient history." } }, 422);
     }
     const selected = records.find((record) => record.series_id === parsed.searchParams.get("series_id"));
+    if (selected && selected.price_flag !== "actual") {
+      return apiResponse({ error: { code: "not_direct_actual", message: "WFP aggregate and mixed-price-flag records cannot be forecast as direct actual prices." } }, 422);
+    }
     const requestedHorizon = Number(parsed.searchParams.get("horizon"));
-    const futureMonths = selected.series_id === "rice-current-fresh"
-      ? ["2026-12", "2027-01", "2027-02", "2027-03", "2027-04", "2027-05"]
-      : selected.series_id === "rice-actual-baga"
-        ? ["2026-10", "2026-11", "2026-12", "2027-01", "2027-02", "2027-03"]
-        : ["2026-05", "2026-06", "2026-07", "2026-08", "2026-09", "2026-10"];
-    const classification = selected.series_id === "rice-current-fresh"
-      ? "future_as_of_generation"
-      : selected.series_id === "rice-actual-baga"
-        ? "mixed_horizon_relative_to_generation"
-        : "historical_projection_from_latest_actual";
+    const futureMonths = ["2026-12", "2027-01", "2027-02", "2027-03", "2027-04", "2027-05"];
+    const returnedMonths = selected.series_id === "rice-actual-baga" && requestedHorizon === 2
+      ? ["2026-11", "2026-12"]
+      : futureMonths.slice(0, requestedHorizon);
     const actualMonth = selected.last_observed_month;
     const actualDate = selected.latest_observation_date;
     return apiResponse({
-      series: selected, horizon: requestedHorizon, model: "random_forest",
+      series: selected, horizon: requestedHorizon, model: selected.series_id === "rice-current-fresh" ? "naive_last_observation" : "random_forest",
       historical: [{ month: actualMonth, price: 500 }],
-      forecast: futureMonths.slice(0, requestedHorizon).map((month, index) => ({ month, price: 510 + index, step: index + 1, temporal_status: month > "2026-11" ? "future_as_of_generation" : "after_origin_not_current" })),
+      forecast: returnedMonths.map((month, index) => ({ month, price: 510 + index, step: index + 1, temporal_status: "future_as_of_generation" })),
       metadata: {
         method: "Recursive monthly forecast", selection_basis: "Validation RMSE", forecast_origin_month: actualMonth,
-        latest_actual_date_in_source: actualDate, latest_actual_month_in_source: actualMonth, forecast_generation_date: "2026-11-19",
-        forecast_classification: classification, transformation: "original WFP actual price", currency: "NGN", unit: "KG",
+        latest_actual_date_in_source: actualDate, latest_actual_month_in_source: actualMonth,
+        latest_observation_date_in_source: selected.series_id === "rice-actual-dawanau" ? "2026-04-14" : actualDate,
+        source_age_months: selected.observation_age_months,
+        source_freshness_classification: selected.observation_age_months <= 3 ? "fresh_within_3_months" : "stale_for_current_market",
+        model_type: selected.series_id === "rice-current-fresh" ? "validated baseline" : "individual-series model",
+        forecast_generation_date: "2026-11-19",
+        forecast_classification: "future_as_of_generation", transformation: "original WFP actual price", currency: "NGN", unit: "KG",
         validation_metrics: { rmse: 4, mae: 3, mape: 1, r2: 0.8, n: 12 }, currency: "NGN", unit: "KG",
       },
-      warning: "Historical evidence only.",
+      warning: "Future estimates based on the exact selected source series.",
     });
   }
   return apiResponse({ error: { message: "Unexpected request" } }, 404);
@@ -168,7 +180,6 @@ async function main() {
   const market = getNode("#forecastMarket");
   const exactSeries = getNode("#forecastSeries");
   const horizon = getNode("#forecastHorizon");
-  const forecastCallsBeforeHorizon = calls.filter((url) => url.pathname === "/api/forecast").length;
   assert.deepEqual(commodity.options.map((option) => option.value), ["Beans (red)", "Rice (local)"]);
   commodity.value = "Rice (local)";
   await trigger("forecastCommodity", "change");
@@ -180,9 +191,18 @@ async function main() {
   const dawanau = market.options.find((option) => option.textContent.includes("Dawanau"));
   market.value = dawanau.value;
   await trigger("forecastMarket", "change");
-  assert.equal(exactSeries.options.length, 3, "same-market unit and price-type variants require an explicit choice");
+  assert.equal(exactSeries.options.length, 4, "same-market flag, unit and price-type variants require an explicit choice");
   assert.equal(exactSeries.options[0].value, "", "no exact unit/type is silently selected when variants are ambiguous");
-  assert.ok(exactSeries.options.every((option) => option.value !== "rice-aggregate"), "aggregate IDs cannot enter forecast options");
+  assert.ok(exactSeries.options.some((option) => option.value === "rice-aggregate"), "aggregate selections remain visible for an explicit eligibility attempt");
+  assert.match(exactSeries.options.find((option) => option.value === "rice-aggregate").textContent, /priceflag=aggregate/);
+  exactSeries.value = "rice-aggregate";
+  await trigger("forecastSeries", "change");
+  assert.equal(getNode("#generateForecast").disabled, false, "non-actual WFP records can be explicitly checked rather than silently omitted");
+  horizon.value = "1";
+  await trigger("generateForecast", "click");
+  const rejectedAggregateRequest = calls.filter((url) => url.pathname === "/api/forecast").at(-1);
+  assert.equal(rejectedAggregateRequest.searchParams.get("series_id"), "rice-aggregate");
+  assert.match(getNode("#forecastEmpty p").textContent, /aggregate and mixed-price-flag/);
   exactSeries.value = "rice-actual-dawanau";
   await trigger("forecastSeries", "change");
 
@@ -202,6 +222,7 @@ async function main() {
   await trigger("performanceSeries", "change");
   assert.equal(calls.filter((url) => url.pathname === "/api/performance").at(-1).searchParams.get("series_id"), "rice-actual-baga");
 
+  const forecastCallsBeforeHorizon = calls.filter((url) => url.pathname === "/api/forecast").length;
   horizon.value = "6";
   await trigger("forecastHorizon", "change");
   assert.equal(calls.filter((url) => url.pathname === "/api/forecast").length, forecastCallsBeforeHorizon, "changing horizon must wait for Generate forecast");
@@ -215,13 +236,15 @@ async function main() {
   assert.equal(successCall.searchParams.get("series_id"), "rice-actual-dawanau");
   assert.equal(successCall.searchParams.get("horizon"), "6");
   assert.equal(successCall.searchParams.get("model"), "auto");
-  assert.match(getNode("#forecastTableBody").innerHTML, /2026-05/);
+  assert.match(getNode("#forecastTableBody").innerHTML, /2026-12/);
   assert.equal((getNode("#forecastTableBody").innerHTML.match(/<tr>/g) || []).length, 6, "the six-month action renders six forecast dates");
-  assert.equal(getNode("#forecastStatusTitle").textContent, "Historical projection — not a current forecast");
-  assert.equal(getNode("#forecastStatusMessage").textContent.includes("already in the past"), true);
-  assert.equal(getNode("#forecastLatestDate").textContent, "2026-04-15", "the exact latest actual date remains visible");
-  assert.equal(getNode("#forecastFreshness").textContent, "Aging · 7–12 months", "the result does not overwrite source freshness");
+  assert.equal(getNode("#forecastStatusTitle").textContent, "Future projection · aging source data");
+  assert.match(getNode("#forecastStatusMessage").textContent, /not a current market forecast/);
+  assert.doesNotMatch(getNode("#forecastTableBody").innerHTML, /Past at generation/);
+  assert.equal(getNode("#forecastLatestDate").textContent, "2026-04-14", "the forecast response's exact underlying observation date is displayed");
+  assert.equal(getNode("#forecastFreshness").textContent, "Stale · 7 month(s)", "the result displays freshness from forecast-origin metadata");
   assert.equal(getNode("#forecastOriginGenerated").textContent, "Origin 2026-04 · Generated 2026-11-19");
+  assert.equal(getNode("#forecastSource").textContent, "WFP");
   assert.match(getNode("#forecastSelectedModel").textContent, /random forest/);
   assert.equal(getNode("#forecastSelectedHorizon").textContent, "6 month(s)");
   assert.equal(getNode("#forecastRmse").textContent, "4.00");
@@ -231,19 +254,23 @@ async function main() {
   assert.equal(getNode("#forecastValidationCount").textContent, "12");
   assert.match(getNode("#forecastMethodDetails").textContent, /Forecast target: original WFP actual price/);
   assert.doesNotMatch(getNode("#forecastMethodDetails").textContent, /Generated 2026-11-19/);
-  assert.deepEqual(charts.at(-1).config.data.datasets.map((dataset) => dataset.label), ["Historical WFP actual", "Recursive forecast"]);
+  assert.deepEqual(charts.at(-1).config.data.datasets.map((dataset) => dataset.label), ["Historical WFP actual", "Future model estimate"]);
 
   const bagaMarket = market.options.find((option) => option.textContent.includes("Baga Road"));
   market.value = bagaMarket.value;
   await trigger("forecastMarket", "change");
+  horizon.value = "2";
+  await trigger("forecastHorizon", "change");
+  await trigger("generateForecast", "click");
+  assert.equal(getNode("#forecastResults").hidden, true, "a response containing a non-future month is not rendered");
+  assert.match(getNode("#forecastEmpty h2").textContent, /not verifiably future-only/);
+  assert.match(getNode("#forecastEmpty p").textContent, /strictly later than the generation month/);
   horizon.value = "3";
   await trigger("forecastHorizon", "change");
   await trigger("generateForecast", "click");
-  assert.equal(getNode("#forecastStatusTitle").textContent, "Mixed-period projection");
-  assert.match(getNode("#forecastStatusMessage").textContent, /Some requested dates are already in the past/);
-  assert.match(getNode("#forecastStatusMessage").textContent, /only future rows based on recent actual data/);
+  assert.equal(getNode("#forecastStatusTitle").textContent, "Future projection · aging source data");
+  assert.match(getNode("#forecastStatusMessage").textContent, /not a current market forecast/);
   assert.match(getNode("#forecastStatusMessage").textContent, /7 month\(s\) old/);
-  assert.match(getNode("#forecastTableBody").innerHTML, /Past at generation/);
   assert.match(getNode("#forecastTableBody").innerHTML, /Future at generation/);
 
   const currentMarket = market.options.find((option) => option.textContent.includes("Current Market"));
@@ -252,16 +279,28 @@ async function main() {
   horizon.value = "1";
   await trigger("forecastHorizon", "change");
   await trigger("generateForecast", "click");
-  assert.equal(getNode("#forecastStatusTitle").textContent, "Future forecast · recent actual data");
+  assert.equal(getNode("#forecastStatusTitle").textContent, "Future estimate · recent source data");
   assert.match(getNode("#forecastStatusMessage").textContent, /within the last three months/);
   assert.equal(getNode("#forecastFreshness").textContent, "Fresh · within 3 months");
+  assert.match(getNode("#forecastSelectedModel").textContent, /^Baseline forecast: naive last observation$/);
+  assert.deepEqual(charts.at(-1).config.data.datasets.map((dataset) => dataset.label), ["Historical WFP actual", "Future baseline estimate"]);
+
+  for (const requested of ["2", "4", "5"]) {
+    horizon.value = requested;
+    await trigger("forecastHorizon", "change");
+    await trigger("generateForecast", "click");
+    const request = calls.filter((url) => url.pathname === "/api/forecast").at(-1);
+    assert.equal(request.searchParams.get("horizon"), requested, "every supported horizon reaches the forecast API");
+    assert.equal((getNode("#forecastTableBody").innerHTML.match(/<tr>/g) || []).length, Number(requested));
+    assert.doesNotMatch(getNode("#forecastTableBody").innerHTML, /Past at generation/);
+  }
 
   commodity.value = "Beans (red)";
   await trigger("forecastCommodity", "change");
   await trigger("generateForecast", "click");
   assert.equal(exactSeries.value, "beans-insufficient");
-  assert.match(getNode("#forecastEmpty p").textContent, /17 calendar rows are usable/);
-  assert.match(getNode("#forecastEmpty h2").textContent, /insufficient continuous history/);
+  assert.match(getNode("#forecastEmpty p").textContent, /17 gap-aware supervised rows are usable/);
+  assert.match(getNode("#forecastEmpty h2").textContent, /insufficient usable history/);
 
   getNode("#globalDataset").value = "nbs";
   await trigger("globalDataset", "change");
@@ -272,11 +311,23 @@ async function main() {
   assert.equal(getNode("#forecastDataset").value, "wfp", "historical source must remain independent from forecast source");
   getNode("#forecastDataset").value = "nbs";
   await trigger("forecastDataset", "change");
-  assert.equal(commodity.disabled, true);
+  assert.equal(commodity.disabled, false);
+  assert.equal(commodity.value, "Yam Tuber");
+  assert.equal(market.options[0].textContent, "national: Nigeria");
+  assert.equal(exactSeries.value, "", "the pre/post-rebase NBS observations require an explicit methodology choice");
+  assert.ok(exactSeries.options.some((option) => option.textContent.includes("post 2025 cpi rebase")));
+  assert.ok(exactSeries.options.some((option) => option.textContent.includes("pre 2025 cpi rebase")));
   assert.equal(getNode("#generateForecast").disabled, true);
-  assert.match(getNode("#modelAvailabilityNote").textContent, /NBS national\/zone summaries/);
+  exactSeries.value = "nbs-yam-post";
+  await trigger("forecastSeries", "change");
+  assert.equal(getNode("#generateForecast").disabled, false, "reported NBS history is sent to exact-series eligibility validation");
+  await trigger("generateForecast", "click");
+  assert.equal(calls.filter((url) => url.pathname === "/api/forecast").at(-1).searchParams.get("dataset"), "nbs");
+  assert.equal(calls.filter((url) => url.pathname === "/api/forecast").at(-1).searchParams.get("series_id"), "nbs-yam-post");
+  assert.match(getNode("#forecastEmpty h2").textContent, /insufficient usable history/);
+  assert.match(getNode("#forecastEmpty p").textContent, /17 NBS observations/);
 
-  console.log("Frontend workflow passed: selectors, exact series routing, independent history, explicit horizon action, historical/mixed/current freshness states, compact validation metrics, insufficient-history explanation, and NBS unavailability.");
+  console.log("Frontend workflow passed: independent selectors, exact WFP/NBS series routing, 1-6 month horizons, future-only rows, stale-data warnings, compact metrics, and source-specific insufficient-history response.");
 }
 
 main().catch((error) => { console.error(error); process.exitCode = 1; });

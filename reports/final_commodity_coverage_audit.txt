@@ -1,0 +1,161 @@
+AgriPrice-NG full WFP/NBS series coverage and forecast-attempt audit
+As-of date: 2026-11-19
+
+Method
+------
+Every normalized dashboard series was included. Each series with at least one reported value was submitted through the same service forecast method used by the Flask API for a one-month on-demand forecast.
+WFP pooling was limited to pure priceflag=actual and the exact commodity/unit/price-type/currency; aggregate and mixed-price-flag histories were audited but rejected for forecasting.
+NBS pooling was limited to the exact original item label, methodology regime, geography level, unit, price type and currency. National records were not pooled with zones, and no NBS records were pooled with WFP.
+Pooled strategies use group-held-out plus chronological validation. Predictions are recursively future-dated; no target prices were interpolated or forward-filled.
+
+Totals by source
+----------------
+WFP: 3432 exact series; 43 source labels; generated=986; unavailable=2446; errors=0; no reported price=0.
+  Selected models/baselines: gradient_boosting=75, naive_last_observation=631, pooled_gradient_boosting=40, pooled_random_forest=15, random_forest=69, trend_baseline=156
+NBS: 596 exact series; 86 source labels; generated=252; unavailable=344; errors=0; no reported price=0.
+  Selected models/baselines: naive_last_observation=102, pooled_gradient_boosting=24, pooled_random_forest=24, trend_baseline=102
+WFP priceflag=actual: 1101 exact series; latest reported observation=2026-04-15; future forecast attempts generated=986.
+WFP priceflag=actual,aggregate: 608 exact series; latest reported observation=2026-04-15; future forecast attempts generated=0.
+WFP priceflag=aggregate: 1723 exact series; latest reported observation=2026-11-15; future forecast attempts generated=0.
+
+Totals by source commodity/item
+-------------------------------
+NBS | Agric eggs medium size: series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Agric eggs(medium size price of one): series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Agric hen eggs: series=1, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Agric hen eggs,: series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Agric hen eggs, (a Crate of 30 pieces): series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Beans Brown: series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Beans brown,sold loose: series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Beans white: series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Beans:white black eye. sold loose: series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Beef Bone in: series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Beef Boneless: series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Beef,boneless: series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Bread (sliced), 450g: series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Bread (unsliced), 450g: series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Bread sliced 500g: series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Bread unsliced 500g: series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Broken Rice (Ofada): series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Carrots, fresh: series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Cat fresh fish: series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Catfish (obokun) fresh: series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Catfish :dried: series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Catfish Smoked: series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Chicken Feet: series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Chicken Wings: series=14, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Chicken feet: series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Chicken meat (Frozen): series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Cray fish small white: series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Dried Fish Sardine: series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Dried fish, Bonga: series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Evaporated tinned milk carnation 170g: series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Evaporated tinned milk(peak), 170g: series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Frozen chicken: series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Gari white,sold loose: series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Gari yellow,sold loose: series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Garri Yellow: series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Garri white: series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Ginger, fresh: series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Goat Meat Bone in: series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Groundnut oil, 75cl: series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Groundnut oil: 1 bottle, specify bottle: series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Groundnuts, roasted,75cl bottle: series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Iced Sardine: series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Irish Potatoe: series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Irish potato: series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Local Rice (Broken): series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Mackerel : frozen: series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Mackerel, Frozen: series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Maize (Corn) Grains (White) sold loose: series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Maize grain white sold loose: series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Maize grain yellow sold loose: series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Mudfish (aro) fresh: series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Mudfish : dried: series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Onion bulb: series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Onions, fresh: series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Palm oil, 75cl: series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Palm oil: 1 bottle,specify bottle: series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Plantain (ripe): series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Plantain (unripe): series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Plantain(ripe): series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Plantain(unripe): series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Rice Local, short-Grained: series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Rice Long-Grained (Imported): series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Rice Medium Grained: series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Rice agric sold loose: series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Rice local sold loose: series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Rice,imported high quality sold loose: series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Semovita, Prepacked (1kg): series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Smoked fish: series=6, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Smoked fish (Mackerel): series=1, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Sweet potato: series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Sweet potatoes: series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Tilapia fish (epiya) fresh: series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Tilapia fresh fish (Epiya): series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Tin Milk-Evaporated, Peak Milk, 150g: series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Tin Milk-Evaporated, Three Crown Milk, 160g: series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Titus, frozen: series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Titus:frozen: series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Tomato: series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Tomatoes, fresh: series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Vegetable Oil, 75cl: series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Vegetable oil:1 bottle,specify bottle: series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Watermelon whole, medium size fresh: series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Wheat Flour, Prepacked (2kg): series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Wheat flour: prepacked (golden penny 2kg): series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+NBS | Yam Tuber: series=7, individual eligible=0, pooled eligible=6, forecast generated=6.
+NBS | Yam tuber: series=7, individual eligible=0, pooled eligible=0, forecast generated=0.
+WFP | Bananas: series=84, individual eligible=19, pooled eligible=22, forecast generated=20.
+WFP | Beans (niebe): series=3, individual eligible=0, pooled eligible=0, forecast generated=0.
+WFP | Beans (red): series=84, individual eligible=19, pooled eligible=22, forecast generated=20.
+WFP | Beans (white): series=84, individual eligible=19, pooled eligible=22, forecast generated=20.
+WFP | Bread: series=47, individual eligible=16, pooled eligible=16, forecast generated=16.
+WFP | Cassava meal (gari, yellow): series=73, individual eligible=12, pooled eligible=31, forecast generated=30.
+WFP | Cowpeas: series=82, individual eligible=17, pooled eligible=21, forecast generated=19.
+WFP | Cowpeas (brown): series=75, individual eligible=15, pooled eligible=32, forecast generated=30.
+WFP | Cowpeas (white): series=78, individual eligible=15, pooled eligible=32, forecast generated=31.
+WFP | Eggs: series=84, individual eligible=19, pooled eligible=22, forecast generated=19.
+WFP | Fish: series=84, individual eligible=19, pooled eligible=22, forecast generated=19.
+WFP | Fuel (diesel): series=47, individual eligible=16, pooled eligible=16, forecast generated=16.
+WFP | Fuel (petrol-gasoline): series=101, individual eligible=16, pooled eligible=24, forecast generated=16.
+WFP | Gari (white): series=78, individual eligible=14, pooled eligible=32, forecast generated=31.
+WFP | Groundnuts: series=84, individual eligible=19, pooled eligible=22, forecast generated=20.
+WFP | Groundnuts (shelled): series=78, individual eligible=15, pooled eligible=32, forecast generated=31.
+WFP | Maize: series=5, individual eligible=5, pooled eligible=5, forecast generated=5.
+WFP | Maize (white): series=78, individual eligible=15, pooled eligible=32, forecast generated=31.
+WFP | Maize (yellow): series=77, individual eligible=13, pooled eligible=32, forecast generated=31.
+WFP | Maize flour: series=84, individual eligible=19, pooled eligible=22, forecast generated=20.
+WFP | Meat (beef): series=84, individual eligible=19, pooled eligible=22, forecast generated=19.
+WFP | Meat (goat): series=83, individual eligible=19, pooled eligible=22, forecast generated=19.
+WFP | Milk (powder): series=84, individual eligible=19, pooled eligible=22, forecast generated=19.
+WFP | Millet: series=165, individual eligible=40, pooled eligible=60, forecast generated=57.
+WFP | Oil (palm): series=140, individual eligible=32, pooled eligible=49, forecast generated=47.
+WFP | Oil (vegetable): series=84, individual eligible=19, pooled eligible=22, forecast generated=20.
+WFP | Onions: series=84, individual eligible=19, pooled eligible=22, forecast generated=19.
+WFP | Oranges: series=84, individual eligible=19, pooled eligible=22, forecast generated=20.
+WFP | Rice (imported): series=156, individual eligible=38, pooled eligible=57, forecast generated=55.
+WFP | Rice (local): series=157, individual eligible=33, pooled eligible=53, forecast generated=50.
+WFP | Rice (milled, local): series=5, individual eligible=5, pooled eligible=0, forecast generated=5.
+WFP | Salt: series=83, individual eligible=19, pooled eligible=21, forecast generated=19.
+WFP | Seasoning (maggi cube): series=59, individual eligible=0, pooled eligible=0, forecast generated=0.
+WFP | Sorghum: series=89, individual eligible=24, pooled eligible=27, forecast generated=24.
+WFP | Sorghum (brown): series=78, individual eligible=14, pooled eligible=32, forecast generated=31.
+WFP | Sorghum (white): series=77, individual eligible=15, pooled eligible=32, forecast generated=31.
+WFP | Spinach: series=84, individual eligible=17, pooled eligible=22, forecast generated=20.
+WFP | Sugar: series=83, individual eligible=19, pooled eligible=21, forecast generated=19.
+WFP | Tomatoes: series=82, individual eligible=19, pooled eligible=21, forecast generated=19.
+WFP | Watermelons: series=84, individual eligible=19, pooled eligible=22, forecast generated=20.
+WFP | Wheat: series=4, individual eligible=0, pooled eligible=0, forecast generated=0.
+WFP | Yam: series=169, individual eligible=34, pooled eligible=53, forecast generated=48.
+WFP | Yam (Abuja): series=4, individual eligible=0, pooled eligible=0, forecast generated=0.
+
+Interpretation and limits
+--------------------------
+A generated forecast indicates that a defined validation procedure selected a model or baseline; it does not mean that the estimate is reliable or current. Check each row's latest actual/report date, missing-month run, validation sample count, metrics, model strategy and freshness in the CSV.
+A selected naive baseline is explicitly identified and may produce a flat estimate if it wins validation. Negative R-squared indicates the selected predictions were worse than predicting the validation mean under the usual R-squared definition; it does not mean a negative price.
+Pooled validation metrics summarize held-out compatible markets/geographies. The selected series receives its own metrics where it contributes validation rows; very short series may have none and inherit only the documented peer-pool validation evidence.
+Historical analysis remains independent of forecast eligibility and continues to show reported observations with missing months left missing.
+
+Detailed CSV: reports\final_commodity_coverage_audit.csv
+CSV rows written: 4028

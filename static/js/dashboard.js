@@ -91,6 +91,10 @@
     );
   }
 
+  function isForecastRequestableSeries(series, dataset) {
+    return Boolean(series && series.source_key === dataset && series.forecast_request_available && Number(series.observed_months) > 0);
+  }
+
   function configureDatasetSelectors(dataset) {
     const selected = dataset === "nbs" ? "nbs" : "wfp";
     state.dataset = selected;
@@ -111,7 +115,8 @@
     const optionMarkup = (item) => {
       const geo = item.market || item.geography_name || "";
       const flag = item.price_flag ? ` · ${item.price_flag}` : "";
-      return `<option value="${escapeHTML(item.series_id)}">${escapeHTML(item.commodity)} · ${escapeHTML(item.unit || "Not stated")} · ${escapeHTML(item.price_type)} · ${escapeHTML(geo)}${escapeHTML(flag)}</option>`;
+      const regime = item.methodology_regime ? ` · ${item.methodology_regime.replaceAll("_", " ")}` : "";
+      return `<option value="${escapeHTML(item.series_id)}">${escapeHTML(item.commodity)} · ${escapeHTML(item.unit || "Not stated")} · ${escapeHTML(item.price_type)} · ${escapeHTML(geo)}${escapeHTML(flag)}${escapeHTML(regime)}</option>`;
     };
     if (analysisNode) {
       analysisNode.innerHTML = items.map(optionMarkup).join("") || '<option value="">No series available</option>';
@@ -130,7 +135,8 @@
       performanceNode.innerHTML = items.map((item) => {
         const geo = item.market || item.geography_name || "";
         const flag = item.price_flag ? ` · ${item.price_flag}` : "";
-        return `<option value="${escapeHTML(item.series_id)}">${escapeHTML(item.commodity)} · ${escapeHTML(item.unit || "Not stated")} · ${escapeHTML(item.price_type)} · ${escapeHTML(geo)}${escapeHTML(flag)}</option>`;
+        const regime = item.methodology_regime ? ` · ${item.methodology_regime.replaceAll("_", " ")}` : "";
+        return `<option value="${escapeHTML(item.series_id)}">${escapeHTML(item.commodity)} · ${escapeHTML(item.unit || "Not stated")} · ${escapeHTML(item.price_type)} · ${escapeHTML(geo)}${escapeHTML(flag)}${escapeHTML(regime)}</option>`;
       }).join("") || '<option value="">No series available</option>';
       performanceNode.querySelectorAll("option").forEach((option) => {
         const item = items.find((candidate) => candidate.series_id === option.value);
@@ -142,10 +148,12 @@
   }
 
   function forecastMarketKey(series) {
+    if (series.source_key === "nbs") return JSON.stringify(["nbs", series.geography_level || "", series.geography_name || ""]);
     return JSON.stringify([series.market_id || "", series.market || "", series.admin1 || ""]);
   }
 
   function forecastMarketLabel(series) {
+    if (series.source_key === "nbs") return `${series.geography_level || "Geography"}: ${series.geography_name || "not stated"}`;
     const location = [series.market, series.admin1, series.market_id ? `ID ${series.market_id}` : ""].filter(Boolean);
     return location.join(" · ") || "Market not stated";
   }
@@ -162,14 +170,14 @@
       unavailable: "Unavailable",
     }[series.freshness] || (age === null ? "Unavailable" : `${age} month(s) old`)) : "Select a series";
     const values = series ? {
-      forecastLatestPrice: `Latest actual: ${formatPrice(series.latest_price)}`,
-      forecastLatestContext: `${series.commodity} · ${series.market || "market not stated"} · ${series.unit || "unit not stated"} · ${series.price_type}. This is a source observation, not a forecast.`,
+      forecastLatestPrice: `Latest reported: ${formatPrice(series.latest_price)}`,
+      forecastLatestContext: `${series.source} · ${series.commodity} · ${series.market || series.geography_name || "geography not stated"} · ${series.unit || "unit not stated"} · ${series.price_type}. This is a source observation, not a forecast.`,
       forecastLatestDate: series.latest_observation_date ? String(series.latest_observation_date).slice(0, 10) : formatMonth(series.last_observed_month),
       forecastLatestAge: age === null ? "n/a" : `${formatNumber(age)} month(s) old`,
       forecastFreshness: freshnessLabel,
     } : {
       forecastLatestPrice: "Choose an exact series",
-      forecastLatestContext: "Aggregate and mixed-price-flag records are available in historical analysis only; unit and price type must also match exactly.",
+      forecastLatestContext: "Choose an exact source series. The backend will explain if its price definition or history cannot support a defensible forecast.",
       forecastLatestDate: "n/a",
       forecastLatestAge: "n/a",
       forecastFreshness: "Select a series",
@@ -204,32 +212,36 @@
     const series = getSeriesItem(dataset, seriesId);
     const button = $("#generateForecast");
     const note = $("#modelAvailabilityNote");
-    const needsExactChoice = dataset === "wfp" && seriesId === "" && !$("#forecastSeries").disabled && $("#forecastSeries").options.length > 1;
-    const canCheck = isPureActualForecastSeries(series, dataset);
+    const needsExactChoice = seriesId === "" && !$("#forecastSeries").disabled && $("#forecastSeries").options.length > 1;
+    const canCheck = isForecastRequestableSeries(series, dataset);
     if (button) {
       button.disabled = !canCheck;
       button.textContent = canCheck ? "Generate forecast" : "Forecast unavailable";
     }
     if (note) note.textContent = canCheck
-      ? `${formatNumber(series.observed_months)} reported actual months (${series.first_observed_month} – ${series.last_observed_month}); full calendar-history eligibility is checked when requested.`
-      : (dataset === "nbs"
-        ? "NBS national/zone summaries are not supported by the WFP market forecasting engine."
-        : (needsExactChoice
-          ? "This market has multiple exact price series. Select the required unit and retail/wholesale type before forecasting."
-          : "No pure priceflag=actual WFP market series is available for this selection."));
+      ? (dataset === "nbs"
+        ? `${formatNumber(series.observed_months)} NBS reported months (${series.first_observed_month} – ${series.last_observed_month}); this exact geography is assessed independently when requested.`
+        : `${formatNumber(series.observed_months)} reported WFP months (${series.first_observed_month} – ${series.last_observed_month}); priceflag=${series.price_flag || "not stated"}. Pure-actual eligibility and compatible-pool support are checked when requested.`)
+      : (needsExactChoice
+        ? `This ${dataset === "nbs" ? "geography" : "market"} has multiple exact price series. Select the required unit and price type before forecasting.`
+        : (dataset === "nbs"
+          ? "No NBS monthly observations are available for this item and geography."
+          : "No WFP monthly observations are available for this market selection."));
     renderForecastLatest(canCheck ? series : null);
     showForecastPrompt(canCheck
-      ? "Review the exact market, unit, price type and horizon, then generate the recursive forecast. The response will state any history eligibility limitation."
-      : (dataset === "nbs"
-        ? "NBS summaries are available in historical analysis but cannot be sent to the WFP forecasting engine."
-        : (needsExactChoice ? "Choose the exact unit and retail/wholesale series before generating a forecast." : "Select a commodity and market with pure priceflag=actual observations.")));
+      ? `Review the exact ${dataset === "nbs" ? "item and geography" : "market, unit and price type"} and horizon, then generate the forecast. The response will state any history eligibility limitation.`
+      : (needsExactChoice
+        ? "Choose the exact unit and price type before generating a forecast."
+        : (dataset === "nbs"
+          ? "Select an NBS item and geography with reported monthly observations; eligibility is checked without combining it with WFP."
+          : "Review the exact commodity, market, unit, price type and price flag, then submit a forecast attempt.")));
   }
 
   function fillForecastSelectors(dataset) {
     const commodityNode = $("#forecastCommodity");
     const marketNode = $("#forecastMarket");
     const seriesNode = $("#forecastSeries");
-    const candidates = getSeries(dataset).filter((item) => isPureActualForecastSeries(item, dataset));
+    const candidates = getSeries(dataset).filter((item) => isForecastRequestableSeries(item, dataset));
     const emptyOption = (node, label) => {
       if (!node) return;
       node.innerHTML = `<option value="">${escapeHTML(label)}</option>`;
@@ -237,9 +249,9 @@
       node.value = "";
     };
     if (!candidates.length) {
-      emptyOption(commodityNode, dataset === "nbs" ? "NBS forecasting unavailable" : "No actual commodities available");
-      emptyOption(marketNode, dataset === "nbs" ? "No WFP markets in NBS data" : "No markets available");
-      emptyOption(seriesNode, "No pure-actual series available");
+      emptyOption(commodityNode, dataset === "nbs" ? "No NBS items available" : "No WFP commodities available");
+      emptyOption(marketNode, dataset === "nbs" ? "No NBS geographies available" : "No markets available");
+      emptyOption(seriesNode, "No reported series available");
       state.forecastSelected[dataset] = "";
       updateForecastAvailability(dataset, "");
       return;
@@ -276,11 +288,19 @@
     state.forecastSelected[dataset] = seriesId;
     const prompt = variants.length > 1 ? '<option value="">Choose exact unit and price type</option>' : "";
     seriesNode.innerHTML = prompt + variants.map((item) => {
-      const label = `${item.unit || "Unit not stated"} · ${item.price_type} · actual · ${formatNumber(item.observed_months)} months`;
+      const regime = item.methodology_regime ? ` · ${item.methodology_regime.replaceAll("_", " ")}` : "";
+      const label = `${item.unit || "Unit not stated"} · ${item.price_type} · ${dataset === "wfp" ? "actual" : "NBS report"}${regime} · ${formatNumber(item.observed_months)} months`;
       return `<option value="${escapeHTML(item.series_id)}">${escapeHTML(label)}</option>`;
-    }).join("") || '<option value="">No exact actual series available</option>';
+    }).join("") || '<option value="">No reported series available</option>';
     seriesNode.disabled = !variants.length;
     seriesNode.value = seriesId;
+    seriesNode.querySelectorAll("option").forEach((option) => {
+      const item = variants.find((candidate) => candidate.series_id === option.value);
+      if (!item) return;
+      const flag = item.price_flag ? `priceflag=${item.price_flag}` : "NBS reported average";
+      const regime = item.methodology_regime ? ` | ${item.methodology_regime.replaceAll("_", " ")}` : "";
+      option.textContent = `${item.unit || "Unit not stated"} | ${item.price_type} | ${flag}${regime} | ${formatNumber(item.observed_months)} months`;
+    });
     updateForecastAvailability(dataset, seriesId);
   }
 
@@ -538,27 +558,71 @@
     const rows = payload.forecast || [];
     const historical = payload.historical || [];
     const metadata = payload.metadata || {};
-    if (!rows.length) return;
+    const generationDate = String(metadata.forecast_generation_date || "");
+    const generationMonth = generationDate.slice(0, 7);
+    const monthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
+    const datePattern = /^\d{4}-(0[1-9]|1[0-2])-\d{2}$/;
+    if (!rows.length || !datePattern.test(generationDate) || rows.some((row) => {
+      const month = String(row.month || "");
+      return !monthPattern.test(month) || month <= generationMonth;
+    })) {
+      const error = new Error("The forecast was not displayed because its dates could not be verified as strictly later than the generation month.");
+      error.code = "non_future_forecast_dates";
+      throw error;
+    }
     $("#forecastEmpty").hidden = true;
     $("#forecastResults").hidden = false;
     const series = payload.series || {};
-    const modelLabel = String(payload.model || metadata.model || "Unavailable").replaceAll("_", " ");
+    const rawModelLabel = metadata.model_type
+      ? `${metadata.model_type}: ${String(payload.model || metadata.model || "Unavailable").replaceAll("_", " ")}`
+      : String(payload.model || metadata.model || "Unavailable").replaceAll("_", " ");
     const metric = metadata.validation_metrics || {};
-    setText("forecastSubject", [series.commodity || metadata.commodity, series.market || metadata.market].filter(Boolean).join(" · ") || "Selected WFP series");
+    const selectedModel = payload.model || metadata.model || "";
+    const isBaseline = metadata.model_type === "validated baseline"
+      || ["naive_last_observation", "trend_baseline", "seasonal_naive_12"].includes(selectedModel);
+    const modelLabel = isBaseline
+      ? "Baseline forecast: " + String(selectedModel || "baseline").replaceAll("_", " ")
+      : rawModelLabel;
+    const sourceLabel = String(series.source || metadata.source || (payload.dataset || "WFP")).toUpperCase();
+    const locationLabel = series.market || metadata.market || (series.geography_name ? `${series.geography_level || "Geography"}: ${series.geography_name}` : "");
+    setText("forecastSubject", [series.commodity || metadata.commodity, locationLabel].filter(Boolean).join(" · ") || `Selected ${sourceLabel} series`);
+    setText("forecastSource", sourceLabel);
     setText("forecastSelectedHorizon", `${payload.horizon || rows.length} month(s)`);
     setText("forecastSelectedModel", modelLabel);
+    const latestObservation = metadata.latest_observation_date_in_source
+      || metadata.latest_actual_date_in_source
+      || metadata.latest_observation_month_in_source
+      || metadata.latest_actual_month_in_source;
+    setText("forecastLatestDate", latestObservation ? String(latestObservation).slice(0, 10) : "Not reported");
+    const rawSourceAge = metadata.source_age_months;
+    if (rawSourceAge !== null && rawSourceAge !== undefined && Number.isFinite(Number(rawSourceAge))) {
+      const sourceAge = Number(rawSourceAge);
+      setText("forecastLatestAge", formatNumber(sourceAge) + " month(s) old");
+      setText("forecastFreshness", sourceAge <= 3 ? "Fresh · within 3 months" : "Stale · " + formatNumber(sourceAge) + " month(s)");
+    }
     setText("forecastOriginGenerated", `Origin ${metadata.forecast_origin_month || "n/a"} · Generated ${metadata.forecast_generation_date || "n/a"}`);
     setText("forecastRmse", formatNumber(metric.rmse, 2));
     setText("forecastMae", formatNumber(metric.mae, 2));
     setText("forecastMape", metric.mape === null || metric.mape === undefined ? "n/a" : `${formatNumber(metric.mape, 2)}%`);
     setText("forecastR2", formatNumber(metric.r2, 3));
     setText("forecastValidationCount", formatNumber(metric.n));
-    $("#forecastChartTitle").textContent = "Historical actuals and forecast";
+    $("#forecastChartTitle").textContent = sourceLabel === "NBS" ? "Historical NBS reports and future estimates" : "Historical WFP actuals and future estimates";
     renderForecastTemporalStatus(payload);
-    setText("forecastMethodDetails", metadata.transformation ? `Forecast target: ${metadata.transformation}.` : "Forecast target details are unavailable.");
+    const methodology = [
+      metadata.transformation ? `Forecast target: ${metadata.transformation}.` : "Forecast target details are unavailable.",
+      metadata.method || "Forecast method details are unavailable.",
+      metadata.validation_design ? `Validation design: ${metadata.validation_design}.` : "",
+      metadata.validation_scope ? `Validation scope: ${metadata.validation_scope}.` : "",
+      metadata.pool_definition ? `Pooling boundary: ${metadata.pool_definition}; ${formatNumber(metadata.training_contributing_series_count || metadata.training_series_count)} contributing series and ${formatNumber(metadata.training_observation_rows)} supervised training rows.` : "",
+      Array.isArray(metadata.other_series_contributors) && metadata.other_series_contributors.length
+        ? `Other contributing series: ${metadata.other_series_contributors.map((item) => `${item.commodity} — ${item.place}${item.state_or_level ? ` (${item.state_or_level})` : ""}`).join("; ")}.`
+        : "",
+      Number(metadata.forecast_bridge_months) > 0 ? `${metadata.forecast_bridge_months} unobserved month(s) were estimated internally to reach the future window; they are not actual prices.` : "No unobserved bridge months were required.",
+      payload.warning || "Source freshness warning is unavailable.",
+    ].filter(Boolean);
+    setText("forecastMethodDetails", methodology.join(" "));
     $("#forecastTableBody").innerHTML = rows.map((row) => {
-      const future = row.temporal_status === "future_as_of_generation";
-      const status = future ? "Future at generation" : "Past at generation";
+      const status = "Future at generation";
       return `<tr><td>${escapeHTML(row.month)}</td><td class="price-cell">${escapeHTML(formatPrice(row.price))}</td><td>${formatNumber(row.step)}</td><td>${status}</td></tr>`;
     }).join("");
     clearChart("forecast");
@@ -571,8 +635,8 @@
       state.charts.forecast = new Chart(canvas, {
         type: "line",
         data: { labels, datasets: [
-          { label: "Historical WFP actual", data: labels.map((month) => actualByMonth.get(month) ?? null), borderColor: "#2c7a56", backgroundColor: "rgba(44,122,86,.08)", borderWidth: 2, pointRadius: 2, spanGaps: false },
-          { label: "Recursive forecast", data: labels.map((month) => forecastByMonth.get(month) ?? null), borderColor: "#cf5b45", backgroundColor: "rgba(207,91,69,.08)", borderWidth: 2, borderDash: [6, 4], pointRadius: 3, spanGaps: false },
+          { label: sourceLabel === "NBS" ? "Historical NBS reported average" : "Historical WFP actual", data: labels.map((month) => actualByMonth.get(month) ?? null), borderColor: "#2c7a56", backgroundColor: "rgba(44,122,86,.08)", borderWidth: 2, pointRadius: 2, spanGaps: false },
+          { label: isBaseline ? "Future baseline estimate" : "Future model estimate", data: labels.map((month) => forecastByMonth.get(month) ?? null), borderColor: "#cf5b45", backgroundColor: "rgba(207,91,69,.08)", borderWidth: 2, borderDash: [6, 4], pointRadius: 3, spanGaps: false },
         ] },
         options: { responsive: true, maintainAspectRatio: false, interaction: { intersect: false, mode: "index" }, plugins: { legend: { display: true } }, scales: { x: { title: { display: true, text: "Month" } }, y: { title: { display: true, text: `${metadata.currency || "NGN"} per ${metadata.unit || "source unit"}` } } } },
       });
@@ -588,10 +652,12 @@
     const metadata = payload.metadata || {};
     const series = payload.series || {};
     const classification = metadata.forecast_classification || "unverified";
-    const rawAge = series.observation_age_months;
+    const rawAge = metadata.source_age_months ?? series.observation_age_months;
     const age = rawAge !== null && rawAge !== undefined && Number.isFinite(Number(rawAge)) ? Number(rawAge) : null;
     const freshness = String(series.freshness || "unavailable").toLowerCase();
-    const isFresh = age !== null ? age <= 3 : freshness === "fresh";
+    const isFresh = typeof metadata.is_current_market_forecast === "boolean"
+      ? metadata.is_current_market_forecast
+      : (age !== null ? age <= 3 : freshness === "fresh");
     let style = "stale";
     let title = "Forecast status unverified";
     let message = "The forecast dates or source recency could not be confirmed. Do not treat this as a current market forecast.";
@@ -607,12 +673,12 @@
       if (!isFresh) message += ` Source data is ${age === null ? freshness : `${age} month(s) old`} and should be treated as historical context.`;
     } else if (classification === "future_as_of_generation" && isFresh) {
       style = "current";
-      title = "Future forecast · recent actual data";
-      message = "All requested dates are future as of the generation date, based on source data within the last three months. Estimates are not guaranteed prices.";
+      title = "Future estimate · recent source data";
+      message = "All requested dates are future as of the generation date, based on a source observation recorded within the last three months. Estimates are not guaranteed prices.";
     } else if (classification === "future_as_of_generation") {
       style = "stale";
       title = `Future projection · ${freshness === "unavailable" ? "source age unavailable" : `${freshness} source data`}`;
-      message = `All requested dates are future as of generation, but the latest actual source observation is ${age === null ? "of unknown age" : `${age} month(s) old`}. This is not a current market forecast; interpret it as historical context.`;
+      message = `All requested dates are future as of generation, but the latest source observation is ${age === null ? "of unknown age" : `${age} month(s) old`}. This is not a current market forecast; interpret it as historical context.`;
     }
 
     const box = $("#forecastTemporalStatus");
@@ -625,7 +691,11 @@
   }
 
   function forecastUnavailableTitle(error) {
-    if (error?.code === "insufficient_or_gapped_history") return "Forecast unavailable — insufficient continuous history";
+    if (error?.code === "non_future_forecast_dates") return "Forecast unavailable — dates are not verifiably future-only";
+    if (error?.code === "insufficient_local_history") return "Forecast unavailable: insufficient local history";
+    if (error?.code === "pooled_validation_unavailable") return "Forecast unavailable: no validated compatible pool";
+    if (error?.code === "pooled_validation_unstable") return "Forecast unavailable: pooled validation was insufficient";
+    if (error?.code === "insufficient_or_gapped_history") return "Forecast unavailable — insufficient usable history";
     if (error?.code === "not_direct_actual") return "Forecast unavailable — not a pure actual series";
     if (error?.code === "model_unavailable") return "Forecast unavailable — model not supported for this series";
     return "Forecast unavailable for this selection";
@@ -642,9 +712,9 @@
     const button = $("#generateForecast");
     const requestId = ++state.forecastRequestId;
     const selectedSeries = getSeriesItem(dataset, seriesId);
-    if (!isPureActualForecastSeries(selectedSeries, dataset)) {
-      const reason = dataset !== "wfp"
-        ? "NBS national and zone series are not supported by the WFP market forecasting engine."
+    if (!isForecastRequestableSeries(selectedSeries, dataset)) {
+      const reason = dataset === "nbs"
+        ? "This exact NBS item/geography has no reported monthly observations available for forecasting. NBS remains separate from WFP market data."
         : (selectedSeries && selectedSeries.price_flag !== "actual"
           ? "This selection has no pure priceflag=actual market series. Aggregate and mixed-price-flag records are excluded."
           : "Choose a WFP series with pure priceflag=actual observations.");
@@ -658,8 +728,8 @@
       return;
     }
     const horizon = $("#forecastHorizon").value;
-    if (!["1", "3", "6"].includes(horizon)) {
-      const reason = "Choose a forecast horizon of 1, 3, or 6 months.";
+    if (!/^[1-6]$/.test(horizon)) {
+      const reason = "Choose a forecast horizon from 1 through 6 months.";
       setMessage("#forecastError", reason, true);
       showForecastPrompt(reason);
       return;
@@ -686,7 +756,7 @@
       }
     } finally {
       if (requestId === state.forecastRequestId) {
-        button.disabled = !isPureActualForecastSeries(getSeriesItem(dataset, seriesId), dataset);
+        button.disabled = !isForecastRequestableSeries(getSeriesItem(dataset, seriesId), dataset);
         button.textContent = button.disabled ? "Forecast unavailable" : "Generate forecast";
       }
     }
