@@ -1,0 +1,173 @@
+AgriPrice-NG NBS 2024-2026 Consolidation Audit
+Assessment date: 2026-11-19 (Africa/Lagos).
+Purpose: source consolidation and data-readiness audit only; no model training was performed.
+Raw NBS files under data/raw/nbs/2024, 2025, and 2026 were opened read-only. WFP inputs were read only.
+The output CSV uses only each workbook's current reporting-month Average column, not prior-month/prior-year comparison columns.
+
+FILE INVENTORY
+- Files discovered recursively: 36 total; 19 Excel workbooks; 17 PDFs; 0 other files.
+- Workbooks parsed successfully: 19; parse errors: 0.
+  data/raw/nbs/2024/December/selected_food_Dec_2024.xlsx | 22,888 bytes | .xlsx | SHA-256 2fb4f2b29bb256408c43223908e3c4adf21029a964f9b21cd9aeb5386c71c287
+  data/raw/nbs/2024/December/Selected_Food_Report_Dec_2024.pdf | 5,762,855 bytes | .pdf | SHA-256 f5a066b6f7e068d94806491da0fbc37a93f93753963b532680e5090c230bfade
+  data/raw/nbs/2024/November/selected_food_Nov_2024.xlsx | 23,020 bytes | .xlsx | SHA-256 e433c27bfe571e254d01a5c113f7b74f12ccb4d86f1f737d4d422e2c0f984894
+  data/raw/nbs/2024/November/Selected_Food_Report_Nov_2024.pdf | 5,798,731 bytes | .pdf | SHA-256 bcaac95eaedc9a02403fb459b1f3fc3dbf24c0591efd3c7dd5fb702b408164bc
+  data/raw/nbs/2025/Appril/Selected_Food_Report_Apr25.pdf | 5,702,720 bytes | .pdf | SHA-256 a1b94aaf30f13d7e25cf78c277672a106439b1dbbfddfd1043ac70de14a7edeb
+  data/raw/nbs/2025/Appril/selected_food_table_Apr25.xlsx | 20,098 bytes | .xlsx | SHA-256 cc3bd768935f01e295043c0812a5ee7380da16b07c6c473a3f376e49cd3017a4
+  data/raw/nbs/2025/August/Selected Food Report Aug25.pdf | 5,760,043 bytes | .pdf | SHA-256 3eb1c9a9c3c057ef23c24a35eff470022b97a4bc9106514758c1994d9b507c5f
+  data/raw/nbs/2025/August/selected food table August-25.xlsx | 21,526 bytes | .xlsx | SHA-256 3f90dd0f0dacb6ea0076deaaffbce59c4fd49fceba7bedd606a1fce5015cbf01
+  data/raw/nbs/2025/December/Selected Food Report_Dec 25.pdf | 6,430,602 bytes | .pdf | SHA-256 8608fe2923652b5ddaf9184edc3cdb19df189ac9eed9a96923e16709e5dc6e27
+  data/raw/nbs/2025/December/selected food table Dec25.xlsx | 21,777 bytes | .xlsx | SHA-256 1acd8cb61c07cea93bb0ac729eae63f38319722cee4f212f870d8e1f3930fcdc
+  data/raw/nbs/2025/February/selected_food_table_Feb_25.xlsx | 20,345 bytes | .xlsx | SHA-256 95e5611a5be62eed9e19d93d5da165f42b9fee6f8855a4e9ece359a87bfe3e91
+  data/raw/nbs/2025/January/Selected_Food_Report_Jan25.pdf | 5,739,046 bytes | .pdf | SHA-256 f634d5fba75f51145faa3fbb12e717e59864d7499e581fb8762fbd52136c88db
+  data/raw/nbs/2025/January/Selected_food_table_Jan25.xlsx | 20,164 bytes | .xlsx | SHA-256 953efd76c8320b5e4799a8e116e78903523198021ad4054d10c581b42627ea2e
+  data/raw/nbs/2025/July/Selected_Food_Report_July_2025.pdf | 5,690,948 bytes | .pdf | SHA-256 acbd05502412b28f3c1a8b29ed7427f765f0164fee7890c36dd6208c75aa608c
+  data/raw/nbs/2025/July/selected_food_table_July-25.xlsx | 21,313 bytes | .xlsx | SHA-256 a1a97d89515474a0ce1a4114a6ba6ec40e231eae5bcd501a4170038a995ed19c
+  data/raw/nbs/2025/June/Selected_Food_Report_June_2025.pdf | 5,669,676 bytes | .pdf | SHA-256 8c3b6bb9d9544422882a5899ee82f563028153c399d8dc361aeac09d0195f451
+  data/raw/nbs/2025/June/selected_food_table_June-25.xlsx | 21,245 bytes | .xlsx | SHA-256 bb115c704c416ca2861e980beabe88d1260e8d0ce42e344f5a3339e2c7a8d564
+  data/raw/nbs/2025/March/selected_food_table_Mar_25.xlsx | 20,548 bytes | .xlsx | SHA-256 af0d8adf82fd54aab97cbe7e57060877fd01aeab472e4bfb0df9fe9aa491d6d3
+  data/raw/nbs/2025/May/Selected_Food_Report_May_2025.pdf | 5,683,029 bytes | .pdf | SHA-256 01fc61fe3bf4bfb4698f841b1eeee244556c85eb0162f43de2d070a0e1857d0d
+  data/raw/nbs/2025/May/selected_food_table_May-25.xlsx | 20,963 bytes | .xlsx | SHA-256 a51d75869d746e3ddd435a2365011048b403059fed8448cf2c91ec5b96fc607b
+  data/raw/nbs/2025/November/selected food table Nov25.xlsx | 21,520 bytes | .xlsx | SHA-256 794baaf6c05bdfd0a6d38bed8a09dfdcf1c65e43f752ebd415c1475e1230969a
+  data/raw/nbs/2025/November/Selected_Food_Report_Nov_25.pdf | 6,322,980 bytes | .pdf | SHA-256 6200e436ab55d3e5bc2452ee856d6711278006d978d57c47cfd220a15970fccb
+  data/raw/nbs/2025/October/Selected Food Report_Oct25.pdf | 5,762,500 bytes | .pdf | SHA-256 429f59ec2791082dc445265c9ed8cf6fe8acc4dad6fa5bf12505a2f80c7690e1
+  data/raw/nbs/2025/October/selected food table October25.xlsx | 21,686 bytes | .xlsx | SHA-256 6f363e74fbbc7fcc32e3831a928ff5962ceb54ba02719b214970f5d73432b86f
+  data/raw/nbs/2025/September/selected food table september-25.xlsx | 21,207 bytes | .xlsx | SHA-256 b8a2c94cdf8847cf341b1064413e24e22203979e228d8487a2439926d2322919
+  data/raw/nbs/2025/September/Selected_Food_Report Sept_25.pdf | 5,759,701 bytes | .pdf | SHA-256 df83fb4e4ec1b34b91bae71a44355dacdd5e6002fda22c55b5ba1f36c02db8da
+  data/raw/nbs/2026/April/selected food table Apr26.xlsx | 22,195 bytes | .xlsx | SHA-256 5b98f83520f6294b05fd6964b6ac904dcec6e1ebde7f3102b8829d187fd195e7
+  data/raw/nbs/2026/April/Selected_Food_Report_April_2026.pdf | 5,606,834 bytes | .pdf | SHA-256 32332b395bd9acd60475836e5121dfd45439e87202e71752ba29920ccae3b879
+  data/raw/nbs/2026/Febuary/selected food table Feb 26.xlsx | 22,281 bytes | .xlsx | SHA-256 90c39793a9d7cf41af330b424591ee1316360668eea80f53faa2a866d15b1ce3
+  data/raw/nbs/2026/Febuary/Selected_Food_Report_Feb_2026.pdf | 6,463,157 bytes | .pdf | SHA-256 2c829b168ebd0e95af6788a1600fcf1b9a14c28d79c7255a8a5cda888bd6e95a
+  data/raw/nbs/2026/January/selected food table Jan26.xlsx | 22,165 bytes | .xlsx | SHA-256 27e8528cabb444d14d6bb0a37922c64a09d1a361c4f0f67a0d4171abf91dad96
+  data/raw/nbs/2026/January/Selected_Food_Report_Jan26.pdf | 6,487,129 bytes | .pdf | SHA-256 671f533c9cfb1e020a214a335427f98d85f9a7b8bbd694a2dadf9d10edd96d60
+  data/raw/nbs/2026/March/selected food table Mar26.xlsx | 22,020 bytes | .xlsx | SHA-256 4f62e611ba8d1eb3a97eac9a62b15867472d49e57c84e8126023a198c9c314ee
+  data/raw/nbs/2026/March/Selected_Food_Report_Mar_2026.pdf | 5,726,387 bytes | .pdf | SHA-256 2977fd97007bf4dd828ffcd765742b23dade1632c11d6c0ddd4db9e59734b75f
+  data/raw/nbs/2026/May/selected food table May 26.xlsx | 22,197 bytes | .xlsx | SHA-256 d72407cea0ae2456d6309dcec1cb9a19918b2f0f0652dc3e610ee5a9a08e7318
+  data/raw/nbs/2026/May/Selected_Food_Report_May 26.pdf | 5,695,827 bytes | .pdf | SHA-256 0e4db65328d203ecdf31c015f4dc071245495f880ead03ab5ac6d37e327d4e29
+
+OBSERVATION EXTRACTION AND DEDUPLICATION
+- Monthly records extracted before exact duplicate removal: 5,600.
+- Monthly records in consolidated CSV after exact duplicate removal: 5,600.
+- Exact duplicates removed (same workbook, sheet, period, item, geography, measurement and price): 0.
+- Same-source series/month keys with differing prices retained rather than collapsed: 0.
+- Duplicate item/geography/month/unit observation keys after consolidation: 0.
+- Missing price cells retained blank (not imputed): 0.
+- Observation reporting-month span: 2024-11 to 2026-05.
+- Distinct source reporting months present: 19; missing months between the first and last source report: none.
+- Unique original item labels across all years: 86.
+- Exact item/unit/geography series observation-count distribution: {1: 1, 2: 294, 16: 1, 17: 286, 19: 7} (some labels occur only in selected months due to source-label variation).
+- Geography rows: 7 combinations; levels=['national', 'zone']; names=['NORTH CENTRAL', 'NORTH EAST', 'NORTH WEST', 'Nigeria', 'SOUTH EAST', 'SOUTH SOUTH', 'SOUTH WEST'].
+- Spreadsheet geography is Nigeria (national) plus six geopolitical zones; no state-level or market-level price rows are in these sheets.
+- The paired PDFs describe price collection across states/LGAs, but those detailed observations are not the structured data in the supplied workbooks.
+
+SOURCE WORKBOOK PERIODS AND SUPPORTING PDF DATES
+- 2024-11: data/raw/nbs/2024/November/selected_food_Nov_2024.xlsx | 43 national item rows, 43 zone item labels, 301 item/geography rows | PDF=Selected_Food_Report_Nov_2024.pdf | report date=December 2024 | publication month=2024-12 | sheet title period=2024-11
+- 2024-12: data/raw/nbs/2024/December/selected_food_Dec_2024.xlsx | 43 national item rows, 43 zone item labels, 301 item/geography rows | PDF=Selected_Food_Report_Dec_2024.pdf | report date=January 2025 | publication month=2025-01 | sheet title period=2024-12
+- 2025-01: data/raw/nbs/2025/January/Selected_food_table_Jan25.xlsx | 42 national item rows, 42 zone item labels, 294 item/geography rows | PDF=Selected_Food_Report_Jan25.pdf | report date=February 2025 | publication month=2025-02 | sheet title period=2025-01
+- 2025-02: data/raw/nbs/2025/February/selected_food_table_Feb_25.xlsx | 42 national item rows, 42 zone item labels, 294 item/geography rows | PDF=not present | report date=not available | publication month=not available | sheet title period=2025-02
+- 2025-03: data/raw/nbs/2025/March/selected_food_table_Mar_25.xlsx | 42 national item rows, 42 zone item labels, 294 item/geography rows | PDF=not present | report date=not available | publication month=not available | sheet title period=2024-12
+- 2025-04: data/raw/nbs/2025/Appril/selected_food_table_Apr25.xlsx | 42 national item rows, 42 zone item labels, 294 item/geography rows | PDF=Selected_Food_Report_Apr25.pdf | report date=May 2025 | publication month=2025-05 | sheet title period=2024-12
+- 2025-05: data/raw/nbs/2025/May/selected_food_table_May-25.xlsx | 42 national item rows, 42 zone item labels, 294 item/geography rows | PDF=Selected_Food_Report_May_2025.pdf | report date=June 2025 | publication month=2025-06 | sheet title period=2025-05
+- 2025-06: data/raw/nbs/2025/June/selected_food_table_June-25.xlsx | 42 national item rows, 42 zone item labels, 294 item/geography rows | PDF=Selected_Food_Report_June_2025.pdf | report date=July 2025 | publication month=2025-07 | sheet title period=2025-06
+- 2025-07: data/raw/nbs/2025/July/selected_food_table_July-25.xlsx | 42 national item rows, 42 zone item labels, 294 item/geography rows | PDF=Selected_Food_Report_July_2025.pdf | report date=August 2025 | publication month=2025-08 | sheet title period=2025-07
+- 2025-08: data/raw/nbs/2025/August/selected food table August-25.xlsx | 42 national item rows, 42 zone item labels, 294 item/geography rows | PDF=Selected Food Report Aug25.pdf | report date=November 2025 | publication month=2025-11 | sheet title period=2025-08
+- 2025-09: data/raw/nbs/2025/September/selected food table september-25.xlsx | 42 national item rows, 42 zone item labels, 294 item/geography rows | PDF=Selected_Food_Report Sept_25.pdf | report date=November 2025 | publication month=2025-11 | sheet title period=2025-09
+- 2025-10: data/raw/nbs/2025/October/selected food table October25.xlsx | 42 national item rows, 42 zone item labels, 294 item/geography rows | PDF=Selected Food Report_Oct25.pdf | report date=December 2025 | publication month=2025-12 | sheet title period=2025-10
+- 2025-11: data/raw/nbs/2025/November/selected food table Nov25.xlsx | 42 national item rows, 42 zone item labels, 294 item/geography rows | PDF=Selected_Food_Report_Nov_25.pdf | report date=January 2026 | publication month=2026-01 | sheet title period=2025-11
+- 2025-12: data/raw/nbs/2025/December/selected food table Dec25.xlsx | 42 national item rows, 42 zone item labels, 294 item/geography rows | PDF=Selected Food Report_Dec 25.pdf | report date=January 2026 | publication month=2026-01 | sheet title period=2025-12
+- 2026-01: data/raw/nbs/2026/January/selected food table Jan26.xlsx | 42 national item rows, 42 zone item labels, 294 item/geography rows | PDF=Selected_Food_Report_Jan26.pdf | report date=March 2026 | publication month=2026-03 | sheet title period=2026-01
+- 2026-02: data/raw/nbs/2026/Febuary/selected food table Feb 26.xlsx | 42 national item rows, 42 zone item labels, 294 item/geography rows | PDF=Selected_Food_Report_Feb_2026.pdf | report date=March 2026 | publication month=2026-03 | sheet title period=2026-02
+- 2026-03: data/raw/nbs/2026/March/selected food table Mar26.xlsx | 42 national item rows, 42 zone item labels, 294 item/geography rows | PDF=Selected_Food_Report_Mar_2026.pdf | report date=May 2026 | publication month=2026-05 | sheet title period=2026-03
+- 2026-04: data/raw/nbs/2026/April/selected food table Apr26.xlsx | 42 national item rows, 42 zone item labels, 294 item/geography rows | PDF=Selected_Food_Report_April_2026.pdf | report date=May 2026 | publication month=2026-05 | sheet title period=2026-04
+- 2026-05: data/raw/nbs/2026/May/selected food table May 26.xlsx | 42 national item rows, 42 zone item labels, 294 item/geography rows | PDF=Selected_Food_Report_May 26.pdf | report date=June 2026 | publication month=2026-06 | sheet title period=2026-05
+- No paired PDF was present for observation months: 2025-02, 2025-03.
+- Report Date is published at month/year precision only. source_report_date preserves that text; source_publication_date is blank because no report day is supplied.
+- The workbook sheet title is not authoritative when it conflicts with the current-period Average header. The header plus year/month folder was used to select the observation period.
+- Workbook title/current-column mismatches: 2.
+  data/raw/nbs/2025/March/selected_food_table_Mar_25.xlsx: sheet title indicates 2024-12, but current Average header and folder identify 2025-03.
+  data/raw/nbs/2025/Appril/selected_food_table_Apr25.xlsx: sheet title indicates 2024-12, but current Average header and folder identify 2025-04.
+
+UNITS, CURRENCY, AND MEASUREMENT TYPE
+- The workbooks have no dedicated currency or standardized unit column. Currency is NGN, corroborated by Naira notation in paired official PDFs; the two months without PDFs are transparently marked as source-context evidence in currency_evidence.
+- Item labels with a directly stated quantity unit: 1,421 of 5,600 records. Other unit values remain blank; no unit has been inferred from price magnitude.
+- Explicit label units are retained as written/parsed (for example 75cl, 2kg, 450g, a 30-piece crate, or a bottle with unspecified volume). Labels that say only 'sold loose' are not assigned a unit by this consolidation.
+- National and zonal observations are monthly averages. National price_measure preserves the workbook's exact Average header; zone rows are marked zone_average. No retail/wholesale distinction is supplied in these sheets, so price_type remains reported_monthly_average.
+
+ITEM DEFINITION, GEOGRAPHY, AND METHODOLOGY CHANGES
+- Distinct original item labels by workbook year: 2024=43, 2025=44, 2026=43.
+- Labels in 2024 vs the combined 2025/2026 set: 2024=43, post-rebase=44, exact strings shared=1.
+- Labels no longer present after 2024: Agric eggs medium size, Agric eggs(medium size price of one), Beans brown,sold loose, Beans:white black eye. sold loose, Beef Bone in, Beef,boneless, Bread sliced 500g, Bread unsliced 500g, Broken Rice (Ofada), Catfish (obokun) fresh, Catfish :dried, Catfish Smoked, Chicken Feet, Dried Fish Sardine, Evaporated tinned milk carnation 170g, Evaporated tinned milk(peak), 170g, Frozen chicken, Gari white,sold loose, Gari yellow,sold loose, Groundnut oil: 1 bottle, specify bottle, Iced Sardine, Irish potato, Mackerel : frozen, Maize grain white sold loose, Maize grain yellow sold loose, Mudfish (aro) fresh, Mudfish : dried, Onion bulb, Palm oil: 1 bottle,specify bottle, Plantain(ripe), Plantain(unripe), Rice Medium Grained, Rice agric sold loose, Rice local sold loose, Rice,imported high quality sold loose, Sweet potato, Tilapia fish (epiya) fresh, Titus:frozen, Tomato, Vegetable oil:1 bottle,specify bottle, Wheat flour: prepacked (golden penny 2kg), Yam tuber.
+- Labels introduced/renamed in 2025/2026: Agric hen eggs, Agric hen eggs,, Agric hen eggs, (a Crate of 30 pieces), Beans Brown, Beans white, Beef Boneless, Bread (sliced), 450g, Bread (unsliced), 450g, Carrots, fresh, Cat fresh fish, Chicken feet, Chicken meat (Frozen), Cray fish small white, Dried fish, Bonga, Garri Yellow, Garri white, Ginger, fresh, Goat Meat Bone in, Groundnut oil, 75cl, Groundnuts, roasted,75cl bottle, Irish Potatoe, Local Rice (Broken), Mackerel, Frozen, Maize (Corn) Grains (White) sold loose, Onions, fresh, Palm oil, 75cl, Plantain (ripe), Plantain (unripe), Rice Local, short-Grained, Rice Long-Grained (Imported), Semovita, Prepacked (1kg), Smoked fish, Smoked fish (Mackerel), Sweet potatoes, Tilapia fresh fish (Epiya), Tin Milk-Evaporated, Peak Milk, 150g, Tin Milk-Evaporated, Three Crown Milk, 160g, Titus, frozen, Tomatoes, fresh, Vegetable Oil, 75cl, Watermelon whole, medium size fresh, Wheat Flour, Prepacked (2kg), Yam Tuber.
+- Exact label changes 2024 to 2025: removed=Agric eggs medium size, Agric eggs(medium size price of one), Beans brown,sold loose, Beans:white black eye. sold loose, Beef Bone in, Beef,boneless, Bread sliced 500g, Bread unsliced 500g, Broken Rice (Ofada), Catfish (obokun) fresh, Catfish :dried, Catfish Smoked, Chicken Feet, Dried Fish Sardine, Evaporated tinned milk carnation 170g, Evaporated tinned milk(peak), 170g, Frozen chicken, Gari white,sold loose, Gari yellow,sold loose, Groundnut oil: 1 bottle, specify bottle, Iced Sardine, Irish potato, Mackerel : frozen, Maize grain white sold loose, Maize grain yellow sold loose, Mudfish (aro) fresh, Mudfish : dried, Onion bulb, Palm oil: 1 bottle,specify bottle, Plantain(ripe), Plantain(unripe), Rice Medium Grained, Rice agric sold loose, Rice local sold loose, Rice,imported high quality sold loose, Sweet potato, Tilapia fish (epiya) fresh, Titus:frozen, Tomato, Vegetable oil:1 bottle,specify bottle, Wheat flour: prepacked (golden penny 2kg), Yam tuber; introduced=Agric hen eggs, Agric hen eggs,, Agric hen eggs, (a Crate of 30 pieces), Beans Brown, Beans white, Beef Boneless, Bread (sliced), 450g, Bread (unsliced), 450g, Carrots, fresh, Cat fresh fish, Chicken feet, Chicken meat (Frozen), Cray fish small white, Dried fish, Bonga, Garri Yellow, Garri white, Ginger, fresh, Goat Meat Bone in, Groundnut oil, 75cl, Groundnuts, roasted,75cl bottle, Irish Potatoe, Local Rice (Broken), Mackerel, Frozen, Maize (Corn) Grains (White) sold loose, Onions, fresh, Palm oil, 75cl, Plantain (ripe), Plantain (unripe), Rice Local, short-Grained, Rice Long-Grained (Imported), Semovita, Prepacked (1kg), Smoked fish, Smoked fish (Mackerel), Sweet potatoes, Tilapia fresh fish (Epiya), Tin Milk-Evaporated, Peak Milk, 150g, Tin Milk-Evaporated, Three Crown Milk, 160g, Titus, frozen, Tomatoes, fresh, Vegetable Oil, 75cl, Watermelon whole, medium size fresh, Wheat Flour, Prepacked (2kg), Yam Tuber.
+- Exact label changes 2025 to 2026: removed=Agric hen eggs; introduced=none.
+- The April 2025 official PDF states that NBS rebased the CPI, updated price/weight reference periods and basket composition, and changed some item specifications; it explicitly warns that some old/new item prices may not be comparable while others remain comparable.
+- The report methodology sections describe collection by NBS field staff across states/LGAs and report state averages and a national average. The supplied reports do not show a clear change to that fieldwork description, but the CPI reference periods, weights, basket and some item definitions did change.
+- For defensible modeling, January 2025 is marked as a methodology regime boundary. The normalized table does not silently splice item labels or average across that boundary. Where a label is unchanged, comparison still requires a documented item-definition check.
+- Geography headings are Nigeria plus North Central, North East, North West, South East, South South, and South West throughout the workbooks. Geographical resolution remains national/zone, not WFP market-level.
+- Unit/definition examples in the research scope: the December 2024 PDF narrative describes palm oil as 1 litre, while its workbook label says one bottle without volume; the consolidated unit field preserves the workbook's explicit-but-unsized bottle wording and does not silently convert it. The post-rebase label states 75cl. Rice labels are revised/reclassified; local/imported rice are kept separate; garri remains processed cassava product, not raw cassava.
+
+EXPLICIT MAPPING TO THE RESEARCH COMMODITIES
+- Rice (local): Broken Rice (Ofada) [related_variant]; Local Rice (Broken) [direct_variant]; Rice Local, short-Grained [direct_variant]; Rice agric sold loose [related_variant_requires_review]; Rice local sold loose [direct_variant]
+- Rice (imported): Rice Long-Grained (Imported) [direct_variant]; Rice,imported high quality sold loose [direct_variant]
+- Rice (origin unspecified): Rice Medium Grained [ambiguous_do_not_merge]
+- Maize: Maize (Corn) Grains (White) sold loose [direct_variant]; Maize grain white sold loose [direct_variant]; Maize grain yellow sold loose [direct_variant]
+- Cassava-derived product (processed gari): Garri Yellow [related_not_equivalent]; Garri white [related_not_equivalent]
+- Yam: Yam Tuber [direct_variant]; Yam tuber [direct_variant]
+- Beans: Beans Brown [direct_variant]; Beans brown,sold loose [direct_variant]; Beans white [direct_variant]; Beans:white black eye. sold loose [related_variant_requires_review]
+- Tomatoes: Tomato [direct_variant]; Tomatoes, fresh [direct_variant]
+- Palm oil: Palm oil, 75cl [direct_variant]; Palm oil: 1 bottle,specify bottle [related_variant_requires_review]
+- Raw cassava: no defensible raw-cassava item label was found. Garri/Gari white and yellow are retained as processed cassava-derived products and are not mapped to raw cassava.
+- Rice Medium Grained has no stated local/imported origin and is explicitly left ambiguous. Rice agric sold loose is a candidate local variant but remains flagged for definition review.
+- Mapped categories are metadata only; no labels with different product definitions or units are aggregated in nbs_monthly.csv.
+
+OUTPUTS
+- Consolidated table: data/processed/nbs_monthly.csv (5,600 rows after exact same-source duplicate removal).
+- Coverage report: reports/nbs_2024_2026_coverage.csv (589 item/unit/geography series rows).
+- Original downloaded XLSX and PDF files were not written to or renamed by this process.
+
+WFP CHECK (actual observations only; separate from NBS)
+- Normalized WFP table rows: 91,216; flag row counts: {'actual': 51892, 'aggregate': 38107, 'actual,aggregate': 1217}.
+- Pure actual rows: 51,892; actual coverage: 251 months; 43 commodity labels, 42 markets, 14 state labels.
+- Latest pure actual observation date: 2026-04-15; latest date across all flags: 2026-11-15 (not necessarily an actual market observation).
+- For research-scope mapped market series, recent windows are 2024-12 to 2026-11 (24 months) and 2023-12 to 2026-11 (36 months).
+- Mapped actual monthly rows by research grouping: [{'mapped': 'Beans', 'monthly_rows': 2607, 'source_commodities': 3, 'markets': 25}, {'mapped': 'Beans/pulse related', 'monthly_rows': 3153, 'source_commodities': 3, 'markets': 36}, {'mapped': 'Cassava-derived product (processed)', 'monthly_rows': 2006, 'source_commodities': 2, 'markets': 16}, {'mapped': 'Maize', 'monthly_rows': 2989, 'source_commodities': 3, 'markets': 21}, {'mapped': 'Maize-derived product (flour)', 'monthly_rows': 1298, 'source_commodities': 1, 'markets': 22}, {'mapped': 'Palm oil', 'monthly_rows': 2181, 'source_commodities': 1, 'markets': 37}, {'mapped': 'Rice (imported)', 'monthly_rows': 2828, 'source_commodities': 1, 'markets': 41}, {'mapped': 'Rice (local)', 'monthly_rows': 2717, 'source_commodities': 2, 'markets': 37}, {'mapped': 'Tomatoes', 'monthly_rows': 1156, 'source_commodities': 1, 'markets': 21}, {'mapped': 'Yam', 'monthly_rows': 2253, 'source_commodities': 2, 'markets': 37}]
+- Across direct/defensible variants, the maximum actual-month count in those windows is 1 (24 months) and 1 (36 months); 53 series have one 2026 observation.
+- No raw-cassava commodity label was found in WFP actual rows; Cassava meal (gari, yellow) and Gari (white) remain processed products, not raw cassava.
+- Previously approved five WFP combinations, audited for historical context only (Sorghum/Millet are outside the current seven-commodity research scope):
+  Sorghum (white) | Dawanau | 100 KG | Wholesale | n=199 | 2003-08 to 2021-12 | coverage=90.05% | missing=22 | longest_gap=20 | recent24=0 | recent36=0 | 2026=0
+  Maize (white) | Dawanau | 100 KG | Wholesale | n=199 | 2003-08 to 2021-12 | coverage=90.05% | missing=22 | longest_gap=20 | recent24=0 | recent36=0 | 2026=0
+  Millet | Dawanau | 100 KG | Wholesale | n=186 | 2003-08 to 2021-12 | coverage=84.16% | missing=35 | longest_gap=20 | recent24=0 | recent36=0 | 2026=0
+  Maize | Illela (CBM) | KG | Wholesale | n=145 | 2002-01 to 2017-03 | coverage=79.23% | missing=38 | longest_gap=12 | recent24=0 | recent36=0 | 2026=0
+  Sorghum | Mai Adoua (CBM) | KG | Wholesale | n=136 | 2002-11 to 2017-03 | coverage=78.61% | missing=37 | longest_gap=12 | recent24=0 | recent36=0 | 2026=0
+  Beans | Beans (red) | Abba Gamaram / Borno | 2.5 KG | Retail | n=77 | 2016-06 to 2026-04 | coverage=64.7% | missing=42 | longest_gap=34 | recent24=1 | recent36=1 | 2026=1
+  Beans | Beans (red) | Budum / Borno | 2.5 KG | Retail | n=77 | 2016-06 to 2026-04 | coverage=64.7% | missing=42 | longest_gap=34 | recent24=1 | recent36=1 | 2026=1
+  Beans | Beans (red) | Custom / Borno | 2.5 KG | Retail | n=77 | 2016-06 to 2026-04 | coverage=64.7% | missing=42 | longest_gap=34 | recent24=1 | recent36=1 | 2026=1
+  Beans | Beans (red) | Monday / Borno | 2.5 KG | Retail | n=77 | 2016-06 to 2026-04 | coverage=64.7% | missing=42 | longest_gap=34 | recent24=1 | recent36=1 | 2026=1
+  Beans | Beans (white) | Monday / Borno | 2.5 KG | Retail | n=77 | 2016-06 to 2026-04 | coverage=64.7% | missing=42 | longest_gap=34 | recent24=1 | recent36=1 | 2026=1
+  Maize-derived product (flour) | Maize flour | Abba Gamaram / Borno | 2.1 KG | Retail | n=77 | 2016-06 to 2026-04 | coverage=64.7% | missing=42 | longest_gap=34 | recent24=1 | recent36=1 | 2026=1
+  Maize-derived product (flour) | Maize flour | Budum / Borno | 2.1 KG | Retail | n=77 | 2016-06 to 2026-04 | coverage=64.7% | missing=42 | longest_gap=34 | recent24=1 | recent36=1 | 2026=1
+  Maize-derived product (flour) | Maize flour | Custom / Borno | 2.1 KG | Retail | n=77 | 2016-06 to 2026-04 | coverage=64.7% | missing=42 | longest_gap=34 | recent24=1 | recent36=1 | 2026=1
+  Maize-derived product (flour) | Maize flour | Monday / Borno | 2.1 KG | Retail | n=77 | 2016-06 to 2026-04 | coverage=64.7% | missing=42 | longest_gap=34 | recent24=1 | recent36=1 | 2026=1
+  Palm oil | Oil (palm) | Abba Gamaram / Borno | L | Retail | n=77 | 2016-06 to 2026-04 | coverage=64.7% | missing=42 | longest_gap=34 | recent24=1 | recent36=1 | 2026=1
+  Palm oil | Oil (palm) | Budum / Borno | L | Retail | n=77 | 2016-06 to 2026-04 | coverage=64.7% | missing=42 | longest_gap=34 | recent24=1 | recent36=1 | 2026=1
+  Palm oil | Oil (palm) | Custom / Borno | L | Retail | n=77 | 2016-06 to 2026-04 | coverage=64.7% | missing=42 | longest_gap=34 | recent24=1 | recent36=1 | 2026=1
+- Direct/defensible-variant WFP market series meeting all three historical criteria (>=96 months, >=80% coverage, longest gap <=3 months): 0.
+- Mapped market series with an actual observation in Sep-Nov 2026: 0.
+- Direct WFP actual market series with >=96 observations (historically longer, but not necessarily continuous/current):
+  Maize | Maize (white) | Dawanau / Kano | 100 KG | Wholesale | n=199 | 2003-08 to 2021-12 | coverage=90.0% | missing=22 | longest_gap=20 | recent24=0 | recent36=0 | 2026=0
+  Maize | Maize | Illela (CBM) / Sokoto | KG | Wholesale | n=145 | 2002-01 to 2017-03 | coverage=79.2% | missing=38 | longest_gap=12 | recent24=0 | recent36=0 | 2026=0
+  Rice (imported) | Rice (imported) | Illela (CBM) / Sokoto | KG | Wholesale | n=145 | 2002-01 to 2017-03 | coverage=79.2% | missing=38 | longest_gap=12 | recent24=0 | recent36=0 | 2026=0
+  Maize | Maize | Mai Adoua (CBM) / Katsina | KG | Wholesale | n=135 | 2002-11 to 2017-03 | coverage=78.0% | missing=38 | longest_gap=12 | recent24=0 | recent36=0 | 2026=0
+  Rice (imported) | Rice (imported) | Mai Adoua (CBM) / Katsina | KG | Wholesale | n=134 | 2002-11 to 2017-03 | coverage=77.5% | missing=39 | longest_gap=12 | recent24=0 | recent36=0 | 2026=0
+  Rice (imported) | Rice (imported) | Jibia (CBM) / Katsina | KG | Wholesale | n=123 | 2002-01 to 2017-03 | coverage=67.2% | missing=60 | longest_gap=14 | recent24=0 | recent36=0 | 2026=0
+  Maize | Maize | Jibia (CBM) / Katsina | KG | Wholesale | n=122 | 2002-01 to 2017-03 | coverage=66.7% | missing=61 | longest_gap=14 | recent24=0 | recent36=0 | 2026=0
+  Maize | Maize (white) | Ibadan / Oyo | 100 KG | Wholesale | n=96 | 2010-09 to 2021-12 | coverage=70.6% | missing=40 | longest_gap=20 | recent24=0 | recent36=0 | 2026=0
+
+INTERPRETATION
+- The NBS workbook reporting-month calendar is continuous from November 2024 through May 2026, but item definitions cross an official 2025 CPI rebasing boundary and only 17 post-rebase monthly observations exist per consistently reported item/geography.
+- As of 2026-11-19, the latest NBS observation is May 2026; no June-November 2026 workbook was present in the inspected folders. The data do not describe the current November 2026 price level.
+- NBS national/zone records can support historical description and, with explicit caveats, exploratory short-horizon baseline experiments. They are too short for reliable model selection, multi-step ML claims, or a 12-month LSTM sequence experiment.
+- Do not join NBS national/zone aggregates to WFP market-level prices. No model training or interpolation was performed.
+
+PROTECTION CHECK
+- Protected raw NBS files, raw WFP files and processed WFP table hashes unchanged: 39 files verified.
+- data/raw/ files were not modified. The processed NBS CSV was intentionally regenerated for this consolidation.

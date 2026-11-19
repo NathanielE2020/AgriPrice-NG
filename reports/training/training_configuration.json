@@ -1,0 +1,53 @@
+{
+  "generated_at": "2026-11-19T05:03:26+00:00",
+  "run_id": "20261119T060049",
+  "inputs": [
+    "data/processed/wfp_monthly.csv",
+    "data/processed/nbs_monthly.csv"
+  ],
+  "target": "WFP monthly actual price (NGN per source unit); NBS targets separate and not trained",
+  "wfp_price_flag": "actual only",
+  "features": [
+    "lag_1",
+    "lag_2",
+    "lag_3",
+    "rolling_mean_3",
+    "rolling_std_3",
+    "month_sin",
+    "month_cos",
+    "trend_month"
+  ],
+  "lag_months": [
+    1,
+    2,
+    3
+  ],
+  "rolling_window_months": 3,
+  "split": "chronological 70/15/15; model-specific usable target rows; shared validation/test dates within each series",
+  "eligibility_thresholds": {
+    "minimum_actual_months": 96,
+    "minimum_complete_lag_rows": 80,
+    "minimum_training_rows": 60,
+    "minimum_validation_rows": 10,
+    "minimum_test_rows": 10,
+    "lstm_window_months": 12,
+    "lstm_min_train_validation_test_sequences": [
+      60,
+      10,
+      10
+    ]
+  },
+  "models": {
+    "random_forest": "300 trees; min_samples_leaf=2; seed=42",
+    "xgboost": "250 trees; depth=2; learning_rate=0.03; subsample=0.9; colsample_bytree=0.9; seed=42",
+    "gradient_boosting": "120 estimators; depth=2; learning_rate=0.03; Huber loss; seed=42",
+    "stacking": "Random Forest + XGBoost + Gradient Boosting; Ridge meta-model from expanding-window training-only OOF predictions",
+    "lstm": "Input(12,1) -> LSTM(16) -> Dropout(0.10) -> Dense(1); Adam(0.001); MSE; early stopping patience 15",
+    "naive_last_observation": "actual previous calendar-month price; no substitute prior observation across gaps"
+  },
+  "notes": [
+    "Only normalized WFP/NBS data were read; no raw data modified.",
+    "No target interpolation, forward-fill, cross-source aggregation, or unit conversion was performed.",
+    "All generated forecasts are historical-only and are not current November 2026 market prices."
+  ]
+}

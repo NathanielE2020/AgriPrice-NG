@@ -1,0 +1,12 @@
+# Full ingestion and research-training environment; not installed on Render.
+-r requirements.txt
+numpy>=1.23
+scikit-learn>=1.2
+joblib>=1.2
+pandas>=2.0
+pyarrow>=15.0,<23.0
+xgboost>=2.0
+# TensorFlow is only used by the exploratory LSTM training/inference tools.
+tensorflow==2.21.0
+openpyxl==3.1.5
+pypdf==7.1.1

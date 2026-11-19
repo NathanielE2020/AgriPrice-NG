@@ -1,7 +1,0 @@
-series_id,model,split,n_train,n_validation,n_test,rmse,mae,mape,r2,status,notes
-Millet | 2.6 KG | Retail,xgboost,test,76,16,17,,,,,not_trained_missing_dependency,XGBoost unavailable or failed to import: No module named 'xgboost'
-Oil (palm) | L | Retail,xgboost,test,88,19,19,,,,,not_trained_missing_dependency,XGBoost unavailable or failed to import: No module named 'xgboost'
-Rice (imported) | 2.8 KG | Retail,xgboost,test,82,18,18,,,,,not_trained_missing_dependency,XGBoost unavailable or failed to import: No module named 'xgboost'
-Rice (imported) | 50 KG | Wholesale,xgboost,test,84,18,19,,,,,not_trained_missing_dependency,XGBoost unavailable or failed to import: No module named 'xgboost'
-Rice (local) | 2.7 KG | Retail,xgboost,test,81,18,18,,,,,not_trained_missing_dependency,XGBoost unavailable or failed to import: No module named 'xgboost'
-Yam | 2.5 KG | Retail,xgboost,test,93,20,21,,,,,not_trained_missing_dependency,XGBoost unavailable or failed to import: No module named 'xgboost'

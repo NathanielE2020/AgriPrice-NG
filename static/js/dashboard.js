@@ -1,594 +1,465 @@
-(function () {
+(() => {
   "use strict";
 
-  const state = {
-    overview: null,
-    series: { aggregate: [], market: [], world_bank: [] },
-    dataset: document.body && document.body.dataset.deployScope === "approved_market"
-      ? "market"
-      : (document.body && document.body.dataset.deployScope === "world_bank" ? "world_bank" : "aggregate"),
-    selectedSeries: { aggregate: null, market: null, world_bank: null },
-    history: null,
-    forecast: null,
-    charts: {},
-    toastTimer: null,
-  };
-
-  const modelNames = {
-    naive_last_observation: "Naive last observation",
-    random_forest: "Random Forest",
-    gradient_boosting: "Gradient Boosting",
-    xgboost: "XGBoost",
-    stacking: "Hybrid Stacking",
-    lstm: "LSTM",
-  };
-
   const $ = (selector) => document.querySelector(selector);
-  const $$ = (selector) => Array.from(document.querySelectorAll(selector));
-
-  const datasetLabels = {
-    aggregate: "Aggregate",
-    market: "Market-level",
-    world_bank: "World Bank estimates",
+  const state = {
+    dataset: "wfp",
+    overview: null,
+    series: { wfp: [], nbs: [] },
+    selected: { wfp: "", nbs: "" },
+    history: [],
+    charts: {},
   };
-
-  function configureDatasetSelectors(availableDatasets) {
-    const allowed = new Set(availableDatasets || []);
-    ["#globalDataset", "#analysisDataset", "#forecastDataset"].forEach((selector) => {
-      const select = $(selector);
-      if (!select) return;
-      const current = allowed.has(select.value) ? select.value : null;
-      select.innerHTML = Object.keys(datasetLabels)
-        .filter((dataset) => allowed.has(dataset))
-        .map((dataset) => `<option value="${dataset}">${datasetLabels[dataset]}</option>`)
-        .join("");
-      if (current) select.value = current;
-    });
-    if (!allowed.has(state.dataset)) state.dataset = availableDatasets && availableDatasets.length ? availableDatasets[0] : "market";
-  }
 
   function escapeHTML(value) {
-    return String(value ?? "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
+    return String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
   }
 
   function formatNumber(value, digits = 0) {
-    if (value === null || value === undefined || value === "" || Number.isNaN(Number(value))) return "—";
-    return Number(value).toLocaleString("en-NG", { maximumFractionDigits: digits, minimumFractionDigits: digits });
+    const number = Number(value);
+    return Number.isFinite(number) ? new Intl.NumberFormat("en-NG", { maximumFractionDigits: digits, minimumFractionDigits: digits }).format(number) : "—";
   }
 
   function formatPrice(value) {
-    if (value === null || value === undefined || value === "" || Number.isNaN(Number(value))) return "—";
-    return `₦${formatNumber(value, 2)}`;
+    return value === null || value === undefined || value === "" ? "—" : `₦${formatNumber(value, 2)}`;
   }
 
-  function formatDate(month) {
-    if (!month) return "—";
-    const [year, monthNumber] = String(month).split("-").map(Number);
-    if (!year || !monthNumber) return month;
-    return new Date(year, monthNumber - 1, 1).toLocaleDateString("en-NG", { month: "short", year: "numeric" });
-  }
-
-  function formatObservationDate(value) {
+  function formatMonth(value) {
     if (!value) return "—";
-    const text = String(value);
-    if (/^\d{4}-\d{2}-\d{2}/.test(text)) {
-      const parsed = new Date(`${text.slice(0, 10)}T00:00:00`);
-      if (!Number.isNaN(parsed.getTime())) return parsed.toLocaleDateString("en-NG", { day: "2-digit", month: "short", year: "numeric" });
-    }
-    return formatDate(text);
-  }
-
-  function formatModel(model, fallback) {
-    return fallback || modelNames[model] || model || "—";
-  }
-
-  function showToast(message, isError = false) {
-    const toast = $("#toastMessage");
-    if (!toast) return;
-    toast.textContent = message;
-    toast.className = `toast-message visible${isError ? " error" : ""}`;
-    window.clearTimeout(state.toastTimer);
-    state.toastTimer = window.setTimeout(() => { toast.className = "toast-message"; }, 3500);
-  }
-
-  function setInlineError(selector, message) {
-    const node = $(selector);
-    if (!node) return;
-    node.textContent = message || "The API could not complete this request.";
-    node.hidden = !message;
+    const match = String(value).match(/^(\d{4})-(\d{2})/);
+    if (!match) return String(value);
+    return new Intl.DateTimeFormat("en-NG", { month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, 1)));
   }
 
   async function apiGet(path) {
     const response = await fetch(path, { headers: { Accept: "application/json" } });
     let payload;
-    try { payload = await response.json(); } catch (error) { payload = {}; }
+    try { payload = await response.json(); }
+    catch (_) { throw new Error("The dashboard returned an unreadable response."); }
     if (!response.ok) {
-      const detail = payload && payload.error && payload.error.message ? payload.error.message : "The dashboard API returned an error.";
-      const failure = new Error(detail);
+      const error = payload && payload.error ? payload.error : {};
+      const failure = new Error(error.message || "The request could not be completed.");
       failure.status = response.status;
+      failure.code = error.code;
       throw failure;
     }
     return payload;
   }
 
-  function destroyChart(name) {
-    if (state.charts[name]) {
-      state.charts[name].destroy();
-      state.charts[name] = null;
-    }
+  function showToast(message, isError = false) {
+    const node = $("#toastMessage");
+    if (!node) return;
+    node.textContent = message;
+    node.classList.toggle("error", isError);
+    node.classList.add("visible");
+    window.setTimeout(() => node.classList.remove("visible"), 4200);
   }
 
-  const forecastBoundaryPlugin = {
-    id: "forecastBoundary",
-    afterDraw(chart, args, options) {
-      if (!options || options.index === undefined || !chart.scales.x) return;
-      const x = chart.scales.x.getPixelForValue(options.index);
-      const top = chart.chartArea.top;
-      const bottom = chart.chartArea.bottom;
-      const context = chart.ctx;
-      context.save();
-      context.setLineDash([4, 4]);
-      context.strokeStyle = "#c89d42";
-      context.lineWidth = 1;
-      context.beginPath();
-      context.moveTo(x, top);
-      context.lineTo(x, bottom);
-      context.stroke();
-      context.setLineDash([]);
-      context.fillStyle = "#977025";
-      context.font = "600 9px DM Sans, sans-serif";
-      context.fillText("Forecast starts", Math.min(x + 6, chart.chartArea.right - 76), top + 12);
-      context.restore();
-    },
-  };
-
-  function chartOptions(yTitle = "Price (NGN)") {
-    return {
-      responsive: true,
-      maintainAspectRatio: false,
-      animation: { duration: 350 },
-      interaction: { intersect: false, mode: "index" },
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          backgroundColor: "#173329",
-          padding: 11,
-          titleFont: { family: "DM Sans", size: 11, weight: "600" },
-          bodyFont: { family: "DM Sans", size: 11 },
-          callbacks: { label: (context) => `${context.dataset.label || "Price"}: ${formatPrice(context.parsed.y)}` },
-        },
-      },
-      scales: {
-        x: {
-          grid: { display: false },
-          ticks: { color: "#87958d", font: { family: "DM Sans", size: 10 }, maxTicksLimit: 8, maxRotation: 0 },
-          border: { display: false },
-        },
-        y: {
-          beginAtZero: false,
-          grid: { color: "#edf1ee" },
-          ticks: { color: "#87958d", font: { family: "DM Sans", size: 10 }, callback: (value) => `₦${Number(value).toLocaleString("en-NG", { notation: "compact", maximumFractionDigits: 1 })}` },
-          border: { display: false },
-          title: { display: true, text: yTitle, color: "#87958d", font: { family: "DM Sans", size: 10, weight: "500" } },
-        },
-      },
-    };
+  function setMessage(selector, message, visible = true) {
+    const node = $(selector);
+    if (!node) return;
+    node.textContent = message;
+    node.hidden = !visible;
   }
 
-  function getSeries(dataset) {
+  function getSeries(dataset = state.dataset) {
     return state.series[dataset] || [];
   }
 
-  function getSeriesItem(dataset, seriesId) {
-    return getSeries(dataset).find((item) => item.series_id === seriesId) || null;
+  function getSeriesItem(dataset, id) {
+    return getSeries(dataset).find((item) => item.series_id === id) || null;
   }
 
-  function renderLatestObservation(series, target = "analysis") {
-    if (!series) return;
-    const latestPrice = series.latest_actual_price;
-    const latestDate = series.latest_observation_date || series.last_observation_date || series.last_observed_month;
-    const age = series.observation_age_months;
-    const freshness = series.freshness_status || "unavailable";
-    const label = freshness.charAt(0).toUpperCase() + freshness.slice(1);
-    const priceText = latestPrice === null || latestPrice === undefined ? "No recorded price available" : `${formatPrice(latestPrice)} · ${series.unit || ""}`;
-    const location = series.geography_name || series.market || series.state || "";
-    const context = `${series.commodity || "Selected series"}${location ? ` · ${location}` : ""} · ${series.price_type || ""}${series.source === "world_bank" ? " · World Bank model estimate" : ""}`;
-    const estimateNote = series.source === "world_bank"
-      ? `World Bank close estimate; trust ${formatNumber(series.latest_trust_score, 1)}. Low/high: ${formatPrice(series.latest_low_estimate)} — ${formatPrice(series.latest_high_estimate)}. This is modelled/imputed, not a direct survey price.`
-      : context;
-    if (target === "forecast") {
-      $("#forecastLatestPrice").textContent = series.source === "world_bank" ? `Latest World Bank estimate: ${priceText}` : `Latest available recorded price: ${priceText}`;
-      $("#forecastLatestContext").textContent = estimateNote;
-      $("#forecastLatestDate").textContent = latestDate || "Unavailable";
-      $("#forecastLatestAge").textContent = age === null || age === undefined ? "Unavailable" : `${age} month${Number(age) === 1 ? "" : "s"}`;
-      const badge = $("#forecastFreshness");
-      badge.textContent = label;
-      badge.className = `freshness-badge freshness-${freshness}`;
-      return;
-    }
-    $("#analysisLatestPrice").textContent = latestPrice === null || latestPrice === undefined ? "No price estimate available" : `${formatPrice(latestPrice)} · ${series.unit || ""}`;
-    $("#analysisLatestContext").textContent = estimateNote;
-    $("#analysisLatestDate").textContent = latestDate || "Unavailable";
-    $("#analysisLatestAge").textContent = age === null || age === undefined ? "Unavailable" : `${age} month${Number(age) === 1 ? "" : "s"}`;
-    const badge = $("#analysisFreshness");
-    badge.textContent = label;
-    badge.className = `freshness-badge freshness-${freshness}`;
-    $("#analysisFreshnessExplanation").textContent = series.freshness_explanation || "Data age describes recency only; it does not indicate price accuracy.";
+  function configureDatasetSelectors(dataset) {
+    state.dataset = dataset === "nbs" ? "nbs" : "wfp";
+    ["#globalDataset", "#analysisDataset", "#forecastDataset"].forEach((selector) => {
+      const node = $(selector);
+      if (node) node.value = state.dataset;
+    });
   }
 
-  function setHistoryDateDefaults(series) {
-    if (!series) return;
-    const start = $("#analysisStartDate");
-    const end = $("#analysisEndDate");
-    if (start) start.value = series.first_observed_month || "";
-    if (end) end.value = series.last_observed_month || "";
-  }
-
-  function populateSeriesSelect(select, dataset, preferred) {
-    if (!select) return null;
+  function fillSeriesSelectors(dataset, preferredId) {
     const items = getSeries(dataset);
-    if (!items.length) {
-      select.innerHTML = "<option value=\"\">No series available</option>";
-      select.disabled = true;
-      return null;
-    }
-    select.disabled = false;
-    const current = preferred && items.some((item) => item.series_id === preferred) ? preferred : items[0].series_id;
-    select.innerHTML = items.map((item) => {
-      const location = item.geography_name || item.market || item.state || "";
-      const label = `${item.commodity} · ${item.unit} · ${item.price_type}${location ? ` · ${location}` : ""}`;
-      return `<option value="${escapeHTML(item.series_id)}"${item.series_id === current ? " selected" : ""}>${escapeHTML(label)}</option>`;
+    const selectors = ["#analysisSeries", "#forecastSeries", "#performanceSeries"];
+    const current = preferredId || state.selected[dataset];
+    const nextId = items.some((item) => item.series_id === current) ? current : (items[0] ? items[0].series_id : "");
+    state.selected[dataset] = nextId;
+    const optionMarkup = items.map((item) => {
+      const geo = item.market || item.geography_name || "";
+      const flag = item.price_flag ? ` · ${item.price_flag}` : "";
+      const unit = item.unit || "Not stated";
+      return `<option value="${escapeHTML(item.series_id)}">${escapeHTML(item.commodity)} · ${escapeHTML(unit)} · ${escapeHTML(item.price_type)} · ${escapeHTML(geo)}${escapeHTML(flag)}</option>`;
     }).join("");
-    return current;
+    selectors.forEach((selector) => {
+      const node = $(selector);
+      if (!node) return;
+      node.innerHTML = optionMarkup || '<option value="">No series available</option>';
+      node.querySelectorAll("option").forEach((option) => {
+        const item = items.find((candidate) => candidate.series_id === option.value);
+        if (item) option.textContent += item.forecast_available ? " [historical forecast]" : " [forecast unavailable]";
+      });
+      node.value = nextId;
+    });
+    updateForecastAvailability(dataset, nextId);
+    return getSeriesItem(dataset, nextId);
   }
 
-  function syncSeriesControls(dataset, preferred) {
-    const current = preferred || state.selectedSeries[dataset] || null;
-    const selected = populateSeriesSelect($("#analysisSeries"), dataset, current);
-    populateSeriesSelect($("#forecastSeries"), dataset, selected);
-    populateSeriesSelect($("#performanceSeries"), dataset, selected);
-    state.selectedSeries[dataset] = selected;
-    [$("#analysisDataset"), $("#forecastDataset"), $("#globalDataset")].forEach((select) => { if (select) select.value = dataset; });
-    updateForecastModels(dataset, selected);
-    const selectedSeries = getSeriesItem(dataset, selected);
-    setHistoryDateDefaults(selectedSeries);
-    renderLatestObservation(selectedSeries, "analysis");
-    renderLatestObservation(selectedSeries, "forecast");
-  }
-
-  function updateForecastModels(dataset, seriesId) {
-    const select = $("#forecastModel");
-    const note = $("#modelAvailabilityNote");
-    if (!select) return;
+  function updateForecastAvailability(dataset, seriesId) {
     const series = getSeriesItem(dataset, seriesId);
-    const models = (series && series.models ? series.models : []).filter((item) => item.available);
-    select.innerHTML = models.length ? models.map((item) => `<option value="${escapeHTML(item.model)}">${escapeHTML(item.label)}</option>`).join("") : "<option value=\"\">No model available</option>";
-    select.disabled = !models.length;
-    if (note) note.textContent = models.length ? `${models.length} validated model${models.length === 1 ? "" : "s"} available for this series.` : "No validated forecast artifact is available for this series.";
+    const model = $("#forecastModel");
+    const button = $("#generateForecast");
+    const available = Boolean(series && series.forecast_available && series.champion_model);
+    if (model) {
+      model.innerHTML = available
+        ? `<option value="${escapeHTML(series.champion_model)}">${escapeHTML(series.champion_model.replaceAll("_", " "))} · validation-selected</option>`
+        : '<option value="">No saved forecast for this series</option>';
+      model.disabled = !available;
+    }
+    if (button) {
+      button.disabled = !available;
+      button.textContent = available ? "Show saved forecast" : "Forecast unavailable";
+    }
+    const note = $("#modelAvailabilityNote");
+    if (note) note.textContent = available
+      ? `Historical-only recursive output from ${series.forecast_origin_month || series.last_observed_month}; not a current market estimate.`
+      : (series ? (series.training_note || "No validated forecast is available for this series.") : "Select an available series.");
+    if (!available) {
+      $("#forecastResults").hidden = true;
+      $("#forecastEmpty").hidden = false;
+    }
   }
 
-  function renderOverview(overview) {
-    const worldBank = overview.sources && overview.sources.world_bank && overview.sources.world_bank.available ? overview.sources.world_bank : null;
-    const facts = state.dataset === "world_bank" && worldBank ? worldBank : (overview.dataset || {});
-    const championSubset = state.dataset === "world_bank" && facts.coverage_scope === "registered_champion_subset";
-    const modelStatus = state.dataset === "world_bank"
-      ? (overview.model_status || {}).world_bank
-      : state.dataset === "aggregate"
-        ? (overview.model_status || {}).aggregate_final_validation
-        : (overview.model_status || {}).market;
-    const modelFamilies = Object.keys(modelStatus || {}).length;
+  function renderOverview() {
+    const facts = state.overview?.datasets?.[state.dataset] || {};
+    const nbs = state.dataset === "nbs";
+    const representedPlaces = nbs ? facts.geography_count : facts.market_count;
     const stats = [
-      [state.dataset === "world_bank" ? "World Bank estimates" : "Recorded observations", formatNumber(facts.historical_observations), state.dataset === "world_bank" ? "Normalized close estimates" : "Across the source dataset", "leaf"],
-      ["Commodities", formatNumber(facts.commodity_count), "Represented in the data", "grain"],
-      [state.dataset === "world_bank" ? (championSubset ? "Market rows in panel" : "Actual markets") : "Observed markets", formatNumber(facts.market_count), championSubset ? "National and market averages only" : (state.dataset === "world_bank" ? "Aggregate labels excluded" : "Market locations"), "market"],
-      ["States", formatNumber(facts.state_count), championSubset ? "Not represented in champion panel" : (state.dataset === "world_bank" ? "Distinct source labels" : "With observed records"), "state"],
-      ["Model families", formatNumber(modelFamilies), `Available in ${state.dataset} view`, "model"],
+      ["Source rows", formatNumber(facts.historical_observations), nbs ? "NBS item/geography/month records" : "Original WFP price records"],
+      ["Commodities / items", formatNumber(facts.commodity_count), "Source labels retained"],
+      [nbs ? "Geography labels" : "Observed markets", formatNumber(representedPlaces), nbs ? "National and zone" : "Market IDs in records"],
+      ["States represented", nbs ? "Not available" : formatNumber(facts.state_count), nbs ? "Workbook is not a full state panel" : "WFP admin1 labels"],
+      ["Models trained", formatNumber(state.overview?.model_status?.available_model_count), state.overview?.model_status?.message || "Model status unavailable"],
     ];
     const grid = $("#statGrid");
-    if (grid) grid.innerHTML = stats.map(([label, value, sub, icon]) => `<div class="stat-card"><span class="stat-label">${label}</span><div class="stat-value">${value}</div><div class="stat-sub">${sub}</div></div>`).join("");
-    $("#latestDate").textContent = facts.latest_observation_date || facts.date_end || "Unavailable";
-    $("#overallDateRange").textContent = facts.earliest_observation_date && facts.latest_observation_date
-      ? `${facts.earliest_observation_date} — ${facts.latest_observation_date}`
-      : "Overall range unavailable";
-    $("#frequencyValue").textContent = facts.frequency ? facts.frequency.charAt(0).toUpperCase() + facts.frequency.slice(1) : "Unavailable";
-    $("#currencyValue").textContent = facts.currency || "Unavailable";
-    $("#aboutCoverage").textContent = facts.date_start && facts.date_end ? `${facts.date_start}–${facts.date_end}` : "Unavailable";
-    $("#aboutFrequency").textContent = facts.frequency ? facts.frequency.charAt(0).toUpperCase() + facts.frequency.slice(1) : "Unavailable";
-    $("#aboutCurrency").textContent = facts.currency || "Unavailable";
-    $("#footerStatus").textContent = "API connected";
+    if (grid) grid.innerHTML = stats.map(([label, value, note]) => `<article class="stat-card"><span class="stat-label">${escapeHTML(label)}</span><strong class="stat-value">${escapeHTML(value)}</strong><span class="stat-sub">${escapeHTML(note)}</span></article>`).join("");
+    const latest = nbs
+      ? (facts.latest_observation_date || facts.date_end || "Unavailable")
+      : (facts.latest_actual_observation_date || "Unavailable");
+    $("#coverageLabel").textContent = nbs ? "Latest NBS report month" : "Latest pure-actual WFP observation";
+    $("#latestDate").textContent = latest;
+    $("#overallDateRange").textContent = facts.date_start && facts.date_end
+      ? `${nbs ? "NBS report range" : "All WFP price flags"}: ${facts.date_start} — ${facts.date_end}`
+      : "Date range unavailable";
+    $("#frequencyValue").textContent = nbs ? "Monthly reports" : "Monthly reporting";
+    $("#currencyValue").textContent = facts.currency || "NGN";
+    $("#aboutCoverage").textContent = facts.date_start && facts.date_end ? `${facts.date_start} — ${facts.date_end}` : "Unavailable";
+    $("#aboutFrequency").textContent = nbs ? "Monthly reports" : "Monthly reporting";
+    $("#aboutCurrency").textContent = facts.currency || "NGN";
+    renderSeriesTiles();
   }
 
   function renderSeriesTiles() {
     const grid = $("#overviewSeriesGrid");
+    const items = getSeries();
+    $("#seriesCount").textContent = `${formatNumber(items.length)} series`;
     if (!grid) return;
-    const dataset = state.dataset;
-    const items = getSeries(dataset);
-    $("#seriesCount").textContent = `${items.length} series`;
-    if (!items.length) { grid.innerHTML = '<div class="loading-line">No approved series are available for this view.</div>'; return; }
-    grid.innerHTML = items.map((item) => { const location = item.geography_name || item.market || item.state || ""; const estimate = dataset === "world_bank" ? " · model estimate" : ""; return `<button class="series-tile" type="button" data-overview-series="${escapeHTML(item.series_id)}"><span class="series-tile-heading"><strong>${escapeHTML(item.commodity)}</strong><span class="series-type">${escapeHTML(dataset)}</span></span><small>${escapeHTML(item.unit)} · ${escapeHTML(item.price_type)}${location ? ` · ${escapeHTML(location)}` : ""}${estimate}</small><small>${formatNumber(item.observed_months)} observed months · ${escapeHTML(item.first_observed_month)} — ${escapeHTML(item.last_observed_month)}</small></button>`; }).join("");
-    $$("[data-overview-series]").forEach((button) => button.addEventListener("click", () => {
-      state.selectedSeries[dataset] = button.dataset.overviewSeries;
-      syncSeriesControls(dataset, state.selectedSeries[dataset]);
-      loadHistory(dataset, state.selectedSeries[dataset]);
-      showSection("analysis-section");
+    if (!items.length) {
+      grid.innerHTML = '<div class="loading-line">No source series are available.</div>';
+      return;
+    }
+    const preview = items.slice(0, 18);
+    grid.innerHTML = preview.map((item) => {
+      const location = item.market || item.geography_name || "";
+      const flag = item.price_flag ? ` · ${item.price_flag}` : "";
+      return `<button class="series-tile" type="button" data-series-id="${escapeHTML(item.series_id)}"><span class="series-tile-heading"><strong>${escapeHTML(item.commodity)}</strong><span class="series-type">${escapeHTML(item.source)}</span></span><small>${escapeHTML(item.unit || "Unit not stated")} · ${escapeHTML(item.price_type)} · ${escapeHTML(location)}${escapeHTML(flag)}</small><small>${formatNumber(item.observed_months)} reported months · ${escapeHTML(item.first_observed_month)} — ${escapeHTML(item.last_observed_month)}</small></button>`;
+    }).join("") + (items.length > preview.length ? `<div class="loading-line">Showing the first ${preview.length} series. Use Price analysis to access all ${formatNumber(items.length)} series.</div>` : "");
+    grid.querySelectorAll("button.series-tile").forEach((button) => {
+      const item = getSeriesItem(state.dataset, button.dataset.seriesId);
+      const status = document.createElement("small");
+      status.textContent = item && item.forecast_available ? "Historical forecast available" : "Forecast unavailable";
+      button.append(status);
+    });
+    grid.querySelectorAll("[data-series-id]").forEach((button) => button.addEventListener("click", () => {
+      const item = getSeriesItem(state.dataset, button.dataset.seriesId);
+      if (!item) return;
+      fillSeriesSelectors(state.dataset, item.series_id);
+      setSection("analysis-section");
+      loadHistory(state.dataset, item.series_id);
     }));
   }
 
-  function setChartEmpty(selector, visible) {
-    const node = $(selector);
-    if (node) node.hidden = !visible;
+  function monthRange(start, end) {
+    const [startYear, startMonth] = start.split("-").map(Number);
+    const [endYear, endMonth] = end.split("-").map(Number);
+    const labels = [];
+    let year = startYear;
+    let month = startMonth;
+    while (year < endYear || (year === endYear && month <= endMonth)) {
+      labels.push(`${year}-${String(month).padStart(2, "0")}`);
+      month += 1;
+      if (month === 13) { month = 1; year += 1; }
+    }
+    return labels;
   }
 
-  function renderHistoryChart(history, series) {
-    destroyChart("history");
-    destroyChart("overview");
-    const labels = history.map((row) => row.month);
-    const values = history.map((row) => row.observed && row.price !== null ? row.price : null);
-    const config = {
-      type: "line",
-      data: { labels, datasets: [{ label: series.source === "world_bank" ? "World Bank close estimate" : "Observed price", data: values, borderColor: "#367c5b", backgroundColor: "rgba(54,124,91,.10)", borderWidth: 2.2, pointRadius: 2.2, pointHoverRadius: 4, pointBackgroundColor: "#367c5b", fill: true, tension: .25, spanGaps: false }] },
-      options: chartOptions(),
-    };
-    const overviewConfig = { ...config, data: { ...config.data, datasets: [{ ...config.data.datasets[0], pointRadius: 1.8, borderWidth: 2, fill: false }] }, options: { ...chartOptions(), plugins: { ...chartOptions().plugins, tooltip: config.options.plugins.tooltip } } };
-    if (window.Chart && labels.length) {
-      state.charts.history = new Chart($("#historyChart"), config);
-      state.charts.overview = new Chart($("#overviewChart"), overviewConfig);
-      setChartEmpty("#historyEmpty", false);
-      setChartEmpty("#overviewChartEmpty", false);
-    } else {
-      setChartEmpty("#historyEmpty", true);
-      setChartEmpty("#overviewChartEmpty", true);
+  function clearChart(key) {
+    if (state.charts[key]) {
+      state.charts[key].destroy();
+      delete state.charts[key];
     }
-    const observedCount = history.filter((row) => row.observed && row.price !== null).length;
-    const title = `${series.commodity} · ${series.unit} · ${series.price_type}${series.market ? ` · ${series.market}` : ""}`;
-    $("#historyTitle").textContent = title;
-    $("#overviewChartTitle").textContent = `${series.commodity} price movement`;
-    $("#overviewChartMeta").textContent = `${formatNumber(observedCount)} ${series.source === "world_bank" ? "estimated months" : "observed months"} · ${series.unit} · ${series.price_type}`;
-    $("#historyCoverage").textContent = `${series.first_observed_month} — ${series.last_observed_month}`;
-    renderLatestObservation(series, "analysis");
+  }
+
+  function drawHistory(history, series, chartKey, canvasSelector, emptySelector) {
+    clearChart(chartKey);
+    const valid = history.filter((row) => row.month);
+    const canvas = $(canvasSelector);
+    const empty = $(emptySelector);
+    if (!valid.length || !canvas || !window.Chart) {
+      if (empty) empty.hidden = false;
+      return;
+    }
+    const byMonth = new Map(valid.map((row) => [row.month, row.price]));
+    const labels = monthRange(valid[0].month, valid[valid.length - 1].month);
+    const values = labels.map((label) => byMonth.has(label) ? byMonth.get(label) : null);
+    if (empty) empty.hidden = true;
+    state.charts[chartKey] = new Chart(canvas, {
+      type: "line",
+      data: { labels, datasets: [{
+        label: series.source === "NBS" ? "NBS reported average" : `WFP ${series.price_flag || "price"}`,
+        data: values,
+        borderColor: "#367c5b",
+        backgroundColor: "rgba(54,124,91,.10)",
+        borderWidth: 2,
+        pointRadius: 1.8,
+        fill: true,
+        tension: 0.2,
+        spanGaps: false,
+      }] },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { intersect: false, mode: "index" },
+        plugins: { legend: { display: true }, tooltip: { callbacks: { label: (context) => ` ${formatPrice(context.parsed.y)}` } } },
+        scales: {
+          x: { title: { display: true, text: "Reporting month" }, ticks: { maxTicksLimit: 12 } },
+          y: { title: { display: true, text: series.currency || "Price (source currency)" }, beginAtZero: false },
+        },
+      },
+    });
+  }
+
+  function renderLatest(series) {
+    if (!series) return;
+    const isNbs = series.source === "NBS";
+    const location = series.market || series.geography_name || "";
+    const date = series.latest_observation_date || series.last_observed_month;
+    $("#analysisLatestPrice").textContent = formatPrice(series.latest_price);
+    $("#analysisLatestContext").textContent = `${series.commodity} · ${series.unit || "unit not stated"} · ${series.price_type}${location ? ` · ${location}` : ""}`;
+    $("#analysisLatestDate").textContent = date || "—";
+    $("#analysisLatestAge").textContent = Number.isFinite(Number(series.observation_age_months))
+      ? `${formatNumber(series.observation_age_months)} month${Number(series.observation_age_months) === 1 ? "" : "s"} old`
+      : "—";
+    $("#analysisFreshness").textContent = isNbs
+      ? `NBS summary · ${series.freshness || "unavailable"}`
+      : (series.price_flag === "actual" ? (series.freshness || "unavailable") : `WFP ${series.price_flag || "source"} flag`);
+    $("#analysisFreshnessExplanation").textContent = series.price_flag && series.price_flag !== "actual"
+      ? "This WFP record is not a pure direct-actual price flag. Its date does not establish freshness of direct market observations."
+      : `${series.freshness_explanation || "Observation age is not a measure of price accuracy or representativeness."} Age describes recency only.`;
+    $("#forecastLatestPrice").textContent = `Latest available value: ${formatPrice(series.latest_price)}`;
+    $("#forecastLatestContext").textContent = `${series.source} reporting period ${formatMonth(series.last_observed_month)}. No forecast is available.`;
+    $("#forecastLatestDate").textContent = formatMonth(series.last_observed_month);
+    $("#forecastLatestAge").textContent = "—";
+    $("#forecastFreshness").textContent = "Not forecastable";
   }
 
   function renderHistoryTable(history, series) {
     const body = $("#historyTableBody");
-    const observedCount = history.filter((row) => row.observed && row.price !== null).length;
-    $("#historyCount").textContent = `${formatNumber(observedCount)} ${series.source === "world_bank" ? "estimated" : "observed"}`;
     if (!body) return;
     body.innerHTML = history.slice().reverse().map((row) => {
-      const status = row.observed && row.price !== null;
-      const marketCount = row.n_markets !== undefined && row.n_markets !== null ? formatNumber(row.n_markets) : (row.geography_name || row.market || row.state || "—");
-      const estimated = series.source === "world_bank";
-      return `<tr><td>${escapeHTML(formatObservationDate(row.date || row.month))}</td><td>${escapeHTML(series.commodity)}</td><td class="price-cell${status ? "" : " muted-cell"}">${status ? escapeHTML(formatPrice(row.price)) : "—"}</td><td>${escapeHTML(series.unit)}</td><td>${escapeHTML(series.price_type)}</td><td>${escapeHTML(series.market || marketCount)}</td><td class="${status ? "status-observed" : "status-missing"}">${status ? (estimated ? "Estimated" : "Observed") : "Missing"}</td></tr>`;
+      const place = series.market || series.geography_name || "—";
+      const status = row.price === null ? "Price missing in source" : (row.price_flag || "Reported");
+      return `<tr><td>${escapeHTML(row.month)}</td><td>${escapeHTML(series.commodity)}</td><td class="price-cell">${escapeHTML(formatPrice(row.price))}</td><td>${escapeHTML(series.unit || "Not stated")}</td><td>${escapeHTML(series.price_type)}</td><td>${escapeHTML(place)}</td><td>${escapeHTML(status)}</td></tr>`;
     }).join("");
+    $("#historyCount").textContent = `${formatNumber(history.length)} source rows`;
   }
 
   async function loadHistory(dataset, seriesId) {
     const series = getSeriesItem(dataset, seriesId);
     if (!series) return;
-    state.selectedSeries[dataset] = seriesId;
+    state.selected[dataset] = seriesId;
+    const params = new URLSearchParams({ dataset, series_id: seriesId });
+    if (dataset === $("#analysisDataset").value) {
+      if ($("#analysisStartDate").value) params.set("start_date", $("#analysisStartDate").value);
+      if ($("#analysisEndDate").value) params.set("end_date", $("#analysisEndDate").value);
+    }
     try {
-      const params = { dataset, series_id: seriesId };
-      if (dataset === $("#analysisDataset").value) {
-        const startDate = $("#analysisStartDate").value;
-        const endDate = $("#analysisEndDate").value;
-        if (startDate) params.start_date = startDate;
-        if (endDate) params.end_date = endDate;
-        if (startDate && endDate && startDate > endDate) {
-          throw new Error("Start month must not be later than end month.");
-        }
-      }
-      const query = new URLSearchParams(params);
-      const payload = await apiGet(`/api/history?${query.toString()}`);
-      state.history = payload;
-      renderHistoryChart(payload.history || [], payload.series || series);
-      renderHistoryTable(payload.history || [], payload.series || series);
-      renderLatestObservation(payload.series || series, "analysis");
-      const requested = payload.requested_range || {};
-      if (requested.start_month || requested.end_month) {
-        $("#historyCoverage").textContent = `${requested.start_month || series.first_observed_month} — ${requested.end_month || series.last_observed_month}`;
-      }
+      const payload = await apiGet(`/api/history?${params.toString()}`);
+      state.history = payload.history || [];
+      const selectedSeries = payload.series || series;
+      const location = selectedSeries.market || selectedSeries.geography_name || "";
+      $("#historyTitle").textContent = `${selectedSeries.commodity} · ${selectedSeries.unit || "unit not stated"}${location ? ` · ${location}` : ""}`;
+      $("#historyCoverage").textContent = `${selectedSeries.first_observed_month} — ${selectedSeries.last_observed_month}`;
+      $("#overviewChartTitle").textContent = `${selectedSeries.commodity} monthly history`;
+      $("#overviewChartMeta").textContent = `${formatNumber(selectedSeries.observed_months)} reported months · ${selectedSeries.price_type}`;
+      drawHistory(state.history, selectedSeries, "history", "#historyChart", "#historyEmpty");
+      drawHistory(state.history, selectedSeries, "overview", "#overviewChart", "#overviewChartEmpty");
+      renderHistoryTable(state.history, selectedSeries);
+      renderLatest(selectedSeries);
+      setMessage("#forecastError", "", false);
     } catch (error) {
-      setInlineError("#forecastError", "");
       showToast(error.message, true);
-      $("#overviewChartMeta").textContent = "History unavailable";
-      setChartEmpty("#historyEmpty", true);
-      setChartEmpty("#overviewChartEmpty", true);
+      setMessage("#historyEmpty", error.message, true);
     }
-  }
-
-  function renderForecastChart(payload) {
-    destroyChart("forecast");
-    const historical = (payload.historical || []).map((row) => ({ month: row.month, price: row.observed ? row.price : null }));
-    const forecast = payload.forecast || [];
-    const isWorldBank = payload.series && payload.series.source === "world_bank";
-    const chartEyebrow = $("#forecastChartEyebrow");
-    if (chartEyebrow) chartEyebrow.textContent = isWorldBank ? "WORLD BANK ESTIMATE VS FORECAST" : "OBSERVED HISTORY VS FORECAST";
-    const labels = historical.map((row) => row.month).concat(forecast.map((row) => row.forecast_month));
-    const actualValues = historical.map((row) => row.price).concat(forecast.map(() => null));
-    const forecastValues = historical.map(() => null).concat(forecast.map((row) => row.forecast_price));
-    const boundaryIndex = historical.length;
-    const options = chartOptions();
-    options.plugins.forecastBoundary = { index: boundaryIndex };
-    const config = {
-      type: "line",
-      data: { labels, datasets: [
-        { label: payload.series && payload.series.source === "world_bank" ? "World Bank close estimate" : "Observed price", data: actualValues, borderColor: "#367c5b", backgroundColor: "rgba(54,124,91,.08)", borderWidth: 2.2, pointRadius: 2, pointHoverRadius: 4, pointBackgroundColor: "#367c5b", fill: true, tension: .25, spanGaps: false },
-        { label: "Forecast estimate", data: forecastValues, borderColor: "#c89d42", backgroundColor: "rgba(200,157,66,.08)", borderWidth: 2.2, borderDash: [6, 4], pointRadius: 3, pointHoverRadius: 5, pointBackgroundColor: "#c89d42", fill: false, tension: .2, spanGaps: false },
-      ] },
-      options,
-      plugins: [forecastBoundaryPlugin],
-    };
-    if (window.Chart) state.charts.forecast = new Chart($("#forecastChart"), config);
-    const historyLegend = $("#forecastHistoricalLegend");
-    if (historyLegend) historyLegend.textContent = payload.series && payload.series.source === "world_bank" ? "World Bank close estimate" : "Observed price";
-  }
-
-  function renderForecastMeta(payload) {
-    const metadata = payload.metadata || {};
-    const series = payload.series || {};
-    const isWorldBank = series.source === "world_bank";
-    renderLatestObservation(series, "forecast");
-    const warning = $("#forecastFreshnessWarning");
-    if (warning) {
-      warning.textContent = payload.freshness_warning || (payload.freshness_explanation && payload.freshness_status !== "fresh" ? payload.freshness_explanation : "");
-      warning.hidden = !warning.textContent;
-    }
-    const entries = [
-      ["Commodity", metadata.commodity || series.commodity],
-      ["Unit", metadata.unit || series.unit],
-      ["Price type", metadata.price_type || series.price_type],
-      ["Model", payload.model_label || formatModel(metadata.model || payload.model)],
-      ["Transformation", metadata.transformation || payload.transformation],
-      ["Origin month", metadata.origin_month || payload.origin_month],
-      [isWorldBank ? "Last recorded estimate month" : "Last actual date", payload.latest_observation_date || metadata.latest_observation_date || series.latest_observation_date],
-      [isWorldBank ? "Latest recorded estimate" : "Latest actual price", formatPrice(payload.latest_actual_price ?? metadata.latest_actual_price ?? series.latest_actual_price)],
-      ["Horizon", `${metadata.horizon_months || payload.horizon_months} month${Number(metadata.horizon_months || payload.horizon_months) === 1 ? "" : "s"}`],
-      ["Method", metadata.recursive_method || payload.recursive_method],
-    ];
-    $("#forecastMeta").innerHTML = entries.map(([label, value]) => `<div class="meta-item"><span>${escapeHTML(label)}</span><strong>${escapeHTML(value || "Unavailable")}</strong></div>`).join("");
-    $("#forecastTitle").textContent = `${series.commodity || metadata.commodity || "Series"} forecast`;
-  }
-
-  function renderForecastTable(payload) {
-    const body = $("#forecastTableBody");
-    if (!body) return;
-    body.innerHTML = (payload.forecast || []).map((row) => `<tr><td>${escapeHTML(formatDate(row.forecast_month))}</td><td class="price-cell">${escapeHTML(formatPrice(row.forecast_price))}</td><td>${escapeHTML(payload.model_label || formatModel(payload.model))}</td><td>${escapeHTML(`${row.horizon_months} month${row.horizon_months === 1 ? "" : "s"}`)}</td><td class="status-observed">Estimate</td></tr>`).join("");
-  }
-
-  async function generateForecast() {
-    const dataset = $("#forecastDataset").value;
-    const seriesId = $("#forecastSeries").value;
-    const model = $("#forecastModel").value;
-    const horizon = $("#forecastHorizon").value;
-    const button = $("#generateForecast");
-    setInlineError("#forecastError", "");
-    if (!seriesId || !model || !["1", "3", "6"].includes(horizon)) { setInlineError("#forecastError", "Select a supported series, model, and horizon before generating a forecast."); return; }
-    button.disabled = true;
-    button.innerHTML = "<span>…</span> Generating…";
-    try {
-      const query = new URLSearchParams({ dataset, series_id: seriesId, model, horizon });
-      const payload = await apiGet(`/api/forecast?${query.toString()}`);
-      if (!payload.forecast || payload.forecast.length !== Number(horizon)) throw new Error("The API returned an incomplete forecast.");
-      state.forecast = payload;
-      renderForecastChart(payload);
-      renderForecastMeta(payload);
-      renderForecastTable(payload);
-      $("#forecastEmpty").hidden = true;
-      $("#forecastResult").hidden = false;
-      showToast("Forecast generated from the saved model artifact.");
-    } catch (error) {
-      $("#forecastResult").hidden = true;
-      $("#forecastEmpty").hidden = false;
-      setInlineError("#forecastError", `${error.message}${error.status ? ` (HTTP ${error.status})` : ""}`);
-    } finally {
-      button.disabled = false;
-      button.innerHTML = "<span>↗</span> Generate forecast";
-    }
-  }
-
-  function renderPerformance(payload, dataset) {
-    const records = (payload.records || []).filter((row) => row.status === "evaluated" && row.evaluation_validity !== false);
-    destroyChart("rmse");
-    destroyChart("mae");
-    $("#performanceMethodologyText").textContent = dataset === "world_bank"
-      ? "Prices are World Bank c_ close estimates, not necessarily direct survey prices. The production champion was selected using validation RMSE; test metrics below are an untouched audit, and other models are research comparisons only."
-      : dataset === "aggregate"
-        ? "Models are compared using identical test observations within each aggregate commodity series. The original model training cutoffs were not identical; therefore, this comparison controls test-date differences but does not represent a fully controlled experiment with identical training cutoffs."
-        : "These are preserved market-level chronological evaluation records for the selected series. Aggregate common-test-date metrics are not applied to market-level models, and unavailable model artifacts remain unavailable.";
-    if (!records.length) {
-      setInlineError("#performanceError", "No valid evaluation records are available for this series.");
-      $("#performanceTableBody").innerHTML = "";
-      return;
-    }
-    setInlineError("#performanceError", "");
-    const best = records.reduce((winner, row) => Number(row.rmse) < Number(winner.rmse) ? row : winner, records[0]);
-    const first = records.map((row) => row.first_test_date).filter(Boolean).sort()[0];
-    const last = records.map((row) => row.last_test_date).filter(Boolean).sort().slice(-1)[0];
-    $("#performanceSummary").innerHTML = `<strong>${escapeHTML(formatModel(best.model, best.model_label))}</strong> has the lowest RMSE in this series (${escapeHTML(formatNumber(best.rmse, 2))}). Test coverage: ${escapeHTML(first || "—")} — ${escapeHTML(last || "—")}.`;
-    $("#performanceDates").textContent = `${first || "—"} — ${last || "—"}`;
-    if (dataset === "world_bank") {
-      const champion = records.find((row) => row.production_champion);
-      $("#performanceSummary").textContent = champion
-        ? "Registered production champion: " + formatModel(champion.model, champion.model_label) + " (selected on validation RMSE). Lowest test RMSE audit: " + formatModel(best.model, best.model_label) + " (" + formatNumber(best.rmse, 2) + "); test results did not select the champion. Coverage: " + (first || "—") + " — " + (last || "—") + "."
-        : "No registered production champion is identified for this series. Test metrics are audit results only.";
-    }
-    const labels = records.map((row) => formatModel(row.model, row.model_label));
-    const barConfig = (metric, name) => ({ type: "bar", data: { labels, datasets: [{ label: name, data: records.map((row) => Number(row[metric])), backgroundColor: records.map((row) => row.model === best.model ? "#2f9b6d" : "#9fc6ae"), borderRadius: 5, borderSkipped: false, barPercentage: .62, categoryPercentage: .72 }] }, options: { ...chartOptions(), indexAxis: "y", plugins: { ...chartOptions().plugins, tooltip: { ...chartOptions().plugins.tooltip, callbacks: { label: (context) => `${name}: ${formatNumber(context.parsed.x, 2)}` } } }, scales: { ...chartOptions().scales, x: { ...chartOptions().scales.y, beginAtZero: true, ticks: { color: "#87958d", font: { family: "DM Sans", size: 10 }, callback: (value) => formatNumber(value, 0) }, grid: { color: "#edf1ee" }, border: { display: false } }, y: { ...chartOptions().scales.x, ticks: { color: "#52655b", font: { family: "DM Sans", size: 10 } }, grid: { display: false }, border: { display: false } } } } });
-    if (window.Chart) {
-      state.charts.rmse = new Chart($("#rmseChart"), barConfig("rmse", "RMSE"));
-      state.charts.mae = new Chart($("#maeChart"), barConfig("mae", "MAE"));
-    }
-    $("#performanceTableBody").innerHTML = records.map((row) => `<tr class="${row.model === best.model ? "best-row" : ""}"><td>${escapeHTML(formatModel(row.model, row.model_label))}</td><td>${escapeHTML(formatNumber(row.rmse, 2))}</td><td>${escapeHTML(formatNumber(row.mae, 2))}</td><td>${escapeHTML(formatNumber(row.mape, 2))}%</td><td>${escapeHTML(formatNumber(row.r2, 3))}</td><td>${escapeHTML(formatNumber(row.bias, 2))}</td><td>${escapeHTML(formatNumber(row.n_test))}</td><td class="validity">Valid</td></tr>`).join("");
   }
 
   async function loadPerformance(dataset, seriesId) {
     if (!seriesId) return;
     try {
-      const query = new URLSearchParams({ dataset, series_id: seriesId });
-      const payload = await apiGet(`/api/performance?${query.toString()}`);
-      renderPerformance(payload, dataset);
+      const params = new URLSearchParams({ dataset, series_id: seriesId });
+      const payload = await apiGet(`/api/performance?${params.toString()}`);
+      const summary = payload.summary || {};
+      $("#performanceSummary").textContent = payload.message || "No validated evaluation records are available.";
+      $("#performanceDates").textContent = summary.test_date_count
+        ? `${formatNumber(summary.test_date_count)} common test dates · ${summary.test_first_month} — ${summary.test_last_month} · ${summary.forecast_classification || "historical experiment"}`
+        : "No evaluation dates";
+      const labels = { naive_last_observation: "Naive last observation", random_forest: "Random Forest", xgboost: "XGBoost", gradient_boosting: "Gradient Boosting", stacking: "Hybrid stacking", lstm: "LSTM" };
+      $("#performanceTableBody").innerHTML = (payload.records || []).map((row) => {
+        const champion = row.champion_selected_on_validation ? " · champion by validation" : "";
+        const status = row.status === "trained_and_evaluated" ? `Evaluated${champion}` : (row.unavailable_reason || "Unavailable");
+        return `<tr><td>${escapeHTML(labels[row.model] || row.model)}${row.champion_selected_on_validation ? " ★" : ""}</td><td>${formatNumber(row.rmse, 2)}</td><td>${formatNumber(row.mae, 2)}</td><td>${row.mape === null ? "—" : `${formatNumber(row.mape, 2)}%`}</td><td>${formatNumber(row.r2, 3)}</td><td>${formatNumber(row.bias, 2)}</td><td>${escapeHTML(status)}</td></tr>`;
+      }).join("");
+      setMessage("#performanceError", payload.status === "evaluated" ? "" : (payload.message || "No test metrics are available."), payload.status !== "evaluated");
+      drawPerformance(payload.predictions_by_date || []);
     } catch (error) {
-      setInlineError("#performanceError", error.message);
+      setMessage("#performanceError", error.message, true);
     }
   }
 
-  function showSection(sectionId) {
-    $$(".dashboard-section").forEach((section) => { section.hidden = section.id !== sectionId; section.classList.toggle("active", section.id === sectionId); });
-    const target = $(`[data-section-target="${sectionId}"]`);
-    $$(".side-link").forEach((link) => link.classList.toggle("active", link === target));
-    const title = { "overview-section": "Overview", "analysis-section": "Price analysis", "forecast-section": "Price forecasting", "performance-section": "Model performance", "about-section": "About the project" }[sectionId] || "Overview";
-    $("#pageTitle").textContent = title;
-    const sidebar = $("#sidebar");
-    const menu = $("#mobileMenu");
-    if (sidebar) sidebar.classList.remove("open");
-    if (menu) menu.setAttribute("aria-expanded", "false");
-    if (sectionId === "performance-section") loadPerformance(state.dataset, state.selectedSeries[state.dataset]);
+  function drawPerformance(rows) {
+    clearChart("performance");
+    const canvas = $("#performanceChart");
+    const empty = $("#performanceChartEmpty");
+    if (!rows.length || !canvas || !window.Chart) {
+      if (empty) empty.hidden = false;
+      return;
+    }
+    const models = [...new Set(rows.flatMap((row) => Object.keys(row.models || {})))];
+    const actual = rows.map((row) => {
+      const first = Object.values(row.models || {})[0];
+      return first ? first.actual : null;
+    });
+    const palette = ["#a66b2c", "#2c7a56", "#4f79a7", "#8756a5", "#cf5b45", "#68727d"];
+    const datasets = [{ label: "Actual", data: actual, borderColor: "#183d2e", backgroundColor: "#183d2e", borderWidth: 3, pointRadius: 2, spanGaps: false }];
+    models.forEach((model, index) => {
+      datasets.push({
+        label: model.replaceAll("_", " "),
+        data: rows.map((row) => row.models?.[model]?.predicted ?? null),
+        borderColor: palette[index % palette.length], backgroundColor: palette[index % palette.length],
+        borderWidth: model === "naive_last_observation" ? 2 : 1.7, pointRadius: 1.5,
+        borderDash: model === "naive_last_observation" ? [5, 4] : [], spanGaps: false,
+      });
+    });
+    if (empty) empty.hidden = true;
+    state.charts.performance = new Chart(canvas, {
+      type: "line", data: { labels: rows.map((row) => row.month), datasets },
+      options: { responsive: true, maintainAspectRatio: false, interaction: { intersect: false, mode: "index" }, plugins: { legend: { display: true } }, scales: { x: { title: { display: true, text: "Common chronological test month" }, ticks: { maxTicksLimit: 12 } }, y: { title: { display: true, text: "Price in source NGN/unit" } } } },
+    });
+  }
+
+  function renderForecast(payload) {
+    const rows = payload.forecast || [];
+    const historical = payload.historical || [];
+    const metadata = payload.metadata || {};
+    if (!rows.length) return;
+    $("#forecastEmpty").hidden = true;
+    $("#forecastResults").hidden = false;
+    $("#forecastChartTitle").textContent = `${payload.series?.commodity || metadata.commodity} · ${payload.horizon}-month recursive forecast`;
+    $("#forecastMetaLabel").textContent = `Historical only · origin ${metadata.forecast_origin_month}`;
+    $("#forecastMethodText").textContent = `${metadata.method}. Generated ${metadata.forecast_generation_date} from origin ${metadata.forecast_origin_month}; latest actual in the source is ${metadata.latest_actual_month_in_source}. It is not a current market price and has no confidence interval.`;
+    $("#forecastTableBody").innerHTML = rows.map((row) => `<tr><td>${escapeHTML(row.month)}</td><td class="price-cell">${escapeHTML(formatPrice(row.price))}</td><td>${formatNumber(row.step)}</td><td>${escapeHTML(payload.model.replaceAll("_", " "))}</td><td>Historical only</td></tr>`).join("");
+    clearChart("forecast");
+    const actualByMonth = new Map(historical.map((row) => [row.month, row.price]));
+    const forecastByMonth = new Map(rows.map((row) => [row.month, row.price]));
+    const allMonths = [...actualByMonth.keys(), ...forecastByMonth.keys()].sort();
+    const labels = allMonths.length ? monthRange(allMonths[0], allMonths[allMonths.length - 1]) : [];
+    const canvas = $("#forecastChart");
+    if (canvas && window.Chart) {
+      state.charts.forecast = new Chart(canvas, {
+        type: "line",
+        data: { labels, datasets: [
+          { label: "Historical WFP actual", data: labels.map((month) => actualByMonth.get(month) ?? null), borderColor: "#2c7a56", backgroundColor: "rgba(44,122,86,.08)", borderWidth: 2, pointRadius: 2, spanGaps: false },
+          { label: "Recursive forecast", data: labels.map((month) => forecastByMonth.get(month) ?? null), borderColor: "#cf5b45", backgroundColor: "rgba(207,91,69,.08)", borderWidth: 2, borderDash: [6, 4], pointRadius: 3, spanGaps: false },
+        ] },
+        options: { responsive: true, maintainAspectRatio: false, interaction: { intersect: false, mode: "index" }, plugins: { legend: { display: true } }, scales: { x: { title: { display: true, text: "Month" } }, y: { title: { display: true, text: `${metadata.currency || "NGN"} per ${metadata.unit || "source unit"}` } } } },
+      });
+    }
+  }
+
+  async function requestForecast() {
+    const dataset = $("#forecastDataset").value;
+    const seriesId = $("#forecastSeries").value;
+    const model = $("#forecastModel").value;
+    const horizon = $("#forecastHorizon").value;
+    const button = $("#generateForecast");
+    button.disabled = true;
+    button.textContent = "Loading saved forecast…";
+    setMessage("#forecastError", "", false);
+    try {
+      const payload = await apiGet(`/api/forecast?${new URLSearchParams({ dataset, series_id: seriesId, model, horizon }).toString()}`);
+      renderForecast(payload);
+    } catch (error) {
+      setMessage("#forecastError", error.message, true);
+    } finally {
+      button.disabled = !getSeriesItem(dataset, seriesId)?.forecast_available;
+      button.textContent = button.disabled ? "Forecast unavailable" : "Show saved forecast";
+    }
+  }
+
+  function setSection(sectionId) {
+    document.querySelectorAll(".dashboard-section").forEach((section) => {
+      section.hidden = section.id !== sectionId;
+      section.classList.toggle("active", section.id === sectionId);
+    });
+    document.querySelectorAll(".side-link").forEach((link) => link.classList.toggle("active", link.dataset.sectionTarget === sectionId));
+    const names = { "overview-section": "Overview", "analysis-section": "Price analysis", "forecast-section": "Forecasting", "performance-section": "Model performance", "about-section": "Data and methodology" };
+    $("#pageTitle").textContent = names[sectionId] || "Overview";
+    $("#sidebar").classList.remove("open");
+    $("#mobileMenu").setAttribute("aria-expanded", "false");
+    if (sectionId === "performance-section") loadPerformance(state.dataset, state.selected[state.dataset]);
   }
 
   function switchDataset(dataset) {
     if (!state.series[dataset]) return;
     state.dataset = dataset;
-    if (state.overview) renderOverview(state.overview);
-    renderSeriesTiles();
-    syncSeriesControls(dataset);
-    loadHistory(dataset, state.selectedSeries[dataset]);
-    if (!$("#performance-section").hidden) loadPerformance(dataset, state.selectedSeries[dataset]);
+    configureDatasetSelectors(dataset);
+    const series = fillSeriesSelectors(dataset);
+    renderOverview();
+    if (series) loadHistory(dataset, series.series_id);
+    if (!$("#performance-section").hidden) loadPerformance(dataset, series?.series_id);
   }
 
   function bindEvents() {
-    $$("[data-section-target]").forEach((button) => button.addEventListener("click", () => showSection(button.dataset.sectionTarget)));
+    document.querySelectorAll("[data-section-target]").forEach((button) => button.addEventListener("click", () => setSection(button.dataset.sectionTarget)));
     $("#mobileMenu").addEventListener("click", () => {
-      const sidebar = $("#sidebar");
-      const open = sidebar.classList.toggle("open");
+      const open = $("#sidebar").classList.toggle("open");
       $("#mobileMenu").setAttribute("aria-expanded", String(open));
     });
-    $("#globalDataset").addEventListener("change", (event) => switchDataset(event.target.value));
-    $("#analysisDataset").addEventListener("change", (event) => switchDataset(event.target.value));
-    $("#forecastDataset").addEventListener("change", (event) => { switchDataset(event.target.value); updateForecastModels(event.target.value, state.selectedSeries[event.target.value]); });
+    ["#globalDataset", "#analysisDataset", "#forecastDataset"].forEach((selector) => $(selector).addEventListener("change", (event) => switchDataset(event.target.value)));
     $("#analysisSeries").addEventListener("change", (event) => {
-      state.selectedSeries[state.dataset] = event.target.value;
-      $("#forecastSeries").value = event.target.value;
-      $("#performanceSeries").value = event.target.value;
-      const selected = getSeriesItem(state.dataset, event.target.value);
-      setHistoryDateDefaults(selected);
-      renderLatestObservation(selected, "analysis");
-      renderLatestObservation(selected, "forecast");
-      loadHistory(state.dataset, event.target.value);
+      const item = getSeriesItem(state.dataset, event.target.value);
+      if (!item) return;
+      fillSeriesSelectors(state.dataset, item.series_id);
+      loadHistory(state.dataset, item.series_id);
     });
     $("#forecastSeries").addEventListener("change", (event) => {
-      const dataset = $("#forecastDataset").value;
-      state.selectedSeries[dataset] = event.target.value;
-      updateForecastModels(dataset, event.target.value);
-      renderLatestObservation(getSeriesItem(dataset, event.target.value), "forecast");
+      state.selected[state.dataset] = event.target.value;
+      updateForecastAvailability(state.dataset, event.target.value);
+      renderLatest(getSeriesItem(state.dataset, event.target.value));
     });
     $("#performanceSeries").addEventListener("change", (event) => loadPerformance(state.dataset, event.target.value));
     $("#refreshHistory").addEventListener("click", () => loadHistory(state.dataset, $("#analysisSeries").value));
-    [$("#analysisStartDate"), $("#analysisEndDate")].forEach((input) => input.addEventListener("change", () => loadHistory(state.dataset, $("#analysisSeries").value)));
-    $("#generateForecast").addEventListener("click", generateForecast);
+    ["#analysisStartDate", "#analysisEndDate"].forEach((selector) => $(selector).addEventListener("change", () => loadHistory(state.dataset, $("#analysisSeries").value)));
+    $("#generateForecast").addEventListener("click", requestForecast);
   }
 
   async function init() {
@@ -596,20 +467,18 @@
     try {
       const [overview, series] = await Promise.all([apiGet("/api/overview"), apiGet("/api/series")]);
       state.overview = overview;
-      state.series = { aggregate: series.aggregate || [], market: series.market || [], world_bank: series.world_bank || [] };
-      configureDatasetSelectors(overview.available_datasets || Object.keys(series).filter((key) => state.series[key]));
-      renderOverview(overview);
-      syncSeriesControls(state.dataset);
-      renderSeriesTiles();
-      await loadHistory(state.dataset, state.selectedSeries[state.dataset]);
-      $("#footerStatus").textContent = "API connected";
+      state.series = { wfp: series.wfp || [], nbs: series.nbs || [] };
+      configureDatasetSelectors(overview.default_dataset || "wfp");
+      const current = fillSeriesSelectors(state.dataset);
+      renderOverview();
+      if (current) await loadHistory(state.dataset, current.series_id);
+      $("#footerStatus").textContent = "WFP and NBS data ready";
     } catch (error) {
-      $("#footerStatus").textContent = "API unavailable";
-      showToast(error.message, true);
-      $("#overviewSeriesGrid").innerHTML = '<div class="loading-line">The dashboard API could not be reached. Refresh to try again.</div>';
-      $("#statGrid").innerHTML = '<div class="inline-alert error-alert" style="grid-column:1/-1">The overview could not be loaded from the Flask backend.</div>';
+      $("#footerStatus").textContent = "Data unavailable";
+      $("#overviewSeriesGrid").innerHTML = '<div class="loading-line">The source data could not be loaded. Check the prepared WFP/NBS tables.</div>';
+      $("#statGrid").innerHTML = `<div class="inline-alert error-alert" style="grid-column:1/-1">${escapeHTML(error.message)}</div>`;
     }
   }
 
   document.addEventListener("DOMContentLoaded", init);
-}());
+})();

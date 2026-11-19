@@ -1,4 +1,4 @@
-"""Isolated World Bank model experiment.
+"""Retired historical World Bank model experiment.
 
 This runner trains only on the normalized World Bank release under
 ``data/processed/world_bank`` and writes only below ``models/world_bank``,
@@ -432,6 +432,10 @@ def _recursive_forecast(model: Any, rows: list[dict], transform: str, horizons=(
 
 
 def _legacy_train_world_bank(rebuild_data: bool = False) -> dict[str, Any]:
+    raise RuntimeError(
+        "This training pipeline is retired. Model fitting must use the approved WFP/NBS migration scope."
+    )
+
     if rebuild_data or not NORMALIZED_FILE.exists():
         prepared = prepare_world_bank_data()
         normalized = prepared["normalized"]
@@ -570,6 +574,10 @@ def train_world_bank(rebuild_data: bool = False) -> dict[str, Any]:
     The historical files produced by the earlier runner are preserved.  New
     champion artifacts and reports live under explicit ``champion_*`` paths.
     """
+
+    raise RuntimeError(
+        "This training pipeline is retired. Model fitting must use the approved WFP/NBS migration scope."
+    )
 
     if rebuild_data or not NORMALIZED_FILE.exists():
         normalized = prepare_world_bank_data()["normalized"]

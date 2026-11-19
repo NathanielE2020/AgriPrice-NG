@@ -1,0 +1,59 @@
+AgriPrice-NG Model Training and Evaluation Report
+===================================================
+Generated: 2026-11-19T05:03:26+00:00
+Experiment run: 20261119T060049
+
+Decision and scope
+------------------
+The experiment reads only the existing normalized WFP and NBS datasets. WFP market histories and NBS national/zone summaries remain separate. No World Bank source, additional data, interpolation, forward-fill, price conversion, or synthetic observation was used.
+All model results and recursive outputs are historical experiments. No supplied series is current enough and continuous enough to support a November 2026 market-price claim.
+
+Eligibility and observations
+----------------------------
+Relevant WFP/NBS series evaluated: 705; eligible historical WFP series trained: 7; NBS series trained: 0.
+- Maize / Maize / Illela (CBM) / KG / Wholesale: 145 actual months (2002-01..2017-03), coverage 79.23%, missing 38, longest missing run 12; complete lag rows=114; modeling window=2002-01..2017-03 (calendar_lag_valid_rows_across_actual_segments).
+- Maize / Maize / Mai Adoua (CBM) / KG / Wholesale: 135 actual months (2002-11..2017-03), coverage 78.03%, missing 38, longest missing run 12; complete lag rows=105; modeling window=2002-11..2017-03 (calendar_lag_valid_rows_across_actual_segments).
+- Maize / Maize / Jibia (CBM) / KG / Wholesale: 122 actual months (2002-01..2017-03), coverage 66.67%, missing 61, longest missing run 14; complete lag rows=90; modeling window=2002-01..2017-03 (calendar_lag_valid_rows_across_actual_segments).
+- Maize / Maize (white) / Dawanau / 100 KG / Wholesale: 199 actual months (2003-08..2021-12), coverage 90.05%, missing 22, longest missing run 20; complete lag rows=191; modeling window=2003-08..2019-04 (longest_contiguous_actual_run).
+- Rice (imported) / Rice (imported) / Illela (CBM) / KG / Wholesale: 145 actual months (2002-01..2017-03), coverage 79.23%, missing 38, longest missing run 12; complete lag rows=111; modeling window=2002-01..2017-03 (calendar_lag_valid_rows_across_actual_segments).
+- Rice (imported) / Rice (imported) / Mai Adoua (CBM) / KG / Wholesale: 134 actual months (2002-11..2017-03), coverage 77.46%, missing 39, longest missing run 12; complete lag rows=101; modeling window=2002-11..2017-03 (calendar_lag_valid_rows_across_actual_segments).
+- Rice (imported) / Rice (imported) / Jibia (CBM) / KG / Wholesale: 123 actual months (2002-01..2017-03), coverage 67.21%, missing 60, longest missing run 14; complete lag rows=88; modeling window=2002-01..2017-03 (calendar_lag_valid_rows_across_actual_segments).
+
+Feature and validation method
+------------------------------
+Each WFP target is the exact monthly-normalized actual price in its source unit and NGN. Price flags, commodity variants, market, state, unit, and retail/wholesale type remain separate.
+Monthly reindexing creates calendar positions only. The target is never imputed. Lag 1/2/3 and rolling 3-month mean/standard deviation require actual values in those exact prior calendar months; rows with missing required lags are excluded.
+Month sine/cosine and a calendar trend feature are added. Rolling features use only t-1 through t-3. Evaluation is chronological, not shuffled, using 70/15/15 splits over usable target rows. Where LSTM is eligible, the tree/stacking/naive metrics are restricted to the same validation and test target dates as LSTM.
+Model configurations are fixed and deliberately small. The champion is selected by validation RMSE. Test results are reported once and do not influence selection.
+The naive baseline uses only the immediately prior calendar month. It does not substitute the last nonmissing observation across a calendar gap.
+Stacking meta-training uses expanding-window out-of-fold base predictions generated only inside the training partition. No in-sample base prediction is used to train the meta-model.
+MAPE excludes zero actual values from its denominator and records the number of nonzero observations used. Bias is mean(prediction - actual).
+
+Results
+-------
+Successful model-series fits (excluding naive baseline): 29; counts: {'gradient_boosting': 7, 'random_forest': 7, 'stacking': 7, 'xgboost': 7, 'lstm': 1}.
+See reports/training/model_comparison.csv and reports/training/test_predictions.csv for per-model metrics and exact test dates.
+- Maize | Maize | Illela (CBM): validation champion=naive_last_observation; validation RMSE=20.0063; untouched test RMSE=21.4689; naive test RMSE=21.4689; champion lower test RMSE than naive=False; test n=18; test dates=2014-08;2014-09;2014-10;2015-04;2015-05;2015-06;2015-07;2015-08;2015-09;2016-03;2016-04;2016-05;2016-06;2016-07;2016-08;2016-09;2016-10;2016-11.
+- Maize | Maize | Mai Adoua (CBM): validation champion=xgboost; validation RMSE=13.7001; untouched test RMSE=23.5893; naive test RMSE=25.5121; champion lower test RMSE than naive=True; test n=17; test dates=2014-09;2014-10;2015-04;2015-05;2015-06;2015-07;2015-08;2015-09;2016-03;2016-04;2016-05;2016-06;2016-07;2016-08;2016-09;2016-10;2016-11.
+- Maize | Maize | Jibia (CBM): validation champion=gradient_boosting; validation RMSE=16.2078; untouched test RMSE=17.3489; naive test RMSE=12.1466; champion lower test RMSE than naive=False; test n=15; test dates=2014-09;2014-10;2015-04;2015-05;2015-06;2015-07;2016-03;2016-04;2016-05;2016-06;2016-07;2016-08;2016-09;2016-10;2016-11.
+- Maize | Maize (white) | Dawanau: validation champion=naive_last_observation; validation RMSE=760.0247; untouched test RMSE=1515.0540; naive test RMSE=1515.0540; champion lower test RMSE than naive=False; test n=29; test dates=2016-12;2017-01;2017-02;2017-03;2017-04;2017-05;2017-06;2017-07;2017-08;2017-09;2017-10;2017-11;2017-12;2018-01;2018-02;2018-03;2018-04;2018-05;2018-06;2018-07;2018-08;2018-09;2018-10;2018-11;2018-12;2019-01;2019-02;2019-03;2019-04.
+- Rice (imported) | Rice (imported) | Illela (CBM): validation champion=naive_last_observation; validation RMSE=7.5642; untouched test RMSE=30.8151; naive test RMSE=30.8151; champion lower test RMSE than naive=False; test n=18; test dates=2014-05;2014-06;2014-07;2014-08;2014-09;2014-10;2015-04;2015-05;2015-06;2015-07;2015-08;2015-09;2015-10;2016-07;2016-08;2016-09;2016-10;2016-11.
+- Rice (imported) | Rice (imported) | Mai Adoua (CBM): validation champion=xgboost; validation RMSE=31.2946; untouched test RMSE=54.8411; naive test RMSE=19.3016; champion lower test RMSE than naive=False; test n=16; test dates=2014-06;2014-07;2014-08;2014-09;2014-10;2015-04;2015-05;2015-06;2015-07;2015-08;2015-09;2015-10;2016-08;2016-09;2016-10;2016-11.
+- Rice (imported) | Rice (imported) | Jibia (CBM): validation champion=naive_last_observation; validation RMSE=21.7515; untouched test RMSE=31.8444; naive test RMSE=31.8444; champion lower test RMSE than naive=False; test n=14; test dates=2014-08;2014-09;2014-10;2015-04;2015-05;2015-06;2015-07;2015-08;2015-09;2015-10;2016-08;2016-09;2016-10;2016-11.
+
+Forecast interpretation and limitations
+-----------------------------------------
+Recursive historical forecast rows produced: 70.
+Forecast outputs are generated from an explicitly recorded historical origin and a validation-selected model refit on admissible observed data through that origin. Each predicted value is fed into later forecast features; actual prices after the origin are not read.
+Every forecast is labelled historical_only. These projections are not live/current prices and must not be used as a November 2026 outlook. Long gaps, structural change, inflation, and sparse market reporting limit external validity.
+If the latest source observation is outside the modeled continuous/lag-valid window, the output records the distinct latest actual date and forecast origin. No confidence intervals are provided.
+
+NBS limitations
+---------------
+NBS series are documented in the eligibility report but not trained. Stable post-rebase series have only 17 points, while pre-rebase observations are segregated by methodology regime. Item labels and national/zone geography remain exact; most units are not stated. Garri is not mapped to raw cassava.
+
+Artifact and output locations
+------------------------------
+Models: models/wfp_nbs/<run_id>/<series_id>/ (joblib artifacts; Keras LSTM only where eligible).
+Metrics and registry: reports/training/model_comparison.csv, series_eligibility.csv, model_registry.json, training_configuration.json.
+Forecasts and plots: outputs/training/forecasts.csv and outputs/training/plots/.

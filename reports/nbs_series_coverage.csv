@@ -1,0 +1,295 @@
+item_label,geography_level,geography_name,unit,price_type,observed_months,first_observation_month,last_observation_month,missing_calendar_months,calendar_coverage_percent,missing_prices,ready_for_forecasting,note
+"Agric hen eggs,",national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Agric hen eggs,",zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Agric hen eggs,",zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Agric hen eggs,",zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Agric hen eggs,",zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Agric hen eggs,",zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Agric hen eggs,",zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Agric hen eggs, (a Crate of 30 pieces)",national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Agric hen eggs, (a Crate of 30 pieces)",zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Agric hen eggs, (a Crate of 30 pieces)",zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Agric hen eggs, (a Crate of 30 pieces)",zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Agric hen eggs, (a Crate of 30 pieces)",zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Agric hen eggs, (a Crate of 30 pieces)",zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Agric hen eggs, (a Crate of 30 pieces)",zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Beans Brown,national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Beans Brown,zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Beans Brown,zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Beans Brown,zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Beans Brown,zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Beans Brown,zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Beans Brown,zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Beans white,national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Beans white,zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Beans white,zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Beans white,zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Beans white,zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Beans white,zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Beans white,zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Beef Boneless,national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Beef Boneless,zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Beef Boneless,zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Beef Boneless,zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Beef Boneless,zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Beef Boneless,zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Beef Boneless,zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Bread (sliced), 450g",national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Bread (sliced), 450g",zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Bread (sliced), 450g",zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Bread (sliced), 450g",zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Bread (sliced), 450g",zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Bread (sliced), 450g",zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Bread (sliced), 450g",zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Bread (unsliced), 450g",national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Bread (unsliced), 450g",zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Bread (unsliced), 450g",zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Bread (unsliced), 450g",zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Bread (unsliced), 450g",zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Bread (unsliced), 450g",zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Bread (unsliced), 450g",zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Carrots, fresh",national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Carrots, fresh",zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Carrots, fresh",zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Carrots, fresh",zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Carrots, fresh",zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Carrots, fresh",zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Carrots, fresh",zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Cat fresh fish,national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Cat fresh fish,zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Cat fresh fish,zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Cat fresh fish,zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Cat fresh fish,zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Cat fresh fish,zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Cat fresh fish,zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Chicken Wings,national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Chicken Wings,zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Chicken Wings,zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Chicken Wings,zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Chicken Wings,zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Chicken Wings,zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Chicken Wings,zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Chicken feet,national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Chicken feet,zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Chicken feet,zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Chicken feet,zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Chicken feet,zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Chicken feet,zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Chicken feet,zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Chicken meat (Frozen),national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Chicken meat (Frozen),zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Chicken meat (Frozen),zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Chicken meat (Frozen),zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Chicken meat (Frozen),zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Chicken meat (Frozen),zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Chicken meat (Frozen),zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Cray fish small white,national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Cray fish small white,zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Cray fish small white,zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Cray fish small white,zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Cray fish small white,zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Cray fish small white,zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Cray fish small white,zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Dried fish, Bonga",national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Dried fish, Bonga",zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Dried fish, Bonga",zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Dried fish, Bonga",zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Dried fish, Bonga",zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Dried fish, Bonga",zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Dried fish, Bonga",zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Garri Yellow,national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Garri Yellow,zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Garri Yellow,zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Garri Yellow,zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Garri Yellow,zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Garri Yellow,zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Garri Yellow,zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Garri white,national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Garri white,zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Garri white,zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Garri white,zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Garri white,zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Garri white,zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Garri white,zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Ginger, fresh",national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Ginger, fresh",zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Ginger, fresh",zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Ginger, fresh",zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Ginger, fresh",zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Ginger, fresh",zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Ginger, fresh",zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Goat Meat Bone in,national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Goat Meat Bone in,zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Goat Meat Bone in,zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Goat Meat Bone in,zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Goat Meat Bone in,zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Goat Meat Bone in,zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Goat Meat Bone in,zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Groundnut oil, 75cl",national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Groundnut oil, 75cl",zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Groundnut oil, 75cl",zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Groundnut oil, 75cl",zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Groundnut oil, 75cl",zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Groundnut oil, 75cl",zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Groundnut oil, 75cl",zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Groundnuts, roasted,75cl bottle",national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Groundnuts, roasted,75cl bottle",zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Groundnuts, roasted,75cl bottle",zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Groundnuts, roasted,75cl bottle",zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Groundnuts, roasted,75cl bottle",zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Groundnuts, roasted,75cl bottle",zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Groundnuts, roasted,75cl bottle",zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Irish Potatoe,national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Irish Potatoe,zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Irish Potatoe,zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Irish Potatoe,zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Irish Potatoe,zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Irish Potatoe,zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Irish Potatoe,zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Local Rice (Broken),national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Local Rice (Broken),zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Local Rice (Broken),zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Local Rice (Broken),zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Local Rice (Broken),zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Local Rice (Broken),zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Local Rice (Broken),zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Mackerel, Frozen",national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Mackerel, Frozen",zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Mackerel, Frozen",zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Mackerel, Frozen",zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Mackerel, Frozen",zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Mackerel, Frozen",zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Mackerel, Frozen",zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Maize (Corn) Grains (White) sold loose,national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Maize (Corn) Grains (White) sold loose,zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Maize (Corn) Grains (White) sold loose,zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Maize (Corn) Grains (White) sold loose,zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Maize (Corn) Grains (White) sold loose,zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Maize (Corn) Grains (White) sold loose,zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Maize (Corn) Grains (White) sold loose,zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Onions, fresh",national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Onions, fresh",zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Onions, fresh",zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Onions, fresh",zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Onions, fresh",zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Onions, fresh",zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Onions, fresh",zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Palm oil, 75cl",national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Palm oil, 75cl",zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Palm oil, 75cl",zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Palm oil, 75cl",zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Palm oil, 75cl",zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Palm oil, 75cl",zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Palm oil, 75cl",zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Plantain (ripe),national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Plantain (ripe),zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Plantain (ripe),zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Plantain (ripe),zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Plantain (ripe),zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Plantain (ripe),zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Plantain (ripe),zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Plantain (unripe),national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Plantain (unripe),zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Plantain (unripe),zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Plantain (unripe),zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Plantain (unripe),zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Plantain (unripe),zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Plantain (unripe),zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Rice Local, short-Grained",national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Rice Local, short-Grained",zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Rice Local, short-Grained",zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Rice Local, short-Grained",zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Rice Local, short-Grained",zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Rice Local, short-Grained",zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Rice Local, short-Grained",zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Rice Long-Grained (Imported),national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Rice Long-Grained (Imported),zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Rice Long-Grained (Imported),zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Rice Long-Grained (Imported),zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Rice Long-Grained (Imported),zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Rice Long-Grained (Imported),zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Rice Long-Grained (Imported),zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Semovita, Prepacked (1kg)",national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Semovita, Prepacked (1kg)",zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Semovita, Prepacked (1kg)",zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Semovita, Prepacked (1kg)",zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Semovita, Prepacked (1kg)",zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Semovita, Prepacked (1kg)",zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Semovita, Prepacked (1kg)",zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Smoked fish,zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Smoked fish,zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Smoked fish,zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Smoked fish,zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Smoked fish,zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Smoked fish,zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Smoked fish (Mackerel),national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Sweet potatoes,national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Sweet potatoes,zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Sweet potatoes,zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Sweet potatoes,zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Sweet potatoes,zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Sweet potatoes,zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Sweet potatoes,zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Tilapia fresh fish (Epiya),national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Tilapia fresh fish (Epiya),zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Tilapia fresh fish (Epiya),zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Tilapia fresh fish (Epiya),zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Tilapia fresh fish (Epiya),zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Tilapia fresh fish (Epiya),zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Tilapia fresh fish (Epiya),zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Tin Milk-Evaporated, Peak Milk, 150g",national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Tin Milk-Evaporated, Peak Milk, 150g",zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Tin Milk-Evaporated, Peak Milk, 150g",zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Tin Milk-Evaporated, Peak Milk, 150g",zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Tin Milk-Evaporated, Peak Milk, 150g",zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Tin Milk-Evaporated, Peak Milk, 150g",zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Tin Milk-Evaporated, Peak Milk, 150g",zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Tin Milk-Evaporated, Three Crown Milk, 160g",national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Tin Milk-Evaporated, Three Crown Milk, 160g",zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Tin Milk-Evaporated, Three Crown Milk, 160g",zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Tin Milk-Evaporated, Three Crown Milk, 160g",zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Tin Milk-Evaporated, Three Crown Milk, 160g",zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Tin Milk-Evaporated, Three Crown Milk, 160g",zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Tin Milk-Evaporated, Three Crown Milk, 160g",zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Titus, frozen",national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Titus, frozen",zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Titus, frozen",zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Titus, frozen",zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Titus, frozen",zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Titus, frozen",zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Titus, frozen",zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Tomatoes, fresh",national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Tomatoes, fresh",zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Tomatoes, fresh",zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Tomatoes, fresh",zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Tomatoes, fresh",zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Tomatoes, fresh",zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Tomatoes, fresh",zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Vegetable Oil, 75cl",national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Vegetable Oil, 75cl",zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Vegetable Oil, 75cl",zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Vegetable Oil, 75cl",zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Vegetable Oil, 75cl",zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Vegetable Oil, 75cl",zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Vegetable Oil, 75cl",zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Watermelon whole, medium size fresh",national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Watermelon whole, medium size fresh",zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Watermelon whole, medium size fresh",zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Watermelon whole, medium size fresh",zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Watermelon whole, medium size fresh",zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Watermelon whole, medium size fresh",zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Watermelon whole, medium size fresh",zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Wheat Flour, Prepacked (2kg)",national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Wheat Flour, Prepacked (2kg)",zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Wheat Flour, Prepacked (2kg)",zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Wheat Flour, Prepacked (2kg)",zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Wheat Flour, Prepacked (2kg)",zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Wheat Flour, Prepacked (2kg)",zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+"Wheat Flour, Prepacked (2kg)",zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Yam Tuber,national,Nigeria,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Yam Tuber,zone,NORTH CENTRAL,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Yam Tuber,zone,NORTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Yam Tuber,zone,NORTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Yam Tuber,zone,SOUTH EAST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Yam Tuber,zone,SOUTH SOUTH,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.
+Yam Tuber,zone,SOUTH WEST,not stated in workbook,reported_monthly_average,5,2026-01,2026-05,0,100.0,0,False,Only five source months; no standardized unit or market-level observations.

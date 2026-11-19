@@ -1,397 +1,272 @@
-"""Read-only Flask dashboard smoke and API contract tests."""
-
 from __future__ import annotations
 
-import unittest
-from datetime import date
-import os
 from pathlib import Path
-import sys
-from unittest.mock import patch
 
-from app import app, create_app
-from src.dashboard_service import (
-    DashboardError,
-    DashboardService,
-    ROOT,
-    WINDOWS_LSTM_PYTHON,
-    _lstm_interpreter,
-    _load_artifact,
-)
+import pytest
+
+from app import create_app
+from src.wfp_nbs_dashboard_service import DashboardService
 
 
-class DashboardApiTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.client = app.test_client()
+@pytest.fixture(scope="module")
+def client():
+    return create_app(DashboardService()).test_client()
 
-    def test_page_overview_and_series(self):
-        self.assertEqual(self.client.get("/").status_code, 200)
-        overview = self.client.get("/api/overview")
-        self.assertEqual(overview.status_code, 200)
-        overview_payload = overview.get_json()
-        self.assertEqual(overview_payload["available_datasets"], ["market", "aggregate", "world_bank"])
-        facts = overview_payload["dataset"]
-        self.assertGreater(facts["historical_observations"], 0)
-        self.assertGreater(facts["commodity_count"], 0)
-        self.assertFalse(facts["fallback_used"])
-        self.assertEqual(facts["statistics_source"], "dynamic_raw_parquet")
-        series = self.client.get("/api/series").get_json()
-        self.assertEqual(len(series["market"]), 5)
-        self.assertEqual(len(series["aggregate"]), 6)
 
-    def test_polished_frontend_assets_and_sections(self):
-        page = self.client.get("/")
-        self.assertEqual(page.status_code, 200)
-        html = page.get_data(as_text=True)
-        for section in ("overview-section", "analysis-section", "forecast-section", "performance-section", "about-section"):
-            self.assertIn(section, html)
-        self.assertIn(">Aggregate<", html)
-        self.assertIn(">World Bank estimates<", html)
-        self.assertIn("chart.umd.min.js", html)
-        css = self.client.get("/static/css/dashboard.css")
-        js = self.client.get("/static/js/dashboard.js")
-        self.assertEqual(css.status_code, 200)
-        self.assertEqual(js.status_code, 200)
-        css.close()
-        js.close()
+def test_dashboard_page_and_overview_use_only_migrated_sources(client):
+    page = client.get("/")
+    assert page.status_code == 200
+    assert b"WFP Nigeria" in page.data
+    assert b"NBS monthly summaries" in page.data
+    assert b"World Bank" not in page.data
 
-    def test_history_and_performance(self):
-        market_id = "Millet | Dawanau | 100 KG | Wholesale"
-        aggregate_id = "Millet | 2.6 KG | Retail"
-        history = self.client.get(
-            "/api/history",
-            query_string={"dataset": "market", "series_id": market_id},
-        )
-        self.assertEqual(history.status_code, 200)
-        self.assertTrue(any(not row["observed"] for row in history.get_json()["history"]))
+    overview = client.get("/api/overview").get_json()
+    assert overview["available_datasets"] == ["wfp", "nbs"]
+    assert overview["default_dataset"] == "wfp"
+    assert set(overview["sources"]) == {"wfp", "nbs"}
+    assert overview["model_status"]["available_model_count"] == 29
+    assert overview["model_status"]["trained_on_current_sources"] is True
+    assert overview["model_status"]["historical_forecast_series_count"] == 7
+    assert overview["model_status"]["current_market_forecast_series_count"] == 0
 
-        performance = self.client.get(
-            "/api/performance",
-            query_string={"dataset": "aggregate", "series_id": aggregate_id},
-        )
-        self.assertEqual(performance.status_code, 200)
-        records = performance.get_json()["records"]
-        self.assertEqual(
-            {row["model"] for row in records},
-            {"naive_last_observation", "random_forest", "gradient_boosting", "xgboost", "stacking", "lstm"},
-        )
-        self.assertTrue(all(row["status"] == "evaluated" for row in records))
-        self.assertTrue(all(row["test_date_alignment"] == "common" for row in records))
-        self.assertTrue(all(row["n_test"] > 0 for row in records))
-        self.assertTrue(all(row["evaluation_validity"] is True for row in records))
-        self.assertTrue(all(row["first_test_date"] and row["last_test_date"] for row in records))
-        self.assertTrue(all("bias" in row for row in records))
-        self.assertIn("common-test-date audit", performance.get_json()["selection_protocol"])
 
-    def test_latest_observation_metadata_and_deterministic_freshness(self):
-        service = DashboardService(reference_date=date(2026, 11, 15))
-        aggregate = next(item for item in service.aggregate_series if item["series_id"] == "Millet | 2.6 KG | Retail")
-        self.assertEqual(aggregate["latest_observation_date"], "2025-11-15")
-        self.assertAlmostEqual(aggregate["latest_actual_price"], 990.5569230769231)
-        self.assertEqual(aggregate["observation_age_months"], 12)
-        self.assertEqual(aggregate["freshness_status"], "aging")
-        market = next(item for item in service.market_series if item["series_id"] == "Millet | Dawanau | 100 KG | Wholesale")
-        self.assertIsNotNone(market["latest_observation_date"])
-        self.assertEqual(market["freshness_status"], "stale")
+def test_overview_facts_match_prepared_source_data(client):
+    overview = client.get("/api/overview").get_json()
+    wfp = overview["datasets"]["wfp"]
+    nbs = overview["datasets"]["nbs"]
+    assert wfp["historical_observations"] == 91_216
+    assert wfp["commodity_count"] == 43
+    assert wfp["market_count"] == 68
+    assert wfp["state_count"] == 14
+    assert wfp["earliest_observation_date"] == "2002-01-15"
+    assert wfp["latest_observation_date"] == "2026-11-15"
+    assert wfp["latest_actual_observation_date"] == "2026-04-15"
+    assert set(wfp["price_flags"]) == {"actual", "aggregate", "actual,aggregate"}
+    assert nbs["historical_observations"] == 5_600
+    assert nbs["date_start"] == "2024-11"
+    assert nbs["date_end"] == "2026-05"
+    assert nbs["commodity_count"] == 86
+    assert nbs["market_count"] is None
+    assert nbs["state_count"] is None
+    assert nbs["geography_count"] == 7
 
-    def test_overview_statistics_are_loaded_dynamically_from_parquet_rows(self):
-        fake_rows = [
-            {"date": date(2024, 2, 15), "commodity": "Test A", "market": "Market 1", "admin1": "State 1", "currency": "NGN"},
-            {"date": date(2025, 3, 15), "commodity": "Test B", "market": "Market 2", "admin1": "State 2", "currency": "NGN"},
-            {"date": date(2025, 3, 15), "commodity": "Test A", "market": "Market 1", "admin1": "State 1", "currency": "NGN"},
+
+def test_series_catalogue_keeps_source_identities_separate(client):
+    payload = client.get("/api/series").get_json()
+    assert set(payload) == {"wfp", "nbs"}
+    assert len(payload["wfp"]) == 3_432
+    assert len(payload["nbs"]) == 589
+    assert all(item["source"] == "WFP" for item in payload["wfp"])
+    assert all(item["source"] == "NBS" for item in payload["nbs"])
+    assert all(item["price_flag"] for item in payload["wfp"])
+    assert all(item["geography_level"] in {"national", "zone"} for item in payload["nbs"])
+
+
+def test_approved_wfp_market_series_are_present_as_actual_series(client):
+    series = client.get("/api/series?dataset=wfp").get_json()
+    approved = {
+        ("Sorghum (white)", "Dawanau", "100 KG", "Wholesale"),
+        ("Maize (white)", "Dawanau", "100 KG", "Wholesale"),
+        ("Millet", "Dawanau", "100 KG", "Wholesale"),
+        ("Maize", "Illela (CBM)", "KG", "Wholesale"),
+        ("Sorghum", "Mai Adoua (CBM)", "KG", "Wholesale"),
+    }
+    found = {
+        (item["commodity"], item["market"], item["unit"], item["price_type"])
+        for item in series if item["price_flag"] == "actual"
+    }
+    assert approved.issubset(found)
+
+
+def test_history_keeps_real_months_and_does_not_fill_gaps(client):
+    series = client.get("/api/series?dataset=wfp").get_json()
+    item = next(row for row in series if row["commodity"] == "Sorghum (white)" and row["market"] == "Dawanau" and row["price_flag"] == "actual")
+    result = client.get("/api/history", query_string={"dataset": "wfp", "series_id": item["series_id"]})
+    assert result.status_code == 200
+    payload = result.get_json()
+    assert payload["gaps_filled"] is False
+    history = payload["history"]
+    assert len(history) == 199
+    months = {row["month"] for row in history}
+    assert "2019-05" not in months
+    assert history[0]["month"] == "2003-08"
+    assert history[-1]["month"] == "2021-12"
+
+
+def test_nbs_history_is_a_distinct_reported_average_series(client):
+    series = client.get("/api/series?dataset=nbs").get_json()
+    item = next(row for row in series if row["commodity"] == "Yam Tuber" and row["geography_level"] == "national")
+    result = client.get("/api/history", query_string={"dataset": "nbs", "series_id": item["series_id"]})
+    assert result.status_code == 200
+    payload = result.get_json()
+    assert payload["series"]["source"] == "NBS"
+    assert payload["series"]["unit"] == "Not stated in workbook"
+    assert len(payload["history"]) == 17
+    assert [row["month"] for row in payload["history"]] == [
+        f"{year}-{month:02d}" for year, months in ((2025, range(1, 13)), (2026, range(1, 6))) for month in months
+    ]
+
+
+def test_history_date_filters_and_invalid_requests(client):
+    item = next(
+        row for row in client.get("/api/series?dataset=nbs").get_json()
+        if row["first_observed_month"] <= "2026-02" and row["last_observed_month"] >= "2026-04"
+    )
+    filtered = client.get("/api/history", query_string={"dataset": "nbs", "series_id": item["series_id"], "start_date": "2026-02", "end_date": "2026-04"})
+    assert filtered.status_code == 200
+    assert [row["month"] for row in filtered.get_json()["history"]] == ["2026-02", "2026-03", "2026-04"]
+    assert client.get("/api/history", query_string={"dataset": "nbs", "series_id": item["series_id"], "start_date": "2026-13"}).status_code == 400
+    assert client.get("/api/history", query_string={"dataset": "nbs", "series_id": item["series_id"], "start_date": "2026-04", "end_date": "2026-02"}).status_code == 400
+    assert client.get("/api/history", query_string={"dataset": "nbs", "series_id": "missing"}).status_code == 404
+
+
+def test_ineligible_series_has_no_metrics_and_forecast_is_unavailable(client):
+    item = client.get("/api/series?dataset=wfp").get_json()[0]
+    performance = client.get("/api/performance", query_string={"dataset": "wfp", "series_id": item["series_id"]})
+    assert performance.status_code == 200
+    body = performance.get_json()
+    assert body["status"] in {"not_trained", "not_eligible"}
+    assert body["records"] == []
+    assert body["legacy_results_included"] is False
+
+    for horizon in ("1", "3", "6"):
+        response = client.get("/api/forecast", query_string={"dataset": "wfp", "series_id": item["series_id"], "model": "random_forest", "horizon": horizon})
+        assert response.status_code == 422
+        assert response.get_json()["error"]["code"] == "forecast_unavailable"
+    assert client.get("/api/forecast", query_string={"dataset": "wfp", "series_id": item["series_id"], "model": "random_forest", "horizon": "2"}).status_code == 400
+
+
+def test_old_or_unknown_datasets_are_not_available(client):
+    for dataset in ("world_bank", "market", "aggregate", "unknown"):
+        response = client.get("/api/series", query_string={"dataset": dataset})
+        assert response.status_code == 404
+        assert response.get_json()["error"]["code"] == "dataset_unavailable"
+
+
+def test_processing_outputs_exist_and_sources_are_not_used_as_model_artifacts():
+    root = Path(__file__).resolve().parents[1]
+    for relative in (
+        "data/processed/wfp_monthly.csv",
+        "data/processed/nbs_monthly.csv",
+        "reports/wfp_nbs_series_coverage.csv",
+        "reports/nbs_series_coverage.csv",
+        "reports/source_migration_audit.txt",
+    ):
+        assert (root / relative).is_file()
+    entrypoint = (root / "train.py").read_text(encoding="utf-8").lower()
+    assert "world_bank" not in entrypoint
+    assert "train_wfp_nbs_models" in entrypoint
+
+
+def test_saved_forecasts_performance_and_unavailable_combinations(client):
+    series = client.get("/api/series?dataset=wfp").get_json()
+    trained = next(item for item in series if item.get("forecast_available"))
+    performance = client.get("/api/performance", query_string={"dataset": "wfp", "series_id": trained["series_id"]})
+    assert performance.status_code == 200
+    body = performance.get_json()
+    assert body["status"] == "evaluated"
+    assert body["summary"]["selection_basis"].startswith("validation RMSE")
+    assert body["summary"]["test_date_count"] > 0
+    assert all(row["test_dates"] for row in body["records"])
+    assert any(row["champion_selected_on_validation"] for row in body["records"])
+
+    model = trained["champion_model"]
+    for horizon in (1, 3, 6):
+        response = client.get("/api/forecast", query_string={
+            "dataset": "wfp", "series_id": trained["series_id"],
+            "model": model, "horizon": str(horizon),
+        })
+        assert response.status_code == 200
+        result = response.get_json()
+        assert len(result["forecast"]) == horizon
+        assert result["metadata"]["forecast_classification"] == "historical_only"
+        assert result["metadata"]["confidence_intervals"] is False
+        assert result["warning"].startswith("Historical-only")
+
+    unsupported_model = client.get("/api/forecast", query_string={
+        "dataset": "wfp", "series_id": trained["series_id"],
+        "model": "random_forest" if model != "random_forest" else "xgboost", "horizon": "1",
+    })
+    assert unsupported_model.status_code == 422
+    assert unsupported_model.get_json()["error"]["code"] == "model_unavailable"
+
+
+def test_training_metrics_recompute_from_saved_predictions():
+    import numpy as np
+    import pandas as pd
+
+    root = Path(__file__).resolve().parents[1]
+    metrics = pd.read_csv(root / "reports/training/model_comparison.csv")
+    predictions = pd.read_csv(root / "reports/training/test_predictions.csv")
+    trained = metrics[metrics.status == "trained_and_evaluated"]
+    for row in trained.itertuples():
+        values = predictions[
+            (predictions.series_id == row.series_id)
+            & (predictions.model == row.model)
+            & (predictions.partition == "test")
         ]
-        with patch("src.dashboard_service.read_parquet_rows", return_value=fake_rows):
-            service = DashboardService(reference_date=date(2025, 4, 1))
-        facts = service.overview()["dataset"]
-        self.assertEqual(facts["historical_observations"], 3)
-        self.assertEqual(facts["commodity_count"], 2)
-        self.assertEqual(facts["market_count"], 2)
-        self.assertEqual(facts["state_count"], 2)
-        self.assertEqual(facts["earliest_observation_date"], "2024-02-15")
-        self.assertEqual(facts["latest_observation_date"], "2025-03-15")
-        self.assertEqual(facts["statistics_source"], "dynamic_raw_parquet")
-        self.assertFalse(facts["fallback_used"])
-
-    def test_overview_identifies_inspection_report_fallback(self):
-        with patch("src.dashboard_service.read_parquet_rows", side_effect=RuntimeError("reader unavailable")):
-            service = DashboardService(reference_date=date(2026, 11, 15))
-        facts = service.overview()["dataset"]
-        self.assertTrue(facts["fallback_used"])
-        self.assertEqual(facts["statistics_source"], "verified_inspection_report_fallback")
-        self.assertIn("could not be loaded", facts["fallback_reason"])
-
-    def test_history_date_filtering_and_invalid_ranges(self):
-        series_id = "Millet | 2.6 KG | Retail"
-        filtered = self.client.get(
-            "/api/history",
-            query_string={"dataset": "aggregate", "series_id": series_id, "start_date": "2014-05", "end_date": "2015-12"},
-        )
-        self.assertEqual(filtered.status_code, 200)
-        payload = filtered.get_json()
-        self.assertEqual(payload["requested_range"]["start_month"], "2014-05")
-        self.assertEqual(payload["requested_range"]["end_month"], "2015-12")
-        self.assertTrue(all("2014-05" <= row["month"] <= "2015-12" for row in payload["history"]))
-        self.assertTrue(any(not row["observed"] and row["price"] is None for row in payload["history"]))
-
-        reversed_range = self.client.get(
-            "/api/history",
-            query_string={"dataset": "aggregate", "series_id": series_id, "start_date": "2022-01", "end_date": "2021-12"},
-        )
-        self.assertEqual(reversed_range.status_code, 400)
-        self.assertEqual(reversed_range.get_json()["error"]["code"], "invalid_date_range")
-
-        malformed = self.client.get(
-            "/api/history",
-            query_string={"dataset": "aggregate", "series_id": series_id, "start_date": "not-a-date"},
-        )
-        self.assertEqual(malformed.status_code, 400)
-        self.assertEqual(malformed.get_json()["error"]["code"], "invalid_date")
-
-    def test_stale_forecast_exposes_real_origin_and_warning(self):
-        series_id = "Rice (imported) | 50 KG | Wholesale"
-        response = self.client.get(
-            "/api/forecast",
-            query_string={"dataset": "aggregate", "series_id": series_id, "model": "lstm", "horizon": 3},
-        )
-        self.assertEqual(response.status_code, 200)
-        payload = response.get_json()
-        self.assertEqual(payload["latest_observation_date"], "2023-01-15")
-        self.assertEqual(payload["origin_month"], "2023-01")
-        self.assertEqual(payload["freshness_status"], "stale")
-        self.assertIn("2023-01-15", payload["freshness_warning"])
-        self.assertEqual(
-            [row["horizon_months"] for row in payload["forecast"]],
-            [1, 2, 3],
-        )
-        self.assertTrue(all(row["forecast_month"] > payload["origin_month"] for row in payload["forecast"]))
-
-    def test_model_availability_keeps_lstm_aggregate_only(self):
-        aggregate_id = "Millet | 2.6 KG | Retail"
-        aggregate = self.client.get(
-            "/api/series",
-            query_string={"dataset": "aggregate"},
-        ).get_json()["aggregate"]
-        aggregate_series = next(item for item in aggregate if item["series_id"] == aggregate_id)
-        aggregate_models = {item["model"]: item for item in aggregate_series["models"]}
-        self.assertTrue(aggregate_models["lstm"]["available"])
-
-        market_id = "Millet | Dawanau | 100 KG | Wholesale"
-        market = self.client.get(
-            "/api/series",
-            query_string={"dataset": "market"},
-        ).get_json()["market"]
-        market_series = next(item for item in market if item["series_id"] == market_id)
-        market_models = {item["model"]: item for item in market_series["models"]}
-        self.assertFalse(market_models["lstm"]["available"])
-
-    def test_lstm_interpreter_selection_is_portable(self):
-        with patch.dict(os.environ, {"LSTM_PYTHON": "custom/python"}, clear=False):
-            self.assertEqual(_lstm_interpreter(), (ROOT / "custom/python").resolve())
-
-        with patch.dict(os.environ, {}, clear=True):
-            selected = _lstm_interpreter()
-        if os.name == "nt":
-            expected = WINDOWS_LSTM_PYTHON if WINDOWS_LSTM_PYTHON.exists() else None
-        else:
-            expected = Path(sys.executable)
-        self.assertEqual(selected, expected)
-
-    def test_supported_forecasts_and_validation_errors(self):
-        series_id = "Millet | 2.6 KG | Retail"
-        for horizon in (1, 3, 6):
-            response = self.client.get(
-                "/api/forecast",
-                query_string={
-                    "dataset": "aggregate",
-                    "series_id": series_id,
-                    "model": "xgboost",
-                    "horizon": horizon,
-                },
-            )
-            self.assertEqual(response.status_code, 200)
-            payload = response.get_json()
-            self.assertEqual(len(payload["forecast"]), horizon)
-            self.assertIsNone(payload["confidence_intervals"])
-
-        unsupported = self.client.get(
-            "/api/forecast",
-            query_string={
-                "dataset": "market",
-                "series_id": "Millet | Dawanau | 100 KG | Wholesale",
-                "model": "xgboost",
-                "horizon": 1,
-            },
-        )
-        self.assertEqual(unsupported.status_code, 422)
-
-        invalid_horizon = self.client.get(
-            "/api/forecast",
-            query_string={
-                "dataset": "aggregate",
-                "series_id": series_id,
-                "model": "xgboost",
-                "horizon": 2,
-            },
-        )
-        self.assertEqual(invalid_horizon.status_code, 400)
-
-        unknown_series = self.client.get(
-            "/api/forecast",
-            query_string={
-                "dataset": "aggregate",
-                "series_id": "not-real",
-                "model": "xgboost",
-                "horizon": 1,
-            },
-        )
-        self.assertEqual(unknown_series.status_code, 404)
-
-        missing_calendar_history = self.client.get(
-            "/api/forecast",
-            query_string={
-                "dataset": "market",
-                "series_id": "Maize (white) | Dawanau | 100 KG | Wholesale",
-                "model": "random_forest",
-                "horizon": 6,
-            },
-        )
-        # The processed series may have a complete recent calendar tail in a
-        # refreshed source release.  In that case a valid recursive forecast
-        # is expected; older sparse releases correctly return 422.
-        self.assertIn(missing_calendar_history.status_code, (200, 422))
-        if missing_calendar_history.status_code == 200:
-            self.assertEqual(len(missing_calendar_history.get_json()["forecast"]), 6)
-
-    def test_lstm_forecasts_all_approved_aggregate_series_and_horizons(self):
-        aggregate_series = self.client.get(
-            "/api/series",
-            query_string={"dataset": "aggregate"},
-        ).get_json()["aggregate"]
-        for item in aggregate_series:
-            for horizon in (1, 3, 6):
-                response = self.client.get(
-                    "/api/forecast",
-                    query_string={
-                        "dataset": "aggregate",
-                        "series_id": item["series_id"],
-                        "model": "lstm",
-                        "horizon": horizon,
-                    },
-                )
-                self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
-                payload = response.get_json()
-                forecast = payload["forecast"]
-                self.assertEqual(len(forecast), horizon)
-                self.assertIsNone(payload["confidence_intervals"])
-                self.assertEqual(payload["transformation"], "price_change" if item["series_id"] != "Rice (imported) | 50 KG | Wholesale" else "original")
-                months = [row["forecast_month"] for row in forecast]
-                self.assertEqual(months, sorted(months))
-                self.assertEqual([row["horizon_months"] for row in forecast], list(range(1, horizon + 1)))
-                self.assertTrue(all(isinstance(row["forecast_price"], (int, float)) for row in forecast))
-                self.assertNotIn("actual_price", forecast[0])
-
-    def test_missing_artifact_is_reported_without_traceback(self):
-        with self.assertRaises(DashboardError) as context:
-            _load_artifact(
-                Path("models/final_validation/aggregate/not-real/xgboost.joblib")
-            )
-        self.assertEqual(context.exception.code, "model_unavailable")
-        self.assertEqual(context.exception.status_code, 422)
-
-    def test_missing_lstm_artifact_is_reported_safely(self):
-        service = DashboardService()
-        series_id = "Millet | 2.6 KG | Retail"
-        with patch("src.dashboard_service._lstm_model_path", return_value=Path("models/not-real/lstm.keras")):
-            with self.assertRaises(DashboardError) as context:
-                service.forecast("aggregate", series_id, "lstm", 1)
-        self.assertEqual(context.exception.code, "model_unavailable")
-        self.assertEqual(context.exception.status_code, 422)
-
-    def test_approved_market_deployment_scope_is_market_only(self):
-        # This scope must not invoke the raw Parquet reader or load either of
-        # the larger supplementary tables during Flask startup.
-        with patch.dict(os.environ, {"AGRIPRICE_DEPLOY_SCOPE": "approved_market"}, clear=False):
-            with patch("src.dashboard_service.read_parquet_rows", side_effect=AssertionError("raw scan should be skipped")):
-                service = DashboardService(reference_date=date(2026, 11, 15))
-        self.assertTrue(service.market_only)
-        self.assertEqual(service.default_dataset, "market")
-        self.assertEqual(len(service.market_series), 5)
-        self.assertEqual(service.aggregate_rows, [])
-        self.assertEqual(service.world_bank_rows, [])
-        self.assertEqual(service.overview()["available_datasets"], ["market"])
-        self.assertEqual(set(service.series()), {"market"})
-        self.assertTrue(all(
-            [item["model"] for item in series["models"]] == ["naive_last_observation"]
-            for series in service.market_series
-        ))
-        self.assertTrue(all(item["series_id"] in {
-            "Sorghum (white) | Dawanau | 100 KG | Wholesale",
-            "Maize (white) | Dawanau | 100 KG | Wholesale",
-            "Millet | Dawanau | 100 KG | Wholesale",
-            "Maize | Illela (CBM) | KG | Wholesale",
-            "Sorghum | Mai Adoua (CBM) | KG | Wholesale",
-        } for item in service.market_series))
-
-    def test_approved_market_api_rejects_disabled_datasets_and_frontend_scope(self):
-        with patch.dict(os.environ, {"AGRIPRICE_DEPLOY_SCOPE": "approved_market"}, clear=False):
-            service = DashboardService()
-            scoped_client = create_app(service).test_client()
-
-        page = scoped_client.get("/")
-        self.assertEqual(page.status_code, 200)
-        page_html = page.get_data(as_text=True)
-        self.assertIn('data-deploy-scope="approved_market"', page_html)
-        self.assertNotIn(">Aggregate<", page_html)
-        self.assertNotIn(">World Bank estimates<", page_html)
-
-        overview = scoped_client.get("/api/overview")
-        self.assertEqual(overview.status_code, 200)
-        overview_payload = overview.get_json()
-        self.assertEqual(overview_payload["available_datasets"], ["market"])
-        self.assertEqual(overview_payload["model_status"]["aggregate_final_validation"], {})
-        self.assertFalse(overview_payload["sources"]["world_bank"]["available"])
-
-        series = scoped_client.get("/api/series")
-        self.assertEqual(series.status_code, 200)
-        self.assertEqual(set(series.get_json()), {"market"})
-        market_id = "Millet | Dawanau | 100 KG | Wholesale"
-        self.assertEqual(scoped_client.get("/api/history", query_string={"dataset": "market", "series_id": market_id}).status_code, 200)
-        for horizon in (1, 3, 6):
-            forecast = scoped_client.get(
-                "/api/forecast",
-                query_string={
-                    "dataset": "market",
-                    "series_id": market_id,
-                    "model": "naive_last_observation",
-                    "horizon": horizon,
-                },
-            )
-            self.assertEqual(forecast.status_code, 200, forecast.get_data(as_text=True))
-            self.assertEqual(len(forecast.get_json()["forecast"]), horizon)
-
-        unavailable_model = scoped_client.get(
-            "/api/forecast",
-            query_string={
-                "dataset": "market",
-                "series_id": market_id,
-                "model": "random_forest",
-                "horizon": 1,
-            },
-        )
-        self.assertEqual(unavailable_model.status_code, 422)
-        self.assertEqual(unavailable_model.get_json()["error"]["code"], "model_unavailable")
-
-        for path, query in (
-            ("/api/series", {"dataset": "aggregate"}),
-            ("/api/history", {"dataset": "aggregate", "series_id": "Millet | 2.6 KG | Retail"}),
-            ("/api/performance", {"dataset": "world_bank"}),
-            ("/api/forecast", {"dataset": "aggregate", "series_id": "Millet | 2.6 KG | Retail", "model": "xgboost", "horizon": 1}),
-        ):
-            response = scoped_client.get(path, query_string=query)
-            self.assertEqual(response.status_code, 404, response.get_data(as_text=True))
-            self.assertEqual(response.get_json()["error"]["code"], "dataset_unavailable")
+        assert len(values) == row.test_n
+        actual = values.actual_price.to_numpy(dtype=float)
+        predicted = values.predicted_price.to_numpy(dtype=float)
+        errors = predicted - actual
+        assert np.isclose(np.sqrt(np.mean(errors**2)), row.test_rmse)
+        assert np.isclose(np.mean(np.abs(errors)), row.test_mae)
+        assert np.isclose(np.mean(errors), row.test_bias)
+        nonzero = actual != 0
+        if nonzero.any():
+            assert np.isclose(np.mean(np.abs(errors[nonzero] / actual[nonzero])) * 100, row.test_mape)
+    for _, group in trained.groupby("series_id"):
+        date_sets = {tuple(row.test_dates.split(";")) for row in group.itertuples()}
+        assert len(date_sets) == 1
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_calendar_features_and_lstm_sequences_do_not_bridge_missing_months():
+    import pandas as pd
+
+    from src.model_training_pipeline import build_lstm_sequences, build_monthly_features
+
+    prices = {
+        pd.Period("2020-01", freq="M"): 10.0,
+        pd.Period("2020-02", freq="M"): 11.0,
+        pd.Period("2020-04", freq="M"): 13.0,
+        pd.Period("2020-05", freq="M"): 14.0,
+        pd.Period("2020-06", freq="M"): 15.0,
+        pd.Period("2020-07", freq="M"): 16.0,
+    }
+    features = build_monthly_features(prices)
+    assert list(map(str, features.index)) == ["2020-07"]
+    assert features.loc[pd.Period("2020-07", freq="M"), "lag_1"] == 15.0
+    assert features.loc[pd.Period("2020-07", freq="M"), "lag_3"] == 13.0
+    sequences, _, targets = build_lstm_sequences(prices, window=3)
+    assert len(sequences) == 1
+    assert str(targets[0]) == "2020-07"
+
+
+def test_nbs_is_documented_but_not_trained():
+    import pandas as pd
+
+    root = Path(__file__).resolve().parents[1]
+    eligibility = pd.read_csv(root / "reports/training/series_eligibility.csv")
+    nbs = eligibility[eligibility.source == "NBS"]
+    assert not nbs.empty
+    assert not nbs.tree_model_eligible.any()
+    assert set(nbs[nbs.methodology_regime == "post_2025_cpi_rebase"].actual_monthly_observations.unique()) <= {16, 17}
+
+
+def test_model_registry_artifacts_and_forecast_horizons_are_consistent():
+    import json
+    import pandas as pd
+
+    root = Path(__file__).resolve().parents[1]
+    registry = json.loads((root / "reports/training/model_registry.json").read_text(encoding="utf-8"))
+    assert registry["source_scope"] == ["WFP", "NBS"]
+    assert registry["summary"]["historical_wfp_series_trained"] == 7
+    assert registry["summary"]["model_series_fits"] == 29
+    assert registry["summary"]["current_market_forecasts"] == 0
+    forecasts = pd.read_csv(root / "outputs/training/forecasts.csv")
+    for series_id, record in registry["series"].items():
+        assert record["forecast_classification"] == "historical_only"
+        assert all((root / path).is_file() for path in record["artifact_paths"].values())
+        assert forecasts[forecasts.series_id == series_id].requested_horizon.astype(int).value_counts().to_dict() == {1: 1, 3: 3, 6: 6}
+        trained = [name for name in record["available_models"] if name != "naive_last_observation"]
+        assert {"random_forest", "xgboost", "gradient_boosting", "stacking"}.issubset(trained)

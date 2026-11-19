@@ -1,4 +1,4 @@
-"""Coverage report for the normalized World Bank release."""
+"""Retired coverage analysis for the historical World Bank release."""
 
 from __future__ import annotations
 
@@ -14,6 +14,9 @@ REPORT_ROOT = ROOT / "reports" / "world_bank"
 
 
 def write_coverage_reports() -> tuple[pd.DataFrame, str]:
+    raise RuntimeError(
+        "This coverage pipeline is retired. The active data audit covers WFP Nigeria and NBS."
+    )
     frame = pd.read_csv(NORMALIZED_FILE)
     keys = ["commodity_ticker", "commodity", "unit", "price_type", "geography_level", "geography_name"]
     rows = []

@@ -1,7 +1,0 @@
-series_id,feature_rows,train_rows,validation_rows,test_rows,observed_months,first_observed_month,last_observed_month
-Millet | 2.6 KG | Retail,109,76,16,17,127,2014-05,2025-11
-Oil (palm) | L | Retail,126,88,19,19,134,2014-05,2025-11
-Rice (imported) | 2.8 KG | Retail,118,82,18,18,133,2014-05,2025-11
-Rice (imported) | 50 KG | Wholesale,121,84,18,19,127,2012-05,2023-01
-Rice (local) | 2.7 KG | Retail,117,81,18,18,131,2014-07,2025-11
-Yam | 2.5 KG | Retail,134,93,20,21,137,2014-07,2025-11

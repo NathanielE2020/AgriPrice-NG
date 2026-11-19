@@ -1,0 +1,69 @@
+AgriPrice-NG WFP + NBS Final Data Readiness
+Assessment date: 2026-11-19 (Africa/Lagos). No training was performed.
+
+DECISION
+No series in the supplied WFP/NBS data is genuinely ready to support a reliable model-based forecast of November 2026 market conditions.
+NBS is the more recent of the sources, but its latest actual reporting month is May 2026 (publication month June 2026) and the post-rebase series have only 17 months. WFP pure actual market observations stop earlier and are irregular. Forecasts must not be described as current observed prices.
+
+NBS READINESS
+- Files: 19 valid workbooks and 17 paired reports; reporting months 2024-11 through 2026-05 (19 consecutive months).
+- Latest NBS actual reporting month: 2026-05; latest supplied report publication month: 2026-06.
+- Exact item/unit/geography series counts by observed months: {1: 1, 2: 294, 16: 1, 17: 286, 19: 7}; one- and 16-month labels are not silently treated as the 17-month stable post-rebase item series.
+- January 2025 CPI basket rebasing is a material methodology/definition boundary; retain pre- and post-rebase regimes separately unless item specifications are independently confirmed comparable.
+- For 2025-01 through 2026-05, most stable labels have at most 17 consecutive observations, which is inadequate for a robust chronological train/validation/test evaluation of five ML methods. A 12-month LSTM window would yield only about five supervised targets before reserving test data.
+- NBS geography is national and six geopolitical zones, not market-level; unit definitions are absent for most workbook item labels; no raw cassava item is available (gari is processed).
+- Suitable now for descriptive analysis and transparent baseline-only exploratory comparisons, not for production/academic claims of reliable multi-step ML forecasting.
+- Post-rebase NBS candidates (each geography remains a separate national/zone series; counts shown across those separate geographies):
+  Beans | Beans Brown | unit=not stated | geographies=7 (national:Nigeria; zone:NORTH CENTRAL; zone:NORTH EAST; zone:NORTH WEST; zone:SOUTH EAST; zone:SOUTH SOUTH; zone:SOUTH WEST) | monthly points=17-17 | 2025-01 to 2026-05 | within-series missing months=0
+  Beans | Beans white | unit=not stated | geographies=7 (national:Nigeria; zone:NORTH CENTRAL; zone:NORTH EAST; zone:NORTH WEST; zone:SOUTH EAST; zone:SOUTH SOUTH; zone:SOUTH WEST) | monthly points=17-17 | 2025-01 to 2026-05 | within-series missing months=0
+  Maize | Maize (Corn) Grains (White) sold loose | unit=not stated | geographies=7 (national:Nigeria; zone:NORTH CENTRAL; zone:NORTH EAST; zone:NORTH WEST; zone:SOUTH EAST; zone:SOUTH SOUTH; zone:SOUTH WEST) | monthly points=17-17 | 2025-01 to 2026-05 | within-series missing months=0
+  Palm oil | Palm oil, 75cl | unit=75cl | geographies=7 (national:Nigeria; zone:NORTH CENTRAL; zone:NORTH EAST; zone:NORTH WEST; zone:SOUTH EAST; zone:SOUTH SOUTH; zone:SOUTH WEST) | monthly points=17-17 | 2025-01 to 2026-05 | within-series missing months=0
+  Rice (imported) | Rice Long-Grained (Imported) | unit=not stated | geographies=7 (national:Nigeria; zone:NORTH CENTRAL; zone:NORTH EAST; zone:NORTH WEST; zone:SOUTH EAST; zone:SOUTH SOUTH; zone:SOUTH WEST) | monthly points=17-17 | 2025-01 to 2026-05 | within-series missing months=0
+  Rice (local) | Local Rice (Broken) | unit=not stated | geographies=7 (national:Nigeria; zone:NORTH CENTRAL; zone:NORTH EAST; zone:NORTH WEST; zone:SOUTH EAST; zone:SOUTH SOUTH; zone:SOUTH WEST) | monthly points=17-17 | 2025-01 to 2026-05 | within-series missing months=0
+  Rice (local) | Rice Local, short-Grained | unit=not stated | geographies=7 (national:Nigeria; zone:NORTH CENTRAL; zone:NORTH EAST; zone:NORTH WEST; zone:SOUTH EAST; zone:SOUTH SOUTH; zone:SOUTH WEST) | monthly points=17-17 | 2025-01 to 2026-05 | within-series missing months=0
+  Tomatoes | Tomatoes, fresh | unit=not stated | geographies=7 (national:Nigeria; zone:NORTH CENTRAL; zone:NORTH EAST; zone:NORTH WEST; zone:SOUTH EAST; zone:SOUTH SOUTH; zone:SOUTH WEST) | monthly points=17-17 | 2025-01 to 2026-05 | within-series missing months=0
+  Yam | Yam Tuber | unit=not stated | geographies=7 (national:Nigeria; zone:NORTH CENTRAL; zone:NORTH EAST; zone:NORTH WEST; zone:SOUTH EAST; zone:SOUTH SOUTH; zone:SOUTH WEST) | monthly points=17-17 | 2025-01 to 2026-05 | within-series missing months=0
+
+WFP ACTUAL-OBSERVATION READINESS
+- Pure actual rows: 51,892 of 91,216 normalized monthly rows; priceflag categories remain separate: {'actual': 51892, 'aggregate': 38107, 'actual,aggregate': 1217}.
+- Latest pure actual observation: 2026-04-15; latest date in the file across all flags: 2026-11-15. Aggregate/estimated flag dates are not direct observed prices.
+- Research-mapped direct plus separately flagged related/ambiguous actual market series: 544; direct/defensible variants: 374.
+- Among direct/defensible variants, 8 have >=96 observations, 133 have >=80% calendar coverage, and 74 have no gap longer than 3 months.
+- Direct/defensible variants meeting all three historical criteria: 0. Direct/defensible variants with actual prices in Sep-Nov 2026: 0.
+- Latest actual records by research grouping: [{'mapped': 'Beans', 'monthly_rows': 2607, 'source_commodities': 3, 'markets': 25}, {'mapped': 'Beans/pulse related', 'monthly_rows': 3153, 'source_commodities': 3, 'markets': 36}, {'mapped': 'Cassava-derived product (processed)', 'monthly_rows': 2006, 'source_commodities': 2, 'markets': 16}, {'mapped': 'Maize', 'monthly_rows': 2989, 'source_commodities': 3, 'markets': 21}, {'mapped': 'Maize-derived product (flour)', 'monthly_rows': 1298, 'source_commodities': 1, 'markets': 22}, {'mapped': 'Palm oil', 'monthly_rows': 2181, 'source_commodities': 1, 'markets': 37}, {'mapped': 'Rice (imported)', 'monthly_rows': 2828, 'source_commodities': 1, 'markets': 41}, {'mapped': 'Rice (local)', 'monthly_rows': 2717, 'source_commodities': 2, 'markets': 37}, {'mapped': 'Tomatoes', 'monthly_rows': 1156, 'source_commodities': 1, 'markets': 21}, {'mapped': 'Yam', 'monthly_rows': 2253, 'source_commodities': 2, 'markets': 37}].
+- Maximum actual observations per direct/defensible series in the trailing 24/36 months: 1/1; 53 series have one observation in 2026.
+- WFP contains no raw-cassava commodity label in actual observations; gari/cassava-meal labels are treated as processed products.
+- Previously approved five WFP combinations (historical context only; not current candidates):
+  Sorghum (white) | Dawanau | 100 KG | Wholesale | n=199 | 2003-08 to 2021-12 | coverage=90.05% | missing=22 | longest_gap=20 | recent24=0 | recent36=0 | 2026=0
+  Maize (white) | Dawanau | 100 KG | Wholesale | n=199 | 2003-08 to 2021-12 | coverage=90.05% | missing=22 | longest_gap=20 | recent24=0 | recent36=0 | 2026=0
+  Millet | Dawanau | 100 KG | Wholesale | n=186 | 2003-08 to 2021-12 | coverage=84.16% | missing=35 | longest_gap=20 | recent24=0 | recent36=0 | 2026=0
+  Maize | Illela (CBM) | KG | Wholesale | n=145 | 2002-01 to 2017-03 | coverage=79.23% | missing=38 | longest_gap=12 | recent24=0 | recent36=0 | 2026=0
+  Sorghum | Mai Adoua (CBM) | KG | Wholesale | n=136 | 2002-11 to 2017-03 | coverage=78.61% | missing=37 | longest_gap=12 | recent24=0 | recent36=0 | 2026=0
+- Direct WFP series with >=96 monthly observations (historically longer; listed separately from related products):
+  Maize | Maize (white) | Dawanau / Kano | 100 KG | Wholesale | n=199 | 2003-08 to 2021-12 | coverage=90.0% | missing=22 | longest_gap=20 | recent24=0 | recent36=0 | 2026=0
+  Maize | Maize | Illela (CBM) / Sokoto | KG | Wholesale | n=145 | 2002-01 to 2017-03 | coverage=79.2% | missing=38 | longest_gap=12 | recent24=0 | recent36=0 | 2026=0
+  Rice (imported) | Rice (imported) | Illela (CBM) / Sokoto | KG | Wholesale | n=145 | 2002-01 to 2017-03 | coverage=79.2% | missing=38 | longest_gap=12 | recent24=0 | recent36=0 | 2026=0
+  Maize | Maize | Mai Adoua (CBM) / Katsina | KG | Wholesale | n=135 | 2002-11 to 2017-03 | coverage=78.0% | missing=38 | longest_gap=12 | recent24=0 | recent36=0 | 2026=0
+  Rice (imported) | Rice (imported) | Mai Adoua (CBM) / Katsina | KG | Wholesale | n=134 | 2002-11 to 2017-03 | coverage=77.5% | missing=39 | longest_gap=12 | recent24=0 | recent36=0 | 2026=0
+  Rice (imported) | Rice (imported) | Jibia (CBM) / Katsina | KG | Wholesale | n=123 | 2002-01 to 2017-03 | coverage=67.2% | missing=60 | longest_gap=14 | recent24=0 | recent36=0 | 2026=0
+  Maize | Maize | Jibia (CBM) / Katsina | KG | Wholesale | n=122 | 2002-01 to 2017-03 | coverage=66.7% | missing=61 | longest_gap=14 | recent24=0 | recent36=0 | 2026=0
+  Maize | Maize (white) | Ibadan / Oyo | 100 KG | Wholesale | n=96 | 2010-09 to 2021-12 | coverage=70.6% | missing=40 | longest_gap=20 | recent24=0 | recent36=0 | 2026=0
+- Most recent WFP actual candidate lines:
+  Beans | Beans (red) | Abba Gamaram / Borno | 2.5 KG | Retail | n=77 | 2016-06 to 2026-04 | coverage=64.7% | missing=42 | longest_gap=34 | recent24=1 | recent36=1 | 2026=1
+  Beans | Beans (red) | Budum / Borno | 2.5 KG | Retail | n=77 | 2016-06 to 2026-04 | coverage=64.7% | missing=42 | longest_gap=34 | recent24=1 | recent36=1 | 2026=1
+  Beans | Beans (red) | Custom / Borno | 2.5 KG | Retail | n=77 | 2016-06 to 2026-04 | coverage=64.7% | missing=42 | longest_gap=34 | recent24=1 | recent36=1 | 2026=1
+  Beans | Beans (red) | Monday / Borno | 2.5 KG | Retail | n=77 | 2016-06 to 2026-04 | coverage=64.7% | missing=42 | longest_gap=34 | recent24=1 | recent36=1 | 2026=1
+  Beans | Beans (white) | Monday / Borno | 2.5 KG | Retail | n=77 | 2016-06 to 2026-04 | coverage=64.7% | missing=42 | longest_gap=34 | recent24=1 | recent36=1 | 2026=1
+  Maize-derived product (flour) | Maize flour | Abba Gamaram / Borno | 2.1 KG | Retail | n=77 | 2016-06 to 2026-04 | coverage=64.7% | missing=42 | longest_gap=34 | recent24=1 | recent36=1 | 2026=1
+  Maize-derived product (flour) | Maize flour | Budum / Borno | 2.1 KG | Retail | n=77 | 2016-06 to 2026-04 | coverage=64.7% | missing=42 | longest_gap=34 | recent24=1 | recent36=1 | 2026=1
+  Maize-derived product (flour) | Maize flour | Custom / Borno | 2.1 KG | Retail | n=77 | 2016-06 to 2026-04 | coverage=64.7% | missing=42 | longest_gap=34 | recent24=1 | recent36=1 | 2026=1
+  Maize-derived product (flour) | Maize flour | Monday / Borno | 2.1 KG | Retail | n=77 | 2016-06 to 2026-04 | coverage=64.7% | missing=42 | longest_gap=34 | recent24=1 | recent36=1 | 2026=1
+  Palm oil | Oil (palm) | Abba Gamaram / Borno | L | Retail | n=77 | 2016-06 to 2026-04 | coverage=64.7% | missing=42 | longest_gap=34 | recent24=1 | recent36=1 | 2026=1
+
+DEFENSIBLE NEXT USE
+1. Preserve NBS item labels, units and national/zone geographies as separate series; explicitly flag the 2025 CPI basket break.
+2. Re-run source freshness checks when newer NBS releases or direct WFP market observations are supplied. Require actual reported values, not aggregate/imputed rows, for a claim about current prices.
+3. If proceeding with an academic forecasting experiment before longer data are available, limit it to post-rebase NBS series, use a naive baseline and walk-forward/rolling-origin evaluation, and label all results exploratory because the sample is short.
+4. Do not train on WFP aggregate/mixed flags as if they were direct market reports and do not combine NBS national/zone averages with WFP market series.
+
+TRAINING STATUS: No models trained; no missing prices/months filled; no raw inputs modified.

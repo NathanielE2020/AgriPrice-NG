@@ -1,8 +1,7 @@
-"""Read-only data and model adapters for the AgriPrice-NG dashboard.
+"""Retired dashboard adapters retained for historical research reference.
 
-The service deliberately consumes the processed monthly files and saved model
-artifacts produced by the existing training pipeline.  It does not retrain,
-rewrite processed data, or modify anything below ``data/raw``.
+The active Flask application imports ``wfp_nbs_dashboard_service`` instead.
+This legacy module is no longer used by the dashboard or ``train.py``.
 """
 
 from __future__ import annotations

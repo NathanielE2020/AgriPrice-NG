@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from flask import Flask, jsonify, render_template, request
 
-from src.dashboard_service import DashboardError, create_dashboard_service
+from src.wfp_nbs_dashboard_service import DashboardError, create_dashboard_service
 
 
 def create_app(service=None) -> Flask:
@@ -38,7 +38,7 @@ def create_app(service=None) -> Flask:
 
     @app.get("/api/performance")
     def api_performance():
-        dataset = request.args.get("dataset") or getattr(dashboard, "default_dataset", "aggregate")
+        dataset = request.args.get("dataset") or getattr(dashboard, "default_dataset", "wfp")
         series_id = request.args.get("series_id")
         return jsonify(dashboard.performance(dataset, series_id))
 

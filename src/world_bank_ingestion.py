@@ -1,4 +1,4 @@
-"""World Bank Nigeria food-price ingestion and normalization.
+"""Retired historical World Bank ingestion source.
 
 The World Bank release is intentionally kept separate from the WFP pipeline.
 This module reads the downloaded CSV files, validates the wide estimate table,
@@ -188,6 +188,9 @@ def prepare_world_bank_data(
     root: Path = EXTRACTED_ROOT,
     output_path: Path = NORMALIZED_FILE,
 ) -> dict[str, Any]:
+    raise RuntimeError(
+        "This ingestion pipeline is retired. The active AgriPrice-NG sources are WFP Nigeria and NBS."
+    )
     frame, tickers, details = load_world_bank_raw(root)
     normalized = normalize_world_bank(frame, tickers)
     output_path.parent.mkdir(parents=True, exist_ok=True)

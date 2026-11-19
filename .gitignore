@@ -26,6 +26,11 @@ secrets/
 *.pem
 *.key
 
+# Original source data and local backups stay out of application releases.
+/data/raw/
+/backups/
+/models/wfp_nbs/
+
 # Temporary logs and editor/OS files
 *.log
 .DS_Store

@@ -1,0 +1,67 @@
+AgriPrice-NG ? WFP + NBS Current-Data Series Selection Audit
+=============================================================
+Audit date: 2026-11-19
+Scope: seven research commodity groups; market-level WFP candidate series and separate NBS item/geography mapping.
+No models were trained. No target values were interpolated, forward-filled, synthesized, or combined across source/geography/unit.
+
+Inputs and method
+-----------------
+WFP normalized input: data/processed/wfp_monthly.csv (91,216 rows; SHA-256 195b909893761807d1918a7674a9b05fc119b7bd4743c440da29d3a4a2318aab).
+NBS normalized input: data/processed/nbs_monthly.csv (1,470 rows; SHA-256 e534f446b1d81a7e16e3ab9314d0281c73dfe9b9c519b711ec1a8b32e17c5422).
+WFP candidate key: research mapping + exact source commodity + market + market_id + state + unit + price type + currency; only exact priceflag="actual" rows with non-missing prices are candidates.
+WFP is already monthly-normalized by the existing ingestion process; source observation counts and exact within-month date bounds are retained. No calendar reindexing or price filling was performed.
+Other WFP flags (aggregate and actual,aggregate) remain excluded and are not merged into pure actual series.
+Trailing windows are anchored to the audit month: last 24 months = 2024-12 through 2026-11; last 36 months = 2023-12 through 2026-11.
+Calendar coverage is observed actual months divided by all calendar months from the first through latest observation. A one-month series can show 100% span coverage; it is not evidence of a usable forecast history.
+
+WFP freshness finding
+---------------------
+All WFP normalized rows extend through 2026-11-15 (2026-11), but this tail is not pure actual market data.
+Pure actual WFP rows end at 2026-04-15 (2026-04); this latest actual is 218 days before the audit date.
+Aggregate-flag rows end at 2026-11-15. Price-flag source-record counts are: {'actual': 51892, 'actual,aggregate': 1217, 'aggregate': 38107}.
+Therefore the apparent November 2026 data tail must not be described as observed market prices: the pure actual source stops on 2026-04-15, and neither mixed actual,aggregate nor aggregate rows were used as direct market observations.
+
+WFP series availability results
+-------------------------------
+Pure-actual market-level series in the scoped labels: 544 total; 374 direct/variant commodity matches and 170 related-but-not-equivalent products/pulses.
+Of the direct/variant series, 53 have any 2026 actual observation. Every such latest observation is in April 2026.
+Across all 544 scoped groups, 475 have zero observations and 69 have exactly one in the trailing 24 months; none has two or more.
+No scoped series has more than one actual monthly observation in the trailing 36 months either. A 2026 point represents at most 1/24 months (4.17%) and 1/36 months (2.78%) in those windows.
+
+Direct/variant candidate groups by research commodity
+Research group | Series groups | With actual in 2026 | Max actual months last 24 | Max actual months last 36
+---------------|---------------|---------------------|--------------------------|--------------------------
+Beans | 47 | 16 | 1 | 1
+Maize | 70 | 0 | 0 | 0
+Palm oil | 52 | 8 | 1 | 1
+Rice (imported) | 57 | 5 | 1 | 1
+Rice (local) | 58 | 8 | 1 | 1
+Tomatoes | 21 | 8 | 1 | 1
+Yam | 69 | 8 | 1 | 1
+
+Current-condition recommendation
+---------------------------------
+No WFP market-level series is recommended for forecasting present market conditions from the files currently available. The decisive issue is not lifetime row count: for every scoped market/unit/price-type group, there are at most one pure-actual monthly points in each of the trailing 24 and 36 months, and the freshest pure actual is seven calendar months old at audit time.
+Do not train on, or label as current actual observations, the 2026 aggregate-flag tail. The 69 groups across direct and related mapped labels that have a 2026 pure-actual point (53 direct/variant groups and 16 related-product/pulse groups) have only a single April point in the recent windows; they are a data-refresh/watchlist, not a forecast shortlist.
+Freshness by primary research category: Beans has some April actuals; Rice (local) and Rice (imported), Yam, Tomatoes, and Palm oil have some April actuals; Maize has no pure-actual 2026 market series; raw Cassava has no exact WFP commodity label. The presence of a single April point does not support a multi-step forecast.
+Keep source commodity variants, markets, states, units, and Retail/Wholesale types separate. Beans and cowpeas remain distinct; maize flour is not maize grain; gari is not raw cassava. Existing old Dawanau/CMB series may remain useful for historical analysis only, not as present-condition series.
+Recommended next data action: obtain subsequent monthly WFP releases with pure actual market observations for the same exact commodity-market-state-unit-price-type keys. Re-audit before training; do not bridge the 2023?2026 gaps or treat the first resumed point as continuity.
+
+NBS audit and mapping
+---------------------
+Existing NBS source tree contains 5 monthly workbooks and 5 paired PDFs for 2026-01, 2026-02, 2026-03, 2026-04, 2026-05; normalized observations are 1,470 rows.
+NBS coverage is 43 original item labels, 7 geographies (national Nigeria plus six zones), and five months (2026-01 to 2026-05). Geography coverage varies by item: 41 labels have all seven geographies; "Smoked fish" has the six zones only, while "Smoked fish (Mackerel)" has Nigeria national only. No additional historical NBS release is present in the existing project source files: data/raw contains only these five workbook/PDF pairs, and backups contains no Excel or PDF files.
+NBS missing prices: 0; duplicate item/geography/month keys: 0. The workbook has no standardized unit column; NGN is supported by the paired official PDFs.
+Defensible direct mappings: Local Rice (Broken) and Rice Local, short-Grained -> Rice (local), kept as separate source products; Rice Long-Grained (Imported) -> Rice (imported); Maize (Corn) Grains (White) sold loose -> Maize; Beans Brown and Beans white -> Beans; Yam Tuber -> Yam; Tomatoes, fresh -> Tomatoes; Palm oil, 75cl -> Palm oil (75cl remains in the original label).
+Related, not equivalent: Garri Yellow and Garri white are cassava-derived processed products, not raw cassava. No raw cassava item is present. The other 32 NBS labels are outside the seven-commodity scope. Every original label is retained in the mapping CSV.
+NBS recommendation: retain national and each zone as separate descriptive monthly series. Five months are insufficient for a defensible time-series forecast; do not merge NBS national/zone averages with WFP market-level data or infer standardized units.
+
+Output files
+------------
+reports/wfp_nbs_series_availability.csv ? all scoped pure-actual WFP market series, counts, dates, missing-month lists, coverage, trailing-window counts, 2026 status and recommendation flags.
+reports/wfp_nbs_commodity_mapping.csv ? all 43 original NBS item labels, transparent research mapping, geography/month coverage, and unit/currency caveats.
+reports/wfp_nbs_series_selection_audit.txt ? methods, freshness findings, exclusions, and selection recommendation.
+
+Integrity check
+---------------
+Protected raw WFP/NBS files and normalized WFP/NBS tables checked before and after: 16 files; sizes and SHA-256 hashes unchanged.

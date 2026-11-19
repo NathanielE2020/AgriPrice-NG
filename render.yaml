@@ -2,13 +2,13 @@ services:
   - type: web
     name: agriprice-ng
     runtime: python
-    # Deployment scope keeps only the 12 registered World Bank champions in memory.
+    # The active dashboard exposes the normalized WFP and NBS sources only.
     plan: free
-    buildCommand: pip install --upgrade pip && pip install -r requirements-deploy.txt
+    buildCommand: pip install -r requirements.txt
     startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 1 --timeout 120 app:app
     healthCheckPath: /
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.5
       - key: AGRIPRICE_DEPLOY_SCOPE
-        value: world_bank
+        value: wfp_nbs
