@@ -52,14 +52,34 @@ def test_latest_value_dom_matches_render_latest_and_local_assets_load(client):
         "forecastLatestDate",
         "forecastLatestAge",
         "forecastFreshness",
+        "forecastTemporalStatus",
+        "forecastStatusTitle",
+        "forecastStatusMessage",
+        "forecastSubject",
+        "forecastSelectedHorizon",
+        "forecastSelectedModel",
+        "forecastOriginGenerated",
+        "forecastRmse",
+        "forecastMae",
+        "forecastMape",
+        "forecastR2",
+        "forecastValidationCount",
+        "forecastMethodology",
+        "forecastMethodDetails",
     ):
         assert f'id="{element_id}"' in html
+    assert '<details class="panel forecast-methodology" id="forecastMethodology">' in html
+    assert "Multi-month forecasts are recursive" in html
+    assert "naive last-observation baseline" in html
+    assert "Missing calendar months remain missing" in html
 
     for asset_path in ("/static/js/dashboard.js", "/static/css/dashboard.css"):
         assert client.get(asset_path).status_code == 200
     javascript = client.get("/static/js/dashboard.js").get_data(as_text=True)
     assert 'mode: "on_demand"' in javascript
     assert "state.forecastRequestId" in javascript
+    assert "forecastMethodText" not in javascript
+    assert "forecastMetaLabel" not in javascript
 
 
 def test_overview_facts_match_prepared_source_data(client):
@@ -119,9 +139,10 @@ def test_forecast_catalogue_only_exposes_exact_pure_actual_wfp_ids(client, servi
     assert not any(item["forecast_request_available"] for item in non_actual)
 
     javascript = client.get("/static/js/dashboard.js").get_data(as_text=True)
-    assert "const forecastItems = items.filter((item) => isPureActualForecastSeries(item, dataset));" in javascript
-    assert "state.forecastSelected[state.dataset] = event.target.value;" in javascript
+    assert 'getSeries(dataset).filter((item) => isPureActualForecastSeries(item, dataset))' in javascript
+    assert 'state.forecastSelected[dataset] = event.target.value;' in javascript
     assert "if (!isPureActualForecastSeries(selectedSeries, dataset))" in javascript
+    assert 'model: "auto", mode: "on_demand"' in javascript
     assert "series_id: seriesId" in javascript
 
     # IDs are formed from the same exact grouping dimensions as the loaded
@@ -130,6 +151,53 @@ def test_forecast_catalogue_only_exposes_exact_pure_actual_wfp_ids(client, servi
         record = service._series_index[("wfp", item["series_id"])]
         assert record["price_flag"] == "actual"
         assert record["series_id"] == item["series_id"]
+
+
+def test_forecast_controls_are_usable_and_selection_states_are_independent(client):
+    page = client.get("/")
+    assert page.status_code == 200
+    html = page.get_data(as_text=True)
+    for element_id in ("forecastCommodity", "forecastMarket", "forecastSeries", "forecastHorizon", "generateForecast"):
+        assert f'id="{element_id}"' in html
+    assert "Validation selection" not in html
+    assert 'id="forecastModel"' not in html
+    assert "The selected model has the lowest RMSE on the same chronological validation period" in html
+
+    javascript = client.get("/static/js/dashboard.js").get_data(as_text=True)
+    for selector in ("forecastCommodity", "forecastMarket", "forecastSeries", "forecastHorizon", "generateForecast"):
+        assert f'$("#{selector}").addEventListener(' in javascript
+    assert 'state.analysisDataset = dataset;' in javascript
+    assert 'state.forecastDataset = dataset;' in javascript
+    assert 'loadHistory(state.analysisDataset, $("#analysisSeries").value, "analysis")' in javascript
+    assert 'const dataset = state.forecastDataset;' in javascript
+    assert 'model: "auto"' in javascript
+    # Horizon and selection changes only clear stale output; the button issues the request.
+    assert '$("#forecastHorizon").addEventListener("change", () =>' in javascript
+    assert '$("#generateForecast").addEventListener("click", requestForecast)' in javascript
+    assert '$("#forecastHorizon").addEventListener("change", requestForecast)' not in javascript
+
+
+def test_visible_dashboard_controls_have_matching_dom_and_handlers(client):
+    import re
+
+    html = client.get("/").get_data(as_text=True)
+    javascript = client.get("/static/js/dashboard.js").get_data(as_text=True)
+    html_ids = set(re.findall(r'\bid="([^"]+)"', html))
+    jquery_ids = set(re.findall(r'\$\("#([^" ]+)', javascript))
+    dom_ids = set(re.findall(r'document\.getElementById\("([^"]+)"\)', javascript))
+    assert (jquery_ids | dom_ids).issubset(html_ids)
+
+    bound_controls = (
+        "globalDataset", "analysisDataset", "forecastDataset", "analysisSeries",
+        "forecastCommodity", "forecastMarket", "forecastSeries", "forecastHorizon",
+        "performanceSeries", "refreshHistory", "generateForecast", "mobileMenu",
+    )
+    for control_id in bound_controls:
+        assert f'$("#{control_id}").addEventListener(' in javascript
+    assert 'document.querySelectorAll("[data-section-target]")' in javascript
+    assert '["#analysisStartDate", "#analysisEndDate"].forEach((selector) => $(selector).addEventListener("change"' in javascript
+    for path in ("/api/overview", "/api/series", "/api/history", "/api/performance", "/api/forecast"):
+        assert path in javascript
 
 
 def test_forecast_api_routes_multiple_commodity_market_ids_without_substitution(client, service, monkeypatch):

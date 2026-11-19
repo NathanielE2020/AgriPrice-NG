@@ -4,11 +4,19 @@
   const $ = (selector) => document.querySelector(selector);
   const state = {
     dataset: "wfp",
+    analysisDataset: "wfp",
+    forecastDataset: "wfp",
     overview: null,
     series: { wfp: [], nbs: [] },
-    selected: { wfp: "", nbs: "" },
+    analysisSelected: { wfp: "", nbs: "" },
+    performanceSelected: { wfp: "", nbs: "" },
+    overviewSelected: { wfp: "", nbs: "" },
     forecastSelected: { wfp: "", nbs: "" },
+    forecastCommodity: { wfp: "", nbs: "" },
+    forecastMarket: { wfp: "", nbs: "" },
     history: [],
+    historyRequestId: { analysis: 0, overview: 0 },
+    performanceRequestId: 0,
     charts: {},
     forecastRequestId: 0,
   };
@@ -84,97 +92,196 @@
   }
 
   function configureDatasetSelectors(dataset) {
-    state.dataset = dataset === "nbs" ? "nbs" : "wfp";
-    ["#globalDataset", "#analysisDataset", "#forecastDataset"].forEach((selector) => {
+    const selected = dataset === "nbs" ? "nbs" : "wfp";
+    state.dataset = selected;
+    state.analysisDataset = selected;
+    state.forecastDataset = selected;
+    [["#globalDataset", state.dataset], ["#analysisDataset", state.analysisDataset], ["#forecastDataset", state.forecastDataset]].forEach(([selector, value]) => {
       const node = $(selector);
-      if (node) node.value = state.dataset;
+      if (node) node.value = value;
     });
   }
 
   function fillSeriesSelectors(dataset, preferredId) {
     const items = getSeries(dataset);
-    const selectors = ["#analysisSeries", "#forecastSeries", "#performanceSeries"];
-    const current = preferredId || state.selected[dataset];
-    const nextId = items.some((item) => item.series_id === current) ? current : (items[0] ? items[0].series_id : "");
-    state.selected[dataset] = nextId;
-    const forecastItems = items.filter((item) => isPureActualForecastSeries(item, dataset));
-    let forecastId = state.forecastSelected[dataset];
-    if (!forecastItems.some((item) => item.series_id === forecastId)) {
-      forecastId = forecastItems[0] ? forecastItems[0].series_id : "";
+    const analysisNode = $("#analysisSeries");
+    let analysisId = preferredId || state.analysisSelected[dataset];
+    if (!items.some((item) => item.series_id === analysisId)) analysisId = items[0]?.series_id || "";
+    state.analysisSelected[dataset] = analysisId;
+    const optionMarkup = (item) => {
+      const geo = item.market || item.geography_name || "";
+      const flag = item.price_flag ? ` · ${item.price_flag}` : "";
+      return `<option value="${escapeHTML(item.series_id)}">${escapeHTML(item.commodity)} · ${escapeHTML(item.unit || "Not stated")} · ${escapeHTML(item.price_type)} · ${escapeHTML(geo)}${escapeHTML(flag)}</option>`;
+    };
+    if (analysisNode) {
+      analysisNode.innerHTML = items.map(optionMarkup).join("") || '<option value="">No series available</option>';
+      analysisNode.value = analysisId;
     }
-    state.forecastSelected[dataset] = forecastId;
-    selectors.forEach((selector) => {
-      const node = $(selector);
-      if (!node) return;
-      const isForecastSelector = selector === "#forecastSeries";
-      const choices = isForecastSelector ? forecastItems : items;
-      const selectedId = isForecastSelector ? forecastId : nextId;
-      const optionMarkup = choices.map((item) => {
+    return getSeriesItem(dataset, analysisId);
+  }
+
+  function fillPerformanceSelector(dataset) {
+    const items = getSeries(dataset);
+    const performanceNode = $("#performanceSeries");
+    let performanceId = state.performanceSelected[dataset];
+    if (!items.some((item) => item.series_id === performanceId)) performanceId = items[0]?.series_id || "";
+    state.performanceSelected[dataset] = performanceId;
+    if (performanceNode) {
+      performanceNode.innerHTML = items.map((item) => {
         const geo = item.market || item.geography_name || "";
         const flag = item.price_flag ? ` · ${item.price_flag}` : "";
-        const unit = item.unit || "Not stated";
-        return `<option value="${escapeHTML(item.series_id)}">${escapeHTML(item.commodity)} · ${escapeHTML(unit)} · ${escapeHTML(item.price_type)} · ${escapeHTML(geo)}${escapeHTML(flag)}</option>`;
-      }).join("");
-      const emptyLabel = isForecastSelector
-        ? (dataset === "nbs" ? "NBS forecasting is unavailable" : "No pure-actual WFP series available")
-        : "No series available";
-      node.innerHTML = optionMarkup || `<option value="">${emptyLabel}</option>`;
-      node.querySelectorAll("option").forEach((option) => {
-        const item = choices.find((candidate) => candidate.series_id === option.value);
-        if (item && isForecastSelector) {
-          option.textContent += " [pure priceflag=actual; history checked on request]";
-        } else if (item && selector === "#performanceSeries") {
-          option.textContent += item.forecast_available ? " [historical evaluation]" : " [not evaluated]";
-        }
+        return `<option value="${escapeHTML(item.series_id)}">${escapeHTML(item.commodity)} · ${escapeHTML(item.unit || "Not stated")} · ${escapeHTML(item.price_type)} · ${escapeHTML(geo)}${escapeHTML(flag)}</option>`;
+      }).join("") || '<option value="">No series available</option>';
+      performanceNode.querySelectorAll("option").forEach((option) => {
+        const item = items.find((candidate) => candidate.series_id === option.value);
+        if (item) option.textContent += item.forecast_available ? " [historical evaluation]" : " [not evaluated]";
       });
-      node.value = selectedId;
+      performanceNode.value = performanceId;
+    }
+    return getSeriesItem(dataset, performanceId);
+  }
+
+  function forecastMarketKey(series) {
+    return JSON.stringify([series.market_id || "", series.market || "", series.admin1 || ""]);
+  }
+
+  function forecastMarketLabel(series) {
+    const location = [series.market, series.admin1, series.market_id ? `ID ${series.market_id}` : ""].filter(Boolean);
+    return location.join(" · ") || "Market not stated";
+  }
+
+  function renderForecastLatest(series) {
+    const age = series && series.observation_age_months !== null && series.observation_age_months !== undefined && Number.isFinite(Number(series.observation_age_months))
+      ? Number(series.observation_age_months)
+      : null;
+    const freshnessLabel = series ? ({
+      fresh: "Fresh · within 3 months",
+      recent: "Recent · 4–6 months",
+      aging: "Aging · 7–12 months",
+      stale: "Stale · over 12 months",
+      unavailable: "Unavailable",
+    }[series.freshness] || (age === null ? "Unavailable" : `${age} month(s) old`)) : "Select a series";
+    const values = series ? {
+      forecastLatestPrice: `Latest actual: ${formatPrice(series.latest_price)}`,
+      forecastLatestContext: `${series.commodity} · ${series.market || "market not stated"} · ${series.unit || "unit not stated"} · ${series.price_type}. This is a source observation, not a forecast.`,
+      forecastLatestDate: series.latest_observation_date ? String(series.latest_observation_date).slice(0, 10) : formatMonth(series.last_observed_month),
+      forecastLatestAge: age === null ? "n/a" : `${formatNumber(age)} month(s) old`,
+      forecastFreshness: freshnessLabel,
+    } : {
+      forecastLatestPrice: "Choose an exact series",
+      forecastLatestContext: "Aggregate and mixed-price-flag records are available in historical analysis only; unit and price type must also match exactly.",
+      forecastLatestDate: "n/a",
+      forecastLatestAge: "n/a",
+      forecastFreshness: "Select a series",
+    };
+    Object.entries(values).forEach(([id, value]) => {
+      const element = document.getElementById(id);
+      if (element) element.textContent = value;
     });
-    updateForecastAvailability(dataset, forecastId);
-    return getSeriesItem(dataset, nextId);
+    const freshnessElement = document.getElementById("forecastFreshness");
+    if (freshnessElement?.classList) {
+      ["fresh", "recent", "aging", "stale", "unavailable"].forEach((name) => freshnessElement.classList.remove(`freshness-${name}`));
+      const status = series && ["fresh", "recent", "aging", "stale"].includes(series.freshness) ? series.freshness : "unavailable";
+      freshnessElement.classList.add(`freshness-${status}`);
+    }
+  }
+
+  function showForecastPrompt(message) {
+    state.forecastRequestId += 1;
+    clearChart("forecast");
+    const results = $("#forecastResults");
+    const empty = $("#forecastEmpty");
+    const heading = empty?.querySelector("h2");
+    const body = empty?.querySelector("p");
+    if (results) results.hidden = true;
+    if (empty) empty.hidden = false;
+    if (heading) heading.textContent = "Forecast not generated yet";
+    if (body) body.textContent = message;
+    setMessage("#forecastError", "", false);
   }
 
   function updateForecastAvailability(dataset, seriesId) {
     const series = getSeriesItem(dataset, seriesId);
-    const model = $("#forecastModel");
     const button = $("#generateForecast");
-    const available = Boolean(series && series.forecast_available && series.champion_model);
-    if (model) {
-      model.innerHTML = available
-        ? `<option value="${escapeHTML(series.champion_model)}">${escapeHTML(series.champion_model.replaceAll("_", " "))} · validation-selected</option>`
-        : '<option value="">No saved forecast for this series</option>';
-      model.disabled = !available;
-    }
-    if (button) {
-      button.disabled = !available;
-      button.textContent = available ? "Show saved forecast" : "Forecast unavailable";
-    }
     const note = $("#modelAvailabilityNote");
-    if (note) note.textContent = available
-      ? `Historical-only recursive output from ${series.forecast_origin_month || series.last_observed_month}; not a current market estimate.`
-      : (series ? (series.training_note || "No validated forecast is available for this series.") : "Select an available series.");
-    if (!available) {
-      $("#forecastResults").hidden = true;
-      $("#forecastEmpty").hidden = false;
-    }
+    const needsExactChoice = dataset === "wfp" && seriesId === "" && !$("#forecastSeries").disabled && $("#forecastSeries").options.length > 1;
     const canCheck = isPureActualForecastSeries(series, dataset);
-    if (model) {
-      model.innerHTML = '<option value="auto">Chosen using chronological validation</option>';
-      model.value = "auto";
-      model.disabled = true;
-    }
     if (button) {
       button.disabled = !canCheck;
       button.textContent = canCheck ? "Generate forecast" : "Forecast unavailable";
     }
     if (note) note.textContent = canCheck
-      ? `${formatNumber(series.observed_months)} reported actual months; calendar-lag and validation eligibility are checked when forecasting, and observation age is displayed.`
+      ? `${formatNumber(series.observed_months)} reported actual months (${series.first_observed_month} – ${series.last_observed_month}); full calendar-history eligibility is checked when requested.`
       : (dataset === "nbs"
-        ? "NBS national/zone summaries remain separate and are not currently forecastable from the available post-rebase history."
-        : (series && series.price_flag !== "actual"
-          ? "Only pure priceflag=actual WFP market series can be used; aggregate and mixed flags are excluded."
-          : "Select a pure-actual WFP series with reported observations."));
-    $("#forecastResults").hidden = true;
-    $("#forecastEmpty").hidden = false;
+        ? "NBS national/zone summaries are not supported by the WFP market forecasting engine."
+        : (needsExactChoice
+          ? "This market has multiple exact price series. Select the required unit and retail/wholesale type before forecasting."
+          : "No pure priceflag=actual WFP market series is available for this selection."));
+    renderForecastLatest(canCheck ? series : null);
+    showForecastPrompt(canCheck
+      ? "Review the exact market, unit, price type and horizon, then generate the recursive forecast. The response will state any history eligibility limitation."
+      : (dataset === "nbs"
+        ? "NBS summaries are available in historical analysis but cannot be sent to the WFP forecasting engine."
+        : (needsExactChoice ? "Choose the exact unit and retail/wholesale series before generating a forecast." : "Select a commodity and market with pure priceflag=actual observations.")));
+  }
+
+  function fillForecastSelectors(dataset) {
+    const commodityNode = $("#forecastCommodity");
+    const marketNode = $("#forecastMarket");
+    const seriesNode = $("#forecastSeries");
+    const candidates = getSeries(dataset).filter((item) => isPureActualForecastSeries(item, dataset));
+    const emptyOption = (node, label) => {
+      if (!node) return;
+      node.innerHTML = `<option value="">${escapeHTML(label)}</option>`;
+      node.disabled = true;
+      node.value = "";
+    };
+    if (!candidates.length) {
+      emptyOption(commodityNode, dataset === "nbs" ? "NBS forecasting unavailable" : "No actual commodities available");
+      emptyOption(marketNode, dataset === "nbs" ? "No WFP markets in NBS data" : "No markets available");
+      emptyOption(seriesNode, "No pure-actual series available");
+      state.forecastSelected[dataset] = "";
+      updateForecastAvailability(dataset, "");
+      return;
+    }
+
+    const commodities = [...new Set(candidates.map((item) => item.commodity))].sort((a, b) => a.localeCompare(b));
+    let commodity = state.forecastCommodity[dataset];
+    const prior = getSeriesItem(dataset, state.forecastSelected[dataset]);
+    if (prior && commodities.includes(prior.commodity)) commodity = prior.commodity;
+    if (!commodities.includes(commodity)) commodity = commodities[0];
+    state.forecastCommodity[dataset] = commodity;
+    commodityNode.innerHTML = commodities.map((name) => `<option value="${escapeHTML(name)}">${escapeHTML(name)}</option>`).join("");
+    commodityNode.disabled = false;
+    commodityNode.value = commodity;
+
+    const commoditySeries = candidates.filter((item) => item.commodity === commodity);
+    const markets = new Map();
+    commoditySeries.forEach((item) => {
+      const key = forecastMarketKey(item);
+      if (!markets.has(key)) markets.set(key, item);
+    });
+    const marketChoices = [...markets.entries()].sort((left, right) => forecastMarketLabel(left[1]).localeCompare(forecastMarketLabel(right[1])));
+    let market = state.forecastMarket[dataset];
+    if (prior && prior.commodity === commodity) market = forecastMarketKey(prior);
+    if (!markets.has(market)) market = marketChoices[0]?.[0] || "";
+    state.forecastMarket[dataset] = market;
+    marketNode.innerHTML = marketChoices.map(([key, item]) => `<option value="${escapeHTML(key)}">${escapeHTML(forecastMarketLabel(item))}</option>`).join("") || '<option value="">No markets available</option>';
+    marketNode.disabled = !marketChoices.length;
+    marketNode.value = market;
+
+    const variants = commoditySeries.filter((item) => forecastMarketKey(item) === market);
+    let seriesId = state.forecastSelected[dataset];
+    if (!variants.some((item) => item.series_id === seriesId)) seriesId = variants.length === 1 ? variants[0].series_id : "";
+    state.forecastSelected[dataset] = seriesId;
+    const prompt = variants.length > 1 ? '<option value="">Choose exact unit and price type</option>' : "";
+    seriesNode.innerHTML = prompt + variants.map((item) => {
+      const label = `${item.unit || "Unit not stated"} · ${item.price_type} · actual · ${formatNumber(item.observed_months)} months`;
+      return `<option value="${escapeHTML(item.series_id)}">${escapeHTML(label)}</option>`;
+    }).join("") || '<option value="">No exact actual series available</option>';
+    seriesNode.disabled = !variants.length;
+    seriesNode.value = seriesId;
+    updateForecastAvailability(dataset, seriesId);
   }
 
   function renderOverview() {
@@ -230,9 +337,11 @@
     grid.querySelectorAll("[data-series-id]").forEach((button) => button.addEventListener("click", () => {
       const item = getSeriesItem(state.dataset, button.dataset.seriesId);
       if (!item) return;
+      state.analysisDataset = state.dataset;
+      $("#analysisDataset").value = state.analysisDataset;
       fillSeriesSelectors(state.dataset, item.series_id);
       setSection("analysis-section");
-      loadHistory(state.dataset, item.series_id);
+      loadHistory(state.analysisDataset, item.series_id, "analysis");
     }));
   }
 
@@ -313,21 +422,6 @@
     $("#analysisFreshnessExplanation").textContent = series.price_flag && series.price_flag !== "actual"
       ? "This WFP record is not a pure direct-actual price flag. Its date does not establish freshness of direct market observations."
       : `${series.freshness_explanation || "Observation age is not a measure of price accuracy or representativeness."} Age describes recency only.`;
-    // The forecast summary is optional in alternate/embedded dashboard views.
-    // Keep its absence harmless while the main analysis summary above remains required.
-    const forecastSummary = {
-      forecastLatestPrice: `Latest available value: ${formatPrice(series.latest_price)}`,
-      forecastLatestContext: `${series.source} source record; latest reported month ${formatMonth(series.last_observed_month)}. This value is not itself a forecast.`,
-      forecastLatestDate: formatMonth(series.last_observed_month),
-      forecastLatestAge: series.observation_age_months !== null && series.observation_age_months !== undefined && Number.isFinite(Number(series.observation_age_months))
-        ? `${formatNumber(series.observation_age_months)} month(s) old`
-        : "n/a",
-      forecastFreshness: series.forecast_request_available ? "Eligibility checked on request" : "Unavailable for this source or price flag",
-    };
-    Object.entries(forecastSummary).forEach(([id, value]) => {
-      const element = document.getElementById(id);
-      if (element) element.textContent = value;
-    });
   }
 
   function renderHistoryTable(history, series) {
@@ -341,40 +435,55 @@
     $("#historyCount").textContent = `${formatNumber(history.length)} source rows`;
   }
 
-  async function loadHistory(dataset, seriesId) {
+  async function loadHistory(dataset, seriesId, view = "analysis") {
     const series = getSeriesItem(dataset, seriesId);
     if (!series) return;
-    state.selected[dataset] = seriesId;
+    const requestId = ++state.historyRequestId[view];
+    if (view === "analysis") state.analysisSelected[dataset] = seriesId;
+    else state.overviewSelected[dataset] = seriesId;
     const params = new URLSearchParams({ dataset, series_id: seriesId });
-    if (dataset === $("#analysisDataset").value) {
+    if (view === "analysis" && dataset === state.analysisDataset) {
       if ($("#analysisStartDate").value) params.set("start_date", $("#analysisStartDate").value);
       if ($("#analysisEndDate").value) params.set("end_date", $("#analysisEndDate").value);
     }
     try {
       const payload = await apiGet(`/api/history?${params.toString()}`);
+      if (requestId !== state.historyRequestId[view]) return;
+      if (view === "analysis" && (dataset !== state.analysisDataset || seriesId !== state.analysisSelected[dataset])) return;
+      if (view === "overview" && (dataset !== state.dataset || seriesId !== state.overviewSelected[dataset])) return;
       state.history = payload.history || [];
       const selectedSeries = payload.series || series;
       const location = selectedSeries.market || selectedSeries.geography_name || "";
-      $("#historyTitle").textContent = `${selectedSeries.commodity} · ${selectedSeries.unit || "unit not stated"}${location ? ` · ${location}` : ""}`;
-      $("#historyCoverage").textContent = `${selectedSeries.first_observed_month} — ${selectedSeries.last_observed_month}`;
-      $("#overviewChartTitle").textContent = `${selectedSeries.commodity} monthly history`;
-      $("#overviewChartMeta").textContent = `${formatNumber(selectedSeries.observed_months)} reported months · ${selectedSeries.price_type}`;
-      drawHistory(state.history, selectedSeries, "history", "#historyChart", "#historyEmpty");
-      drawHistory(state.history, selectedSeries, "overview", "#overviewChart", "#overviewChartEmpty");
-      renderHistoryTable(state.history, selectedSeries);
-      renderLatest(selectedSeries);
-      setMessage("#forecastError", "", false);
+      if (view === "analysis") {
+        $("#historyTitle").textContent = `${selectedSeries.commodity} · ${selectedSeries.unit || "unit not stated"}${location ? ` · ${location}` : ""}`;
+        $("#historyCoverage").textContent = `${selectedSeries.first_observed_month} — ${selectedSeries.last_observed_month}`;
+        drawHistory(state.history, selectedSeries, "history", "#historyChart", "#historyEmpty");
+        renderHistoryTable(state.history, selectedSeries);
+        renderLatest(selectedSeries);
+      } else {
+        $("#overviewChartTitle").textContent = `${selectedSeries.commodity} monthly history`;
+        $("#overviewChartMeta").textContent = `${formatNumber(selectedSeries.observed_months)} reported months · ${selectedSeries.price_type}`;
+        drawHistory(state.history, selectedSeries, "overview", "#overviewChart", "#overviewChartEmpty");
+      }
     } catch (error) {
-      showToast(error.message, true);
-      setMessage("#historyEmpty", error.message, true);
+      if (requestId !== state.historyRequestId[view]) return;
+      if (view === "analysis") {
+        showToast(error.message, true);
+        setMessage("#historyEmpty", error.message, true);
+      } else {
+        setMessage("#overviewChartEmpty", error.message, true);
+      }
     }
   }
 
   async function loadPerformance(dataset, seriesId) {
     if (!seriesId) return;
+    const requestId = ++state.performanceRequestId;
+    $("#performanceSummary").textContent = "Loading model evaluation…";
     try {
       const params = new URLSearchParams({ dataset, series_id: seriesId });
       const payload = await apiGet(`/api/performance?${params.toString()}`);
+      if (requestId !== state.performanceRequestId || dataset !== state.dataset || seriesId !== state.performanceSelected[dataset]) return;
       const summary = payload.summary || {};
       $("#performanceSummary").textContent = payload.message || "No validated evaluation records are available.";
       $("#performanceDates").textContent = summary.test_date_count
@@ -389,6 +498,7 @@
       setMessage("#performanceError", payload.status === "evaluated" ? "" : (payload.message || "No test metrics are available."), payload.status !== "evaluated");
       drawPerformance(payload.predictions_by_date || []);
     } catch (error) {
+      if (requestId !== state.performanceRequestId || dataset !== state.dataset || seriesId !== state.performanceSelected[dataset]) return;
       setMessage("#performanceError", error.message, true);
     }
   }
@@ -431,10 +541,26 @@
     if (!rows.length) return;
     $("#forecastEmpty").hidden = true;
     $("#forecastResults").hidden = false;
-    $("#forecastChartTitle").textContent = `${payload.series?.commodity || metadata.commodity} · ${payload.horizon}-month recursive forecast`;
-    $("#forecastMetaLabel").textContent = `Historical only · origin ${metadata.forecast_origin_month}`;
-    $("#forecastMethodText").textContent = `${metadata.method}. Generated ${metadata.forecast_generation_date} from origin ${metadata.forecast_origin_month}; latest actual in the source is ${metadata.latest_actual_month_in_source}. It is not a current market price and has no confidence interval.`;
-    $("#forecastTableBody").innerHTML = rows.map((row) => `<tr><td>${escapeHTML(row.month)}</td><td class="price-cell">${escapeHTML(formatPrice(row.price))}</td><td>${formatNumber(row.step)}</td><td>${escapeHTML(payload.model.replaceAll("_", " "))}</td><td>Historical only</td></tr>`).join("");
+    const series = payload.series || {};
+    const modelLabel = String(payload.model || metadata.model || "Unavailable").replaceAll("_", " ");
+    const metric = metadata.validation_metrics || {};
+    setText("forecastSubject", [series.commodity || metadata.commodity, series.market || metadata.market].filter(Boolean).join(" · ") || "Selected WFP series");
+    setText("forecastSelectedHorizon", `${payload.horizon || rows.length} month(s)`);
+    setText("forecastSelectedModel", modelLabel);
+    setText("forecastOriginGenerated", `Origin ${metadata.forecast_origin_month || "n/a"} · Generated ${metadata.forecast_generation_date || "n/a"}`);
+    setText("forecastRmse", formatNumber(metric.rmse, 2));
+    setText("forecastMae", formatNumber(metric.mae, 2));
+    setText("forecastMape", metric.mape === null || metric.mape === undefined ? "n/a" : `${formatNumber(metric.mape, 2)}%`);
+    setText("forecastR2", formatNumber(metric.r2, 3));
+    setText("forecastValidationCount", formatNumber(metric.n));
+    $("#forecastChartTitle").textContent = "Historical actuals and forecast";
+    renderForecastTemporalStatus(payload);
+    setText("forecastMethodDetails", metadata.transformation ? `Forecast target: ${metadata.transformation}.` : "Forecast target details are unavailable.");
+    $("#forecastTableBody").innerHTML = rows.map((row) => {
+      const future = row.temporal_status === "future_as_of_generation";
+      const status = future ? "Future at generation" : "Past at generation";
+      return `<tr><td>${escapeHTML(row.month)}</td><td class="price-cell">${escapeHTML(formatPrice(row.price))}</td><td>${formatNumber(row.step)}</td><td>${status}</td></tr>`;
+    }).join("");
     clearChart("forecast");
     const actualByMonth = new Map(historical.map((row) => [row.month, row.price]));
     const forecastByMonth = new Map(rows.map((row) => [row.month, row.price]));
@@ -451,30 +577,68 @@
         options: { responsive: true, maintainAspectRatio: false, interaction: { intersect: false, mode: "index" }, plugins: { legend: { display: true } }, scales: { x: { title: { display: true, text: "Month" } }, y: { title: { display: true, text: `${metadata.currency || "NGN"} per ${metadata.unit || "source unit"}` } } } },
       });
     }
-    renderOnDemandForecastDetails(payload);
   }
 
-  function renderOnDemandForecastDetails(payload) {
+  function setText(id, value) {
+    const element = document.getElementById(id);
+    if (element) element.textContent = value;
+  }
+
+  function renderForecastTemporalStatus(payload) {
     const metadata = payload.metadata || {};
-    const metrics = metadata.validation_metrics || {};
-    const modelLabel = String(payload.model || metadata.model || "unavailable").replaceAll("_", " ");
-    $("#forecastMetaLabel").textContent = `${modelLabel} | validation RMSE ${formatNumber(metrics.rmse, 2)}`;
-    $("#forecastMethodText").textContent = `${metadata.method}. ${metadata.selection_basis}. Validation: RMSE ${formatNumber(metrics.rmse, 2)}, MAE ${formatNumber(metrics.mae, 2)}, MAPE ${metrics.mape === null ? "unavailable" : `${formatNumber(metrics.mape, 2)}%`}, R2 ${formatNumber(metrics.r2, 3)} over ${formatNumber(metrics.n)} validation months. Origin ${metadata.forecast_origin_month}${metadata.latest_actual_date_in_source ? ` (${metadata.latest_actual_date_in_source})` : ""}; generated ${metadata.forecast_generation_date}. ${payload.warning}`;
-    $("#forecastTableBody").innerHTML = (payload.forecast || []).map((row) => `<tr><td>${escapeHTML(row.month)}</td><td class="price-cell">${escapeHTML(formatPrice(row.price))}</td><td>${formatNumber(row.step)}</td><td>${escapeHTML(modelLabel)}</td><td>${escapeHTML(String(row.temporal_status || "after_origin").replaceAll("_", " "))}</td></tr>`).join("");
-    const modelSelector = $("#forecastModel");
-    if (modelSelector) {
-      modelSelector.innerHTML = `<option value="auto">Validation winner: ${escapeHTML(modelLabel)}</option>`;
-      modelSelector.value = "auto";
+    const series = payload.series || {};
+    const classification = metadata.forecast_classification || "unverified";
+    const rawAge = series.observation_age_months;
+    const age = rawAge !== null && rawAge !== undefined && Number.isFinite(Number(rawAge)) ? Number(rawAge) : null;
+    const freshness = String(series.freshness || "unavailable").toLowerCase();
+    const isFresh = age !== null ? age <= 3 : freshness === "fresh";
+    let style = "stale";
+    let title = "Forecast status unverified";
+    let message = "The forecast dates or source recency could not be confirmed. Do not treat this as a current market forecast.";
+
+    if (["historical_projection_from_latest_actual", "historical_only"].includes(classification)) {
+      style = "historical";
+      title = "Historical projection — not a current forecast";
+      message = "All requested forecast dates are already in the past relative to the generation date. They are historical projections only.";
+    } else if (classification === "mixed_horizon_relative_to_generation") {
+      style = "mixed";
+      title = "Mixed-period projection";
+      message = "Some requested dates are already in the past. Those rows are historical projections; only future rows based on recent actual data can be considered current forecasts.";
+      if (!isFresh) message += ` Source data is ${age === null ? freshness : `${age} month(s) old`} and should be treated as historical context.`;
+    } else if (classification === "future_as_of_generation" && isFresh) {
+      style = "current";
+      title = "Future forecast · recent actual data";
+      message = "All requested dates are future as of the generation date, based on source data within the last three months. Estimates are not guaranteed prices.";
+    } else if (classification === "future_as_of_generation") {
+      style = "stale";
+      title = `Future projection · ${freshness === "unavailable" ? "source age unavailable" : `${freshness} source data`}`;
+      message = `All requested dates are future as of generation, but the latest actual source observation is ${age === null ? "of unknown age" : `${age} month(s) old`}. This is not a current market forecast; interpret it as historical context.`;
     }
-    const freshness = $("#forecastFreshness");
-    if (freshness) freshness.textContent = String(metadata.forecast_classification || "forecast generated").replaceAll("_", " ");
-    const note = $("#modelAvailabilityNote");
-    if (note) note.textContent = `${formatNumber(metrics.n)} chronological validation months; selected ${modelLabel}. Test dates were not used for selection.`;
+
+    const box = $("#forecastTemporalStatus");
+    if (box) {
+      ["current", "historical", "mixed", "stale"].forEach((name) => box.classList.remove(`forecast-status-${name}`));
+      box.classList.add(`forecast-status-${style}`);
+    }
+    setText("forecastStatusTitle", title);
+    setText("forecastStatusMessage", message);
+  }
+
+  function forecastUnavailableTitle(error) {
+    if (error?.code === "insufficient_or_gapped_history") return "Forecast unavailable — insufficient continuous history";
+    if (error?.code === "not_direct_actual") return "Forecast unavailable — not a pure actual series";
+    if (error?.code === "model_unavailable") return "Forecast unavailable — model not supported for this series";
+    return "Forecast unavailable for this selection";
+  }
+
+  function forecastSelectionKey() {
+    const dataset = state.forecastDataset;
+    return JSON.stringify([dataset, state.forecastCommodity[dataset], state.forecastMarket[dataset], state.forecastSelected[dataset], $("#forecastHorizon").value]);
   }
 
   async function requestForecast() {
-    const dataset = $("#forecastDataset").value;
-    const seriesId = $("#forecastSeries").value;
+    const dataset = state.forecastDataset;
+    const seriesId = state.forecastSelected[dataset];
     const button = $("#generateForecast");
     const requestId = ++state.forecastRequestId;
     const selectedSeries = getSeriesItem(dataset, seriesId);
@@ -493,29 +657,31 @@
       setMessage("#forecastError", reason, true);
       return;
     }
-    const model = $("#forecastModel").value;
     const horizon = $("#forecastHorizon").value;
-    const selectionKey = `${dataset}|${seriesId}|${horizon}`;
+    if (!["1", "3", "6"].includes(horizon)) {
+      const reason = "Choose a forecast horizon of 1, 3, or 6 months.";
+      setMessage("#forecastError", reason, true);
+      showForecastPrompt(reason);
+      return;
+    }
+    const selectionKey = forecastSelectionKey();
     button.disabled = true;
-    button.textContent = "Loading saved forecast…";
+    button.textContent = "Generating forecast…";
     setMessage("#forecastError", "", false);
     $("#forecastResults").hidden = true;
     $("#forecastEmpty").hidden = false;
-    $("#forecastEmpty h2").textContent = "Checking this series…";
-    $("#forecastEmpty p").textContent = "Validating actual observations and selecting a model on chronological validation dates.";
-    const freshness = $("#forecastFreshness");
-    if (freshness) freshness.textContent = "Checking eligibility";
+    $("#forecastEmpty h2").textContent = "Checking this exact series…";
+    $("#forecastEmpty p").textContent = "Checking calendar history, selecting a model using chronological validation, and preparing a recursive forecast.";
     try {
-      const payload = await apiGet(`/api/forecast?${new URLSearchParams({ dataset, series_id: seriesId, model: model || "auto", mode: "on_demand", horizon }).toString()}`);
-      if (requestId !== state.forecastRequestId || selectionKey !== `${$("#forecastDataset").value}|${$("#forecastSeries").value}|${$("#forecastHorizon").value}`) return;
+      const payload = await apiGet(`/api/forecast?${new URLSearchParams({ dataset, series_id: seriesId, model: "auto", mode: "on_demand", horizon }).toString()}`);
+      if (requestId !== state.forecastRequestId || selectionKey !== forecastSelectionKey()) return;
       renderForecast(payload);
     } catch (error) {
-      if (requestId === state.forecastRequestId && selectionKey === `${$("#forecastDataset").value}|${$("#forecastSeries").value}|${$("#forecastHorizon").value}`) {
+      if (requestId === state.forecastRequestId && selectionKey === forecastSelectionKey()) {
         $("#forecastResults").hidden = true;
         $("#forecastEmpty").hidden = false;
-        $("#forecastEmpty h2").textContent = "Forecast unavailable for this selection";
+        $("#forecastEmpty h2").textContent = forecastUnavailableTitle(error);
         $("#forecastEmpty p").textContent = error.message;
-        if (freshness) freshness.textContent = "Forecast unavailable";
         setMessage("#forecastError", error.message, true);
       }
     } finally {
@@ -536,19 +702,34 @@
     $("#pageTitle").textContent = names[sectionId] || "Overview";
     $("#sidebar").classList.remove("open");
     $("#mobileMenu").setAttribute("aria-expanded", "false");
-    if (sectionId === "performance-section") loadPerformance(state.dataset, state.selected[state.dataset]);
+    if (sectionId === "performance-section") loadPerformance(state.dataset, state.performanceSelected[state.dataset]);
   }
 
-  function switchDataset(dataset) {
+  function switchOverviewDataset(dataset) {
     if (!state.series[dataset]) return;
-    state.forecastRequestId += 1;
     state.dataset = dataset;
-    configureDatasetSelectors(dataset);
-    const series = fillSeriesSelectors(dataset);
+    $("#globalDataset").value = dataset;
+    const performance = fillPerformanceSelector(dataset);
     renderOverview();
-    if (series) loadHistory(dataset, series.series_id);
-    if (!$("#performance-section").hidden) loadPerformance(dataset, series?.series_id);
-    if (!$("#forecast-section").hidden) requestForecast();
+    let overviewId = state.overviewSelected[dataset];
+    if (!getSeriesItem(dataset, overviewId)) overviewId = getSeries(dataset)[0]?.series_id || "";
+    if (overviewId) loadHistory(dataset, overviewId, "overview");
+    if (!$("#performance-section").hidden) loadPerformance(dataset, performance?.series_id);
+  }
+
+  function switchAnalysisDataset(dataset) {
+    if (!state.series[dataset]) return;
+    state.analysisDataset = dataset;
+    $("#analysisDataset").value = dataset;
+    const series = fillSeriesSelectors(dataset);
+    if (series) loadHistory(dataset, series.series_id, "analysis");
+  }
+
+  function switchForecastDataset(dataset) {
+    if (!state.series[dataset]) return;
+    state.forecastDataset = dataset;
+    $("#forecastDataset").value = dataset;
+    fillForecastSelectors(dataset);
   }
 
   function bindEvents() {
@@ -557,24 +738,43 @@
       const open = $("#sidebar").classList.toggle("open");
       $("#mobileMenu").setAttribute("aria-expanded", String(open));
     });
-    ["#globalDataset", "#analysisDataset", "#forecastDataset"].forEach((selector) => $(selector).addEventListener("change", (event) => switchDataset(event.target.value)));
+    $("#globalDataset").addEventListener("change", (event) => switchOverviewDataset(event.target.value));
+    $("#analysisDataset").addEventListener("change", (event) => switchAnalysisDataset(event.target.value));
+    $("#forecastDataset").addEventListener("change", (event) => switchForecastDataset(event.target.value));
     $("#analysisSeries").addEventListener("change", (event) => {
-      const item = getSeriesItem(state.dataset, event.target.value);
+      const dataset = state.analysisDataset;
+      const item = getSeriesItem(dataset, event.target.value);
       if (!item) return;
-      fillSeriesSelectors(state.dataset, item.series_id);
-      loadHistory(state.dataset, item.series_id);
+      fillSeriesSelectors(dataset, item.series_id);
+      loadHistory(dataset, item.series_id, "analysis");
+    });
+    $("#forecastCommodity").addEventListener("change", (event) => {
+      const dataset = state.forecastDataset;
+      state.forecastCommodity[dataset] = event.target.value;
+      state.forecastSelected[dataset] = "";
+      fillForecastSelectors(dataset);
+    });
+    $("#forecastMarket").addEventListener("change", (event) => {
+      const dataset = state.forecastDataset;
+      state.forecastMarket[dataset] = event.target.value;
+      state.forecastSelected[dataset] = "";
+      fillForecastSelectors(dataset);
     });
     $("#forecastSeries").addEventListener("change", (event) => {
-      state.forecastSelected[state.dataset] = event.target.value;
-      updateForecastAvailability(state.dataset, event.target.value);
-      renderLatest(getSeriesItem(state.dataset, event.target.value));
-      requestForecast();
+      const dataset = state.forecastDataset;
+      state.forecastSelected[dataset] = event.target.value;
+      updateForecastAvailability(dataset, event.target.value);
     });
-    $("#performanceSeries").addEventListener("change", (event) => loadPerformance(state.dataset, event.target.value));
-    $("#refreshHistory").addEventListener("click", () => loadHistory(state.dataset, $("#analysisSeries").value));
-    ["#analysisStartDate", "#analysisEndDate"].forEach((selector) => $(selector).addEventListener("change", () => loadHistory(state.dataset, $("#analysisSeries").value)));
+    $("#performanceSeries").addEventListener("change", (event) => {
+      state.performanceSelected[state.dataset] = event.target.value;
+      loadPerformance(state.dataset, event.target.value);
+    });
+    $("#refreshHistory").addEventListener("click", () => loadHistory(state.analysisDataset, $("#analysisSeries").value, "analysis"));
+    ["#analysisStartDate", "#analysisEndDate"].forEach((selector) => $(selector).addEventListener("change", () => loadHistory(state.analysisDataset, $("#analysisSeries").value, "analysis")));
     $("#generateForecast").addEventListener("click", requestForecast);
-    $("#forecastHorizon").addEventListener("change", requestForecast);
+    $("#forecastHorizon").addEventListener("change", () => {
+      showForecastPrompt(`Forecast horizon set to ${$("#forecastHorizon").value} month(s). Click Generate forecast to request new results.`);
+    });
   }
 
   async function init() {
@@ -584,9 +784,13 @@
       state.overview = overview;
       state.series = { wfp: series.wfp || [], nbs: series.nbs || [] };
       configureDatasetSelectors(overview.default_dataset || "wfp");
-      const current = fillSeriesSelectors(state.dataset);
+      const current = fillSeriesSelectors(state.analysisDataset);
+      fillPerformanceSelector(state.dataset);
+      fillForecastSelectors(state.forecastDataset);
       renderOverview();
-      if (current) await loadHistory(state.dataset, current.series_id);
+      if (current) await loadHistory(state.analysisDataset, current.series_id, "analysis");
+      const overviewItem = getSeries(state.dataset)[0];
+      if (overviewItem) await loadHistory(state.dataset, overviewItem.series_id, "overview");
       $("#footerStatus").textContent = "WFP and NBS data ready";
     } catch (error) {
       $("#footerStatus").textContent = "Data unavailable";
