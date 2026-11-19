@@ -265,11 +265,19 @@
     $("#analysisFreshnessExplanation").textContent = series.price_flag && series.price_flag !== "actual"
       ? "This WFP record is not a pure direct-actual price flag. Its date does not establish freshness of direct market observations."
       : `${series.freshness_explanation || "Observation age is not a measure of price accuracy or representativeness."} Age describes recency only.`;
-    $("#forecastLatestPrice").textContent = `Latest available value: ${formatPrice(series.latest_price)}`;
-    $("#forecastLatestContext").textContent = `${series.source} reporting period ${formatMonth(series.last_observed_month)}. No forecast is available.`;
-    $("#forecastLatestDate").textContent = formatMonth(series.last_observed_month);
-    $("#forecastLatestAge").textContent = "—";
-    $("#forecastFreshness").textContent = "Not forecastable";
+    // The forecast summary is optional in alternate/embedded dashboard views.
+    // Keep its absence harmless while the main analysis summary above remains required.
+    const forecastSummary = {
+      forecastLatestPrice: `Latest available value: ${formatPrice(series.latest_price)}`,
+      forecastLatestContext: `${series.source} reporting period ${formatMonth(series.last_observed_month)}. No forecast is available.`,
+      forecastLatestDate: formatMonth(series.last_observed_month),
+      forecastLatestAge: "—",
+      forecastFreshness: "Not forecastable",
+    };
+    Object.entries(forecastSummary).forEach(([id, value]) => {
+      const element = document.getElementById(id);
+      if (element) element.textContent = value;
+    });
   }
 
   function renderHistoryTable(history, series) {

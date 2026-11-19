@@ -30,6 +30,29 @@ def test_dashboard_page_and_overview_use_only_migrated_sources(client):
     assert overview["model_status"]["current_market_forecast_series_count"] == 0
 
 
+def test_latest_value_dom_matches_render_latest_and_local_assets_load(client):
+    page = client.get("/")
+    assert page.status_code == 200
+    html = page.get_data(as_text=True)
+    for element_id in (
+        "analysisLatestPrice",
+        "analysisLatestContext",
+        "analysisLatestDate",
+        "analysisLatestAge",
+        "analysisFreshness",
+        "analysisFreshnessExplanation",
+        "forecastLatestPrice",
+        "forecastLatestContext",
+        "forecastLatestDate",
+        "forecastLatestAge",
+        "forecastFreshness",
+    ):
+        assert f'id="{element_id}"' in html
+
+    for asset_path in ("/static/js/dashboard.js", "/static/css/dashboard.css"):
+        assert client.get(asset_path).status_code == 200
+
+
 def test_overview_facts_match_prepared_source_data(client):
     overview = client.get("/api/overview").get_json()
     wfp = overview["datasets"]["wfp"]
