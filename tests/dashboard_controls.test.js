@@ -262,12 +262,13 @@ async function main() {
   assert.equal(successCall.searchParams.get("model"), "auto");
   assert.match(getNode("#forecastTableBody").innerHTML, /Dec 2026[\s\S]*May 2027/);
   assert.equal((getNode("#forecastTableBody").innerHTML.match(/<tr>/g) || []).length, 6, "the six-month action renders six forecast dates");
-  assert.equal(getNode("#forecastStatusTitle").textContent, "Future projection · aging source data");
-  assert.match(getNode("#forecastStatusMessage").textContent, /not a current market forecast/);
-  assert.match(getNode("#forecastTableBody").innerHTML, /Future at generation/);
-  assert.equal(getNode("#forecastLatestDate").textContent, "2026-04-14", "the forecast response's exact underlying observation date is displayed");
-  assert.equal(getNode("#forecastFreshness").textContent, "Stale · 7 month(s)", "the result displays freshness from forecast-origin metadata");
-  assert.equal(getNode("#forecastOriginGenerated").textContent, "Origin 2026-04 · Generated 2026-11-19");
+  assert.equal(getNode("#forecastStatusTitle").textContent, "Price Forecast");
+  assert.match(getNode("#forecastStatusMessage").textContent, /older source data/);
+  assert.equal(getNode("#forecastConfidence").textContent, "Low", "the existing low-confidence classification is presented in plain language");
+  assert.match(getNode("#forecastTableBody").innerHTML, /<td>Forecast<\/td>/);
+  assert.equal(getNode("#forecastLatestDate").textContent, "April 2026 (2026-04-14)", "the starting month and exact observation date remain visible");
+  assert.equal(getNode("#forecastFreshness").textContent, "Older source data", "the result clearly identifies older data");
+  assert.equal(getNode("#forecastOriginGenerated").textContent, "19 November 2026");
   assert.equal(getNode("#forecastSource").textContent, "WFP");
   assert.match(getNode("#forecastSelectedModel").textContent, /random forest/);
   assert.equal(getNode("#forecastSelectedHorizon").textContent, "6 month(s)");
@@ -276,9 +277,9 @@ async function main() {
   assert.equal(getNode("#forecastMape").textContent, "1.00%");
   assert.equal(getNode("#forecastR2").textContent, "0.800");
   assert.equal(getNode("#forecastValidationCount").textContent, "12");
-  assert.match(getNode("#forecastMethodDetails").textContent, /Forecast target: source-reported monthly price/);
+  assert.match(getNode("#forecastMethodDetails").textContent, /Model choice was informed by earlier observations/);
   assert.doesNotMatch(getNode("#forecastMethodDetails").textContent, /Generated 2026-11-19/);
-  assert.deepEqual(charts.at(-1).config.data.datasets.map((dataset) => dataset.label), ["WFP direct actual observations", "Future model estimate"]);
+  assert.deepEqual(charts.at(-1).config.data.datasets.map((dataset) => dataset.label), ["WFP direct actual observations", "Model estimate"]);
 
   const bagaMarket = market.options.find((option) => option.textContent.includes("Baga Road"));
   market.value = bagaMarket.value;
@@ -292,8 +293,8 @@ async function main() {
   horizon.value = "3";
   await trigger("forecastHorizon", "change");
   await trigger("generateForecast", "click");
-  assert.equal(getNode("#forecastStatusTitle").textContent, "Future projection · aging source data");
-  assert.match(getNode("#forecastTableBody").innerHTML, /Future at generation/);
+  assert.equal(getNode("#forecastStatusTitle").textContent, "Price Forecast");
+  assert.match(getNode("#forecastTableBody").innerHTML, /<td>Forecast<\/td>/);
 
   const currentMarket = market.options.find((option) => option.textContent.includes("Current Market"));
   market.value = currentMarket.value;
@@ -301,11 +302,12 @@ async function main() {
   horizon.value = "1";
   await trigger("forecastHorizon", "change");
   await trigger("generateForecast", "click");
-  assert.equal(getNode("#forecastStatusTitle").textContent, "Future estimate · recent source data");
-  assert.match(getNode("#forecastStatusMessage").textContent, /within the 3-month freshness limit/);
-  assert.equal(getNode("#forecastFreshness").textContent, "Fresh · within 3 months");
+  assert.equal(getNode("#forecastStatusTitle").textContent, "Price Forecast");
+  assert.match(getNode("#forecastStatusMessage").textContent, /recent source data/);
+  assert.equal(getNode("#forecastFreshness").textContent, "Recent source data");
+  assert.equal(getNode("#forecastConfidence").textContent, "Medium", "the existing limited-confidence classification is presented in plain language");
   assert.match(getNode("#forecastSelectedModel").textContent, /^Baseline forecast: naive last observation$/);
-  assert.deepEqual(charts.at(-1).config.data.datasets.map((dataset) => dataset.label), ["WFP direct actual observations", "Future baseline estimate"]);
+  assert.deepEqual(charts.at(-1).config.data.datasets.map((dataset) => dataset.label), ["WFP direct actual observations", "Baseline estimate"]);
 
   for (const requested of ["2", "4", "5"]) {
     horizon.value = requested;
@@ -314,7 +316,7 @@ async function main() {
     const request = calls.filter((url) => url.pathname === "/api/forecast").at(-1);
     assert.equal(request.searchParams.get("horizon"), requested, "every supported horizon reaches the forecast API");
     assert.equal((getNode("#forecastTableBody").innerHTML.match(/<tr>/g) || []).length, Number(requested));
-    assert.match(getNode("#forecastTableBody").innerHTML, /Future at generation/);
+    assert.match(getNode("#forecastTableBody").innerHTML, /<td>Forecast<\/td>/);
   }
 
   commodity.value = "Beans (red)";
@@ -323,7 +325,7 @@ async function main() {
   assert.equal(exactSeries.value, "beans-insufficient");
   assert.equal(getNode("#forecastResults").hidden, false, "limited history receives a qualified exact-series fallback");
   assert.match(getNode("#forecastSelectedModel").textContent, /robust recent movement/);
-  assert.match(getNode("#forecastMethodDetails").textContent, /no calibrated interval/i);
+  assert.match(getNode("#forecastMethodDetails").textContent, /confidence is a qualitative guide/i);
 
   getNode("#globalDataset").value = "nbs";
   await trigger("globalDataset", "change");
@@ -348,10 +350,10 @@ async function main() {
   assert.equal(calls.filter((url) => url.pathname === "/api/forecast").at(-1).searchParams.get("dataset"), "nbs");
   assert.equal(calls.filter((url) => url.pathname === "/api/forecast").at(-1).searchParams.get("series_id"), "nbs-yam-post");
   assert.equal(getNode("#forecastResults").hidden, false, "an exact NBS item/geography/regime with positive history receives an estimate");
-  assert.match(getNode("#forecastStatusTitle").textContent, /Future projection/);
+  assert.equal(getNode("#forecastStatusTitle").textContent, "Price Forecast");
   assert.equal(getNode("#forecastSource").textContent, "NBS");
 
-  console.log("Frontend workflow passed: independent selectors, exact WFP flag/NBS regime routing, generation-relative future 1-6 month dates, NGN price/change display, stale projection warnings, and limited-history fallbacks.");
+  console.log("Frontend workflow passed: simple forecast wording, visible starting date and freshness, confidence labels, generation-relative dates, and limited-history estimates.");
 }
 
 main().catch((error) => { console.error(error); process.exitCode = 1; });

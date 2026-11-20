@@ -35,6 +35,12 @@ def test_dashboard_page_and_overview_use_only_migrated_sources(client):
     assert b"WFP Nigeria" in page.data
     assert b"NBS monthly summaries" in page.data
     assert b"World Bank" not in page.data
+    html = page.get_data(as_text=True)
+    assert "<h1>Price Forecast</h1>" in html
+    assert "Starting observation:" in html
+    assert "These are estimated prices. Actual market prices may differ." in html
+    assert "Estimate confidence" not in html
+    assert "Future projection · stale source data" not in html
 
     overview = client.get("/api/overview").get_json()
     assert overview["available_datasets"] == ["wfp", "nbs"]
@@ -81,10 +87,9 @@ def test_latest_value_dom_matches_render_latest_and_local_assets_load(client):
     ):
         assert f'id="{element_id}"' in html
     assert '<details class="panel forecast-methodology" id="forecastMethodology">' in html
-    assert "Forecasts are recursive" in html
-    assert "shrunk toward zero by sample support and direction consistency" in html
-    assert "naive and robust-movement baselines" in html
-    assert "Missing months are not interpolated or forward-filled" in html
+    assert "Forecast dates begin after the generation month" in html
+    assert "intervening months are estimated internally" in html
+    assert "Validation results summarize past checks" in html
 
     for asset_path in ("/static/js/dashboard.js", "/static/css/dashboard.css"):
         assert client.get(asset_path).status_code == 200
@@ -242,7 +247,8 @@ def test_forecast_controls_are_usable_and_selection_states_are_independent(clien
         assert f'id="{element_id}"' in html
     assert "Validation selection" not in html
     assert 'id="forecastModel"' not in html
-    assert "When enough history is available, model choice uses chronological validation" in html
+    assert "<summary>Model and methodology details</summary>" in html
+    assert "Confidence is a qualitative guide based on the existing classification" in html
 
     javascript = client.get("/static/js/dashboard.js").get_data(as_text=True)
     for selector in ("forecastCommodity", "forecastMarket", "forecastSeries", "forecastHorizon", "generateForecast"):
