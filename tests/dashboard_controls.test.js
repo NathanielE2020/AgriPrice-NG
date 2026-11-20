@@ -75,6 +75,7 @@ const records = [
 ];
 const calls = [];
 const charts = [];
+const performanceResponses = new Map();
 function shiftMonthKey(value, offset) {
   const [year, month] = value.split("-").map(Number);
   const ordinal = year * 12 + month - 1 + offset;
@@ -122,7 +123,10 @@ global.fetch = async (url) => {
     const selected = records.find((record) => record.series_id === parsed.searchParams.get("series_id"));
     return apiResponse({ series: selected, history: [{ month: "2026-04", price: 500 }] });
   }
-  if (parsed.pathname === "/api/performance") return apiResponse({ status: "not_evaluated", message: "No evaluation", records: [], predictions_by_date: [] });
+  if (parsed.pathname === "/api/performance") {
+    return apiResponse(performanceResponses.get(parsed.searchParams.get("series_id"))
+      || { status: "not_evaluated", message: "No evaluation", records: [], predictions_by_date: [] });
+  }
   if (parsed.pathname === "/api/forecast") {
     const selected = records.find((record) => record.series_id === parsed.searchParams.get("series_id"));
     const nbsRecord = parsed.searchParams.get("dataset") === "nbs"
@@ -243,8 +247,84 @@ async function main() {
   assert.equal(filteredHistory.searchParams.get("start_date"), "2026-02");
   assert.equal(filteredHistory.searchParams.get("end_date"), "2026-04");
   getNode("#performanceSeries").value = "rice-actual-baga";
+  performanceResponses.set("rice-actual-baga", {
+    status: "validation_evaluated", message: "Individual validation results for the selected series.",
+    series: records.find((record) => record.series_id === "rice-actual-baga"),
+    summary: { evaluation_period: "validation", validation_scope: "exact selected series", validation_date_count: 1, validation_first_month: "2026-03", validation_last_month: "2026-03", validation_observations: 1 },
+    records: [{ model: "naive_last_observation", status: "validation_evaluated", rmse: 3, mae: 2, mape: 1, r2: 0.5, bias: 0, n: 1, evaluation_scope: "exact selected series" }],
+    predictions_by_date: [{ month: "2026-03", models: { naive_last_observation: { actual: 100, predicted: 98 } } }],
+  });
   await trigger("performanceSeries", "change");
   assert.equal(calls.filter((url) => url.pathname === "/api/performance").at(-1).searchParams.get("series_id"), "rice-actual-baga");
+  assert.equal(getNode("#performanceViewLabel").hidden, true, "validated selected-series results do not switch to the overall view");
+  assert.equal(getNode("#overallPerformanceCards").hidden, true, "overall summary cards stay hidden for individual results");
+  assert.equal(getNode("#performanceMapeHeading").textContent, "MAPE");
+  assert.match(getNode("#performanceTableBody").innerHTML, /Validation evaluated/);
+  assert.equal(getNode("#performanceChartEmpty").hidden, true, "actual-versus-predicted rows remain charted when available");
+
+  performanceResponses.set("rice-aggregate", {
+    status: "overall_evaluated", overall_evaluation: true,
+    message: "No individual validation results are available for Rice. This WFP summary is not a result for the selected commodity.",
+    series: records.find((record) => record.series_id === "rice-aggregate"),
+    summary: { evaluation_period: "validation", evaluated_series_count: 2, evaluated_pool_count: 1, validation_audit_as_of: "2026-11-19" },
+    summary_cards: {
+      label: "Overall validation performance", source: "WFP", evaluation_scope: "exact-series chronological validation",
+      rmse: null, mae: null, rmse_unavailable_reason: "Absolute errors cannot be combined across different price scales.",
+      mae_unavailable_reason: "Absolute errors cannot be combined across different price scales.",
+      mape: 12.5, mape_label: "Median per-series MAPE", mape_method: "Median of genuine per-series MAPE values.",
+      r2: null, r2_label: "Median per-series R²", r2_unavailable_reason: "No valid R².",
+      validation_observations: 14, evaluation_unit_count: 2, metric_unit_count: 1,
+      observation_count_method: "Sum across unique exact-series validation observations.",
+    },
+    records: [{ model: "naive_last_observation", status: "overall_validation", rmse: null, mae: null, mape: 12.5, r2: 0.3, bias: null, evaluation_unit_count: 2, evaluation_scope: "Exact-series chronological validation; median per-series MAPE/R²" }],
+    predictions_by_date: [],
+  });
+  getNode("#performanceSeries").value = "rice-aggregate";
+  await trigger("performanceSeries", "change");
+  assert.equal(getNode("#performanceViewLabel").textContent, "Overall evaluation");
+  assert.equal(getNode("#performanceViewLabel").hidden, false);
+  assert.equal(getNode("#overallPerformanceCards").hidden, false);
+  assert.equal(getNode("#overallPerformanceCardsTitle").textContent, "Overall validation performance");
+  assert.equal(getNode("#overallRmse").textContent, "Not available");
+  assert.match(getNode("#overallRmseNote").textContent, /different price scales/);
+  assert.equal(getNode("#overallMae").textContent, "Not available");
+  assert.equal(getNode("#overallMapeLabel").textContent, "Median per-series MAPE");
+  assert.equal(getNode("#overallMape").textContent, "12.50%");
+  assert.equal(getNode("#overallR2").textContent, "Not available");
+  assert.equal(getNode("#overallValidationObservations").textContent, "14");
+  assert.match(getNode("#overallValidationObservationsNote").textContent, /1 unambiguous evaluation units/);
+  assert.equal(getNode("#performanceMapeHeading").textContent, "Median MAPE");
+  assert.match(getNode("#performanceDates").textContent, /2 exact series.*1 compatible pools.*2026-11-19.*dates differ/);
+  assert.match(getNode("#performanceSummary").textContent, /not a result for the selected commodity/);
+  assert.match(getNode("#performanceTableBody").innerHTML, /Overall validation/);
+  assert.equal(getNode("#performanceChartEmpty").hidden, false);
+  assert.match(getNode("#performanceChartEmpty").textContent, /validation metrics only/);
+
+  performanceResponses.set("rice-aggregate", {
+    status: "overall_coverage", overall_evaluation: true, message: "No valid overall scores are available.",
+    summary: { evaluation_period: "validation", evaluated_series_count: 1, evaluated_pool_count: 0 },
+    summary_cards: {
+      label: "Overall validation performance", rmse: null, mae: null, mape: null, r2: null,
+      rmse_unavailable_reason: "No compatible scale.", mae_unavailable_reason: "No compatible scale.",
+      mape_unavailable_reason: "No valid MAPE.", r2_unavailable_reason: "No valid R².",
+      validation_observations: 0, metric_unit_count: 0, observation_count_method: "No eligible observations.",
+    },
+    records: [], predictions_by_date: [],
+  });
+  await trigger("performanceSeries", "change");
+  assert.equal(getNode("#overallPerformanceCards").hidden, false);
+  assert.equal(getNode("#overallMape").textContent, "Not available");
+  assert.equal(getNode("#overallR2").textContent, "Not available");
+  assert.equal(getNode("#overallValidationObservations").textContent, "0");
+  performanceResponses.set("rice-actual-baga", {
+    status: "validation_evaluated", overall_evaluation: false,
+    summary: { evaluation_period: "validation", validation_observations: 1 },
+    records: [{ model: "naive_last_observation", status: "validation_evaluated", rmse: 3, mae: 2, mape: 1, r2: 0.5, bias: 0, n: 1 }],
+    predictions_by_date: [{ month: "2026-03", models: { naive_last_observation: { actual: 100, predicted: 98 } } }],
+  });
+  getNode("#performanceSeries").value = "rice-actual-baga";
+  await trigger("performanceSeries", "change");
+  assert.equal(getNode("#overallPerformanceCards").hidden, true, "returning to individual validation hides overall cards");
 
   const forecastCallsBeforeHorizon = calls.filter((url) => url.pathname === "/api/forecast").length;
   horizon.value = "6";

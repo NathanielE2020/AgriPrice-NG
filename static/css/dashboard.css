@@ -232,6 +232,14 @@ input[type="month"]:focus, input[type="date"]:focus { border-color: var(--forest
 .error-alert { background: var(--danger-soft); border: 1px solid #f3cdca; color: var(--danger); }
 .performance-controls { grid-template-columns: minmax(230px, 380px) 1fr; }
 .performance-summary { align-self: center; color: var(--muted); font-size: 11px; padding: 0 0 0 10px; }
+.performance-cards { margin: 14px 0; padding: 16px; }
+.performance-cards[hidden] { display: none; }
+.performance-cards h2 { color: var(--forest-800); font-size: 12px; letter-spacing: .04em; margin: 0 0 11px; text-transform: uppercase; }
+.performance-cards dl { display: grid; gap: 8px; grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 0; }
+.performance-cards dl > div { background: #f8faf8; border-radius: 7px; display: flex; flex-direction: column; gap: 5px; min-width: 0; padding: 10px; }
+.performance-cards dt { color: var(--muted-light); font-size: 9px; }
+.performance-cards dd { color: var(--ink); font-family: "Manrope", sans-serif; font-size: 14px; font-weight: 700; margin: 0; overflow-wrap: anywhere; }
+.performance-cards small { color: var(--muted); font-size: 9px; line-height: 1.45; }
 .methodology-note { align-items: flex-start; background: #eef5f0; border-left: 3px solid var(--forest-600); color: var(--forest-800); display: flex; font-size: 11px; gap: 9px; line-height: 1.55; margin: 0 0 18px; padding: 12px 14px; }
 .methodology-note span { font-size: 14px; }
 .methodology-note p { margin: 0; }
@@ -309,6 +317,7 @@ input[type="month"]:focus, input[type="date"]:focus { border-color: var(--forest
   .forecast-controls .primary-button { grid-column: 3; }
   .forecast-result-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .forecast-metrics dl { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .performance-cards dl { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .series-grid { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 900px) {
@@ -350,6 +359,7 @@ input[type="month"]:focus, input[type="date"]:focus { border-color: var(--forest
   .forecast-result-summary { gap: 14px; padding: 15px; }
   .forecast-result-facts { gap: 11px 8px; }
   .forecast-metrics dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .performance-cards dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .forecast-methodology > summary { padding: 14px 15px; }
   .forecast-methodology-content { padding: 13px 15px 16px; }
   .overview-chart-wrap { height: 245px; }

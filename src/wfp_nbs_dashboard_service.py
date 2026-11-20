@@ -6,7 +6,9 @@ import csv
 import hashlib
 import json
 import logging
+import math
 import re
+import statistics
 import threading
 from collections import defaultdict
 from datetime import date, datetime
@@ -23,6 +25,8 @@ TRAINING_METRICS = TRAINING_REPORT_DIR / "model_comparison.csv"
 TRAINING_PREDICTIONS = TRAINING_REPORT_DIR / "test_predictions.csv"
 TRAINING_ELIGIBILITY = TRAINING_REPORT_DIR / "series_eligibility.csv"
 TRAINING_FORECASTS = ROOT / "outputs" / "training" / "forecasts.csv"
+COVERAGE_AUDIT = ROOT / "reports" / "final_commodity_coverage_audit.csv"
+COVERAGE_AUDIT_REPORT = ROOT / "reports" / "final_commodity_coverage_audit.txt"
 SUPPORTED_DATASETS = ("wfp", "nbs")
 
 
@@ -112,6 +116,8 @@ class DashboardService:
         self._training_predictions = _read_optional_dict_rows(TRAINING_PREDICTIONS)
         self._training_eligibility = _read_optional_dict_rows(TRAINING_ELIGIBILITY)
         self._training_forecasts = _read_optional_dict_rows(TRAINING_FORECASTS)
+        self._coverage_audit = _read_optional_dict_rows(COVERAGE_AUDIT)
+        self._coverage_audit_as_of = self._load_coverage_audit_date()
         self._training_series = self._training_registry.get("series", {})
         self._eligibility_by_series = {
             row.get("series_id", ""): row for row in self._training_eligibility
@@ -121,6 +127,17 @@ class DashboardService:
         self._dataset_stats: dict[str, dict[str, Any]] = {}
         self._load_wfp()
         self._load_nbs()
+
+    @staticmethod
+    def _load_coverage_audit_date() -> str | None:
+        if not COVERAGE_AUDIT_REPORT.is_file():
+            return None
+        try:
+            report = COVERAGE_AUDIT_REPORT.read_text(encoding="utf-8-sig")
+        except OSError:
+            return None
+        match = re.search(r"^As-of date:\s*(\d{4}-\d{2}-\d{2})\s*$", report, re.MULTILINE)
+        return match.group(1) if match else None
 
     @staticmethod
     def _load_training_registry() -> dict[str, Any]:
@@ -470,6 +487,284 @@ class DashboardService:
             "gaps_filled": False,
         }
 
+    def _research_validation_rows(self, dataset: str) -> list[dict[str, str]]:
+        """Adapt saved validation-only research metrics when the coverage audit is absent."""
+        if dataset != "wfp":
+            return []
+        rows = []
+        for row in self._training_metrics:
+            if row.get("source", "WFP").upper() != "WFP":
+                continue
+            if _integer(row.get("validation_n"), 0) <= 0 or not row.get("validation_dates"):
+                continue
+            rows.append({
+                "source": "WFP",
+                "series_id": row.get("series_id", ""),
+                "forecast_attempt_status": "generated",
+                "forecast_available": "true",
+                "selected_strategy": "individual_series",
+                "selected_model_or_baseline": row.get("model", ""),
+                "validation_rmse": row.get("validation_rmse", ""),
+                "validation_mae": row.get("validation_mae", ""),
+                "validation_mape": row.get("validation_mape", ""),
+                "validation_r2": row.get("validation_r2", ""),
+                "validation_observations": row.get("validation_n", ""),
+            })
+        return rows
+
+    def _overall_performance(
+        self,
+        dataset: str,
+        selected: dict[str, Any] | None,
+        unavailable_message: str,
+    ) -> dict[str, Any]:
+        """Build source-separated, validation-only summaries without cross-scale errors."""
+        source = dataset.upper()
+        audit_rows = [row for row in self._coverage_audit if row.get("source", "").upper() == source]
+        has_saved_audit_evaluation = any(
+            row.get("forecast_attempt_status") == "generated"
+            and str(row.get("forecast_available", "")).lower() == "true"
+            and row.get("selected_strategy") in {"individual_series", "pooled_global"}
+            and _integer(row.get("validation_observations"), 0) > 0
+            for row in audit_rows
+        )
+        evaluation_rows = audit_rows if has_saved_audit_evaluation else self._research_validation_rows(dataset)
+        evaluation_source = (
+            "saved exhaustive one-month forecast validation audit"
+            if has_saved_audit_evaluation else
+            "saved registered WFP chronological validation metrics"
+            if evaluation_rows else
+            "no saved validation evaluation"
+        )
+        evaluation_date = self._coverage_audit_as_of if has_saved_audit_evaluation else None
+        if not evaluation_date and evaluation_rows and dataset == "wfp":
+            generated_at = str(self._training_registry.get("generated_at") or "")
+            evaluation_date = generated_at[:10] if re.match(r"^\d{4}-\d{2}-\d{2}", generated_at) else None
+
+        def finite_metric(row: dict[str, str], field: str) -> float | None:
+            value = _float_or_none(row.get(field))
+            return value if value is not None and math.isfinite(value) else None
+
+        # Each key is one exact series or one compatible group-held-out pool.
+        # Audit rows repeat the same pooled score for member series; collapse
+        # exact duplicates and exclude inconsistent duplicates rather than
+        # counting one pool as many independent evaluations.
+        unit_metrics: dict[tuple[str, str, tuple[Any, ...]], set[tuple[float | None, float | None]]] = defaultdict(set)
+        unit_observations: dict[tuple[str, tuple[Any, ...]], set[int]] = defaultdict(set)
+        units_by_scope: dict[str, set[tuple[Any, ...]]] = defaultdict(set)
+        units_by_model_scope: dict[tuple[str, str], set[tuple[Any, ...]]] = defaultdict(set)
+        models_by_scope: dict[str, set[str]] = defaultdict(set)
+        for row in evaluation_rows:
+            if row.get("source", source).upper() != source:
+                continue
+            if row.get("forecast_attempt_status") != "generated" or str(row.get("forecast_available", "")).lower() != "true":
+                continue
+            strategy = row.get("selected_strategy", "")
+            if strategy not in {"individual_series", "pooled_global"}:
+                continue
+            model = row.get("selected_model_or_baseline", "").strip()
+            series_id = row.get("series_id", "").strip()
+            observations = _integer(row.get("validation_observations"), 0)
+            if not model or observations <= 0:
+                continue
+            if strategy == "individual_series":
+                if not series_id:
+                    continue
+                unit = ("series", series_id)
+            else:
+                # These are the same dimensions used by pooled compatibility
+                # rules; NBS geography and CPI regime remain separate.
+                unit = (
+                    "pool", row.get("commodity", ""), row.get("unit", ""),
+                    row.get("price_type", ""), row.get("price_flag", ""),
+                    row.get("methodology_regime", ""), row.get("geography_level", ""),
+                    observations, _integer(row.get("pooled_training_series_count"), 0),
+                    _integer(row.get("pooled_training_rows"), 0),
+                )
+            units_by_scope[strategy].add(unit)
+            unit_observations[(strategy, unit)].add(observations)
+            models_by_scope[strategy].add(model)
+            units_by_model_scope[(strategy, model)].add(unit)
+            unit_metrics[(strategy, model, unit)].add((
+                finite_metric(row, "validation_mape"),
+                finite_metric(row, "validation_r2"),
+            ))
+
+        grouped_values: dict[tuple[str, str], dict[str, list[float]]] = defaultdict(lambda: {"mape": [], "r2": []})
+        metric_counts: dict[tuple[str, str], int] = defaultdict(int)
+        conflicted_units = 0
+        for (strategy, model, _unit), signatures in unit_metrics.items():
+            if len(signatures) != 1:
+                conflicted_units += 1
+                continue
+            mape, r2 = next(iter(signatures))
+            key = (strategy, model)
+            if mape is not None or r2 is not None:
+                metric_counts[key] += 1
+            if mape is not None:
+                grouped_values[key]["mape"].append(mape)
+            if r2 is not None:
+                grouped_values[key]["r2"].append(r2)
+
+        # Build a compact, explicitly descriptive set of cards. Absolute
+        # errors are not pooled across different price scales. Scale-free
+        # medians are calculated once per unambiguous evaluation unit, and a
+        # repeated/ambiguous model result never increases the observation
+        # count. Prefer exact-series scope; use held-out pools only where exact
+        # validation scores are unavailable (as is common for NBS).
+        card_scope_units: dict[str, list[tuple[Any, ...]]] = defaultdict(list)
+        card_mape: dict[str, list[float]] = defaultdict(list)
+        card_r2: dict[str, list[float]] = defaultdict(list)
+        card_scored_units: dict[str, set[tuple[Any, ...]]] = defaultdict(set)
+        ambiguous_card_units: dict[str, int] = defaultdict(int)
+        for strategy in ("individual_series", "pooled_global"):
+            scope_unit_models: dict[tuple[Any, ...], dict[str, set[tuple[float | None, float | None]]]] = defaultdict(lambda: defaultdict(set))
+            for (unit_strategy, model, unit), signatures in unit_metrics.items():
+                if unit_strategy == strategy:
+                    scope_unit_models[unit][model].update(signatures)
+            for unit in units_by_scope[strategy]:
+                observation_counts = unit_observations.get((strategy, unit), set())
+                if len(observation_counts) != 1:
+                    continue
+                card_scope_units[strategy].append(unit)
+                model_signatures = scope_unit_models.get(unit, {})
+                if len(model_signatures) != 1:
+                    if model_signatures:
+                        ambiguous_card_units[strategy] += 1
+                    continue
+                signatures = next(iter(model_signatures.values()))
+                if len(signatures) != 1:
+                    ambiguous_card_units[strategy] += 1
+                    continue
+                mape_value, r2_value = next(iter(signatures))
+                if mape_value is not None or r2_value is not None:
+                    card_scored_units[strategy].add(unit)
+                if mape_value is not None:
+                    card_mape[strategy].append(mape_value)
+                if r2_value is not None:
+                    card_r2[strategy].append(r2_value)
+
+        scored_card_scopes = [
+            strategy for strategy in ("individual_series", "pooled_global")
+            if card_mape[strategy] or card_r2[strategy]
+        ]
+        card_strategy = (
+            "individual_series" if "individual_series" in scored_card_scopes else
+            "pooled_global" if "pooled_global" in scored_card_scopes else
+            "individual_series" if card_scope_units["individual_series"] else
+            "pooled_global"
+        )
+        card_observations = sum(
+            next(iter(unit_observations[(card_strategy, unit)]))
+            for unit in card_scope_units[card_strategy]
+            if len(unit_observations[(card_strategy, unit)]) == 1
+        )
+        card_scope_label = (
+            "exact-series chronological validation" if card_strategy == "individual_series"
+            else "compatible-pool group-held-out validation"
+        )
+        card_unit_label = "series" if card_strategy == "individual_series" else "pools"
+        card_mape_value = statistics.median(card_mape[card_strategy]) if card_mape[card_strategy] else None
+        card_r2_value = statistics.median(card_r2[card_strategy]) if card_r2[card_strategy] else None
+        summary_cards = {
+            "label": "Overall validation performance",
+            "source": source,
+            "evaluation_scope": card_scope_label,
+            "rmse": None,
+            "mae": None,
+            "rmse_unavailable_reason": "Absolute errors are not combined across different commodities, units, and price scales; aligned raw validation predictions are not available for one common-scale calculation.",
+            "mae_unavailable_reason": "Absolute errors are not combined across different commodities, units, and price scales; aligned raw validation predictions are not available for one common-scale calculation.",
+            "mape": card_mape_value,
+            "mape_label": f"Median per-{card_unit_label} MAPE",
+            "mape_method": f"Median of genuine per-{card_unit_label} MAPE values for unambiguous selected-model validation units in {card_scope_label}; the existing evaluator omits zero actuals from each MAPE denominator.",
+            "r2": card_r2_value,
+            "r2_label": f"Median per-{card_unit_label} R²",
+            "r2_method": f"Median of genuine per-{card_unit_label} R² values in {card_scope_label}; this is a descriptive median, not a pooled R².",
+            "validation_observations": card_observations,
+            "evaluation_unit_count": len(card_scope_units[card_strategy]),
+            "metric_unit_count": len(card_scored_units[card_strategy]),
+            "observation_count_method": f"Sum of validation observations once per distinct {card_unit_label} in the displayed {card_scope_label}; duplicate model rows do not multiply the count.",
+            "ambiguous_metric_units_excluded": ambiguous_card_units[card_strategy],
+        }
+        if card_mape_value is None:
+            summary_cards["mape_unavailable_reason"] = "No unambiguous, finite saved per-series or per-pool MAPE is available for this scope."
+        if card_r2_value is None:
+            summary_cards["r2_unavailable_reason"] = "No unambiguous, finite saved per-series or per-pool R² is available for this scope."
+
+        records = []
+        scope_names = {
+            "individual_series": "Exact-series chronological validation",
+            "pooled_global": "Compatible-pool group-held-out validation",
+        }
+        for strategy, model in sorted(units_by_model_scope):
+            values = grouped_values[(strategy, model)]
+            mape = statistics.median(values["mape"]) if values["mape"] else None
+            r2 = statistics.median(values["r2"]) if values["r2"] else None
+            count = len(units_by_model_scope[(strategy, model)])
+            scope_label = scope_names[strategy]
+            unit_label = "series" if strategy == "individual_series" else "pools"
+            records.append({
+                "model": model,
+                "status": "overall_validation" if mape is not None or r2 is not None else "overall_coverage",
+                # Raw price-scale errors cannot be combined across commodities,
+                # source units, and series. Only per-unit relative/scale-free
+                # metrics are summarized here.
+                "rmse": None, "mae": None, "mape": mape, "r2": r2, "bias": None,
+                "n": None,
+                "evaluation_unit_count": count,
+                "metric_unit_count": metric_counts[(strategy, model)],
+                "evaluation_scope": f"{scope_label}; median per-{unit_label} MAPE/R² across {metric_counts[(strategy, model)]} scored validation {unit_label}",
+                "champion_selected_on_validation": False,
+                "unavailable_reason": "",
+            })
+
+        exact_count = len(units_by_scope["individual_series"])
+        pool_count = len(units_by_scope["pooled_global"])
+        available_models = sorted({model for scope_models in models_by_scope.values() for model in scope_models})
+        selected_name = " / ".join(filter(None, [selected.get("commodity", ""), selected.get("market") or selected.get("geography_name", "")])) if selected else "the current selection"
+        has_overall_scores = any(row["status"] == "overall_validation" for row in records)
+        if has_overall_scores:
+            detail = (
+                f"This {source} summary uses {exact_count} exact-series validation results and "
+                f"{pool_count} distinct compatible-pool group-held-out evaluations"
+            )
+            if evaluation_date:
+                detail += f" from the saved audit as of {evaluation_date}"
+            detail += ". It is not a result for the selected commodity. Scores are medians of per-series or per-pool MAPE and R²; RMSE, MAE, and bias are omitted because raw errors are not comparable across different price scales and units. Model rows may cover different evaluation units and are descriptive, not a head-to-head comparison."
+        else:
+            detail = (
+                f"No valid overall validation scores are available for {source}. "
+                f"Saved evaluation coverage: {exact_count} exact series, {pool_count} compatible pools, "
+                f"and {len(available_models)} available models. No scores or prediction rows have been added."
+            )
+        reason = f" Individual result unavailable: {unavailable_message.strip()}" if unavailable_message else ""
+        message = f"No individual validation results are available for {selected_name}.{reason} {detail}"
+        return {
+            "dataset": dataset,
+            "series": self._public_series(selected) if selected else None,
+            "records": records,
+            "summary": {
+                "evaluation_period": "validation",
+                "evaluation_scope": f"source-wide {source} saved chronological validation; exact-series and compatible-pool scopes remain separate",
+                "evaluation_source": evaluation_source,
+                "validation_audit_as_of": evaluation_date,
+                "evaluated_series_count": exact_count,
+                "evaluated_pool_count": pool_count,
+                "available_models": available_models,
+                "scope_counts": {"exact_series": exact_count, "pooled_global": pool_count},
+                "metric_summary_method": "median of per-series or per-pool MAPE and R²; no raw-scale metric pooling",
+                "raw_scale_metrics_omitted": True,
+                "scored_evaluation_unit_count": sum(metric_counts.values()),
+                "conflicting_metric_units_excluded": conflicted_units,
+            },
+            "summary_cards": summary_cards,
+            "predictions_by_date": [],
+            "status": "overall_evaluated" if any(row["status"] == "overall_validation" for row in records) else "overall_coverage",
+            "overall_evaluation": True,
+            "message": message,
+            "legacy_results_included": False,
+        }
+
     def performance(self, dataset: str, series_id: str | None = None) -> dict[str, Any]:
         dataset = self._dataset(dataset)
         selected = self._require_series(dataset, series_id) if series_id else None
@@ -557,12 +852,7 @@ class DashboardService:
                     mode="on_demand", evaluation_only=True,
                 )
             except DashboardError as error:
-                return {
-                    "dataset": dataset, "series": series_public, "records": [],
-                    "summary": None, "predictions_by_date": [],
-                    "status": "not_eligible", "message": error.message,
-                    "unavailable_code": error.code, "legacy_results_included": False,
-                }
+                return self._overall_performance(dataset, selected, error.message)
             metadata = evaluated.get("metadata", {})
             comparisons = metadata.get("model_comparison_validation") or []
             records = [{
@@ -593,6 +883,15 @@ class DashboardService:
                     "champion_selected_on_validation": False,
                     "unavailable_reason": "Model validation fitting or prediction failed; no metric is reported.",
                 })
+            if not any(
+                row.get("status") == "validation_evaluated"
+                and _float_or_none(row.get("rmse")) is not None
+                for row in records
+            ):
+                return self._overall_performance(
+                    dataset, selected,
+                    metadata.get("evaluation_note") or "No valid selected-series or compatible-pool validation metrics are available.",
+                )
             validation_predictions = metadata.get("validation_predictions") or []
             chart = []
             for item in validation_predictions:

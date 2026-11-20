@@ -84,6 +84,15 @@ def test_latest_value_dom_matches_render_latest_and_local_assets_load(client):
         "forecastValidationCount",
         "forecastMethodology",
         "forecastMethodDetails",
+        "performanceViewLabel",
+        "performanceMapeHeading",
+        "performanceR2Heading",
+        "overallPerformanceCards",
+        "overallRmse",
+        "overallMae",
+        "overallMape",
+        "overallR2",
+        "overallValidationObservations",
     ):
         assert f'id="{element_id}"' in html
     assert '<details class="panel forecast-methodology" id="forecastMethodology">' in html
@@ -450,12 +459,17 @@ def test_performance_reports_only_real_validation_or_test_predictions(client):
     performance = client.get("/api/performance", query_string={"dataset": "wfp", "series_id": item["series_id"]})
     assert performance.status_code == 200
     body = performance.get_json()
-    assert body["status"] in {"not_trained", "not_eligible", "validation_evaluated"}
+    assert body["status"] in {"not_trained", "not_eligible", "validation_evaluated", "overall_evaluated", "overall_coverage"}
     if body["status"] == "validation_evaluated":
         assert body["summary"]["evaluation_period"] == "validation"
         assert body["records"]
         assert all(row["n"] > 0 for row in body["records"] if row["status"] == "validation_evaluated")
         assert all(row["validation_rmse"] is not None for row in body["records"] if row["status"] == "validation_evaluated")
+        assert body.get("overall_evaluation") is not True
+    elif body["status"] in {"overall_evaluated", "overall_coverage"}:
+        assert body["overall_evaluation"] is True
+        assert body["predictions_by_date"] == []
+        assert body["summary"]["raw_scale_metrics_omitted"] is True
     else:
         assert body["records"] == []
     assert body["legacy_results_included"] is False
@@ -542,6 +556,9 @@ def test_unregistered_series_gets_validation_comparison_not_a_blank_performance_
     assert payload["summary"]["validation_first_month"]
     assert payload["summary"]["validation_last_month"]
     assert payload["summary"]["validation_scope"] == "exact selected series"
+    assert payload.get("overall_evaluation") is not True
+    assert "summary_cards" not in payload
+    assert payload["summary"]["validation_observations"] == max(row["n"] for row in payload["records"] if row["status"] == "validation_evaluated")
     assert any(row["model"] == "naive_last_observation" for row in payload["records"])
     assert all(row["n"] > 0 and row["rmse"] is not None for row in payload["records"] if row["status"] == "validation_evaluated")
     assert payload["predictions_by_date"]
@@ -549,6 +566,151 @@ def test_unregistered_series_gets_validation_comparison_not_a_blank_performance_
     assert len(prediction_months) == len(set(prediction_months))
     assert min(prediction_months) == payload["summary"]["validation_first_month"]
     assert max(prediction_months) == payload["summary"]["validation_last_month"]
+
+
+def test_overall_performance_fallback_is_source_separated_and_validation_only(tmp_path):
+    from datetime import date
+
+    service = DashboardService(reference_date=date(2026, 11, 19), forecast_cache_dir=tmp_path)
+    selected = next(
+        row for row in service._series["wfp"]
+        if row["price_flag"] != "actual" and row["observed_months"] > 0
+    )
+
+    def audit_row(source, series_id, strategy, model, mape, r2, **extra):
+        row = {
+            "source": source, "series_id": series_id,
+            "forecast_attempt_status": "generated", "forecast_available": "true",
+            "selected_strategy": strategy, "selected_model_or_baseline": model,
+            "validation_observations": "5", "validation_mape": str(mape),
+            "validation_r2": str(r2), "commodity": "Rice (local)",
+            "unit": "KG", "price_type": "Retail", "price_flag": "actual",
+            "methodology_regime": "post_2025_cpi_rebase", "geography_level": "market",
+            "pooled_training_series_count": "6", "pooled_training_rows": "60",
+        }
+        row.update(extra)
+        return row
+
+    service._coverage_audit = [
+        audit_row("WFP", "exact-one", "individual_series", "naive_last_observation", 10, 0.1),
+        audit_row("WFP", "exact-two", "individual_series", "naive_last_observation", 30, 0.3),
+        # A repeated exact audit row is not counted as another evaluation.
+        audit_row("WFP", "exact-one", "individual_series", "naive_last_observation", 10, 0.1),
+        audit_row("WFP", "exact-one", "individual_series", "random_forest", 25, 0.4),
+        audit_row("WFP", "pool-member-one", "pooled_global", "pooled_gradient_boosting", 4, 0.8),
+        audit_row("WFP", "pool-member-two", "pooled_global", "pooled_gradient_boosting", 4, 0.8),
+        # Same compatibility definition and evaluation counts: one pool, not two.
+        audit_row(
+            "NBS", "nbs-only", "pooled_global", "pooled_random_forest", 99, -1,
+            commodity="Rice local sold loose", unit="Not stated", price_flag="",
+            methodology_regime="post_2025_cpi_rebase", geography_level="national",
+        ),
+    ]
+    service._coverage_audit_as_of = "2026-11-19"
+    # Test-partition metrics in the research report must never enter this validation summary.
+    service._training_metrics.append({
+        "series_id": "unrelated-test-only", "source": "WFP",
+        "model": "xgboost", "test_rmse": "999999", "test_mape": "999",
+    })
+
+    payload = create_app(service).test_client().get("/api/performance", query_string={
+        "dataset": "wfp", "series_id": selected["series_id"],
+    }).get_json()
+    assert payload["overall_evaluation"] is True
+    assert payload["series"]["series_id"] == selected["series_id"]
+    assert "not a result for the selected commodity" in payload["message"]
+    assert payload["summary"]["evaluated_series_count"] == 2
+    assert payload["summary"]["evaluated_pool_count"] == 1
+    assert payload["summary"]["validation_audit_as_of"] == "2026-11-19"
+    assert payload["summary"]["available_models"] == ["naive_last_observation", "pooled_gradient_boosting", "random_forest"]
+    assert payload["predictions_by_date"] == []
+    cards = payload["summary_cards"]
+    assert cards["label"] == "Overall validation performance"
+    assert cards["source"] == "WFP"
+    assert cards["evaluation_scope"] == "exact-series chronological validation"
+    assert cards["rmse"] is None and cards["mae"] is None
+    assert "different commodities" in cards["rmse_unavailable_reason"]
+    # Ambiguous exact-one rows are excluded from the metric medians, but the
+    # two unique exact-series evaluation windows are counted only once each.
+    assert cards["mape"] == 30
+    assert cards["r2"] == pytest.approx(0.3)
+    assert cards["metric_unit_count"] == 1
+    assert cards["validation_observations"] == 10
+    assert cards["evaluation_unit_count"] == 2
+    assert cards["ambiguous_metric_units_excluded"] == 1
+    assert "median" in cards["mape_method"].lower()
+    assert "not a pooled R²" in cards["r2_method"]
+
+    exact_naive = next(row for row in payload["records"] if row["model"] == "naive_last_observation")
+    assert exact_naive["mape"] == 20
+    assert exact_naive["r2"] == pytest.approx(0.2)
+    assert exact_naive["rmse"] is None and exact_naive["mae"] is None and exact_naive["bias"] is None
+    assert exact_naive["evaluation_unit_count"] == 2
+    pooled = next(row for row in payload["records"] if row["model"] == "pooled_gradient_boosting")
+    assert "group-held-out" in pooled["evaluation_scope"]
+    assert pooled["evaluation_unit_count"] == 1
+    assert pooled["mape"] == 4 and pooled["r2"] == pytest.approx(0.8)
+    assert all("nbs" not in row["model"] for row in payload["records"])
+    assert all(row["model"] != "xgboost" for row in payload["records"])
+
+    nbs_selected = next(row for row in service._series["nbs"] if row["observed_months"] < 3)
+    nbs_payload = create_app(service).test_client().get("/api/performance", query_string={
+        "dataset": "nbs", "series_id": nbs_selected["series_id"],
+    }).get_json()
+    assert nbs_payload["overall_evaluation"] is True
+    assert nbs_payload["summary"]["evaluated_series_count"] == 0
+    assert nbs_payload["summary"]["evaluated_pool_count"] == 1
+    assert nbs_payload["summary_cards"]["evaluation_scope"] == "compatible-pool group-held-out validation"
+    assert nbs_payload["summary_cards"]["mape"] == 99
+    assert nbs_payload["summary_cards"]["r2"] == -1
+    assert nbs_payload["summary_cards"]["validation_observations"] == 5
+    assert "pool" in nbs_payload["summary_cards"]["mape_label"]
+    assert [row["model"] for row in nbs_payload["records"]] == ["pooled_random_forest"]
+    assert "WFP" not in nbs_payload["summary"]["evaluation_scope"]
+
+
+def test_empty_overall_performance_falls_back_to_real_coverage_without_scores(tmp_path):
+    from datetime import date
+
+    service = DashboardService(reference_date=date(2026, 11, 19), forecast_cache_dir=tmp_path)
+    selected = next(
+        row for row in service._series["wfp"]
+        if row["price_flag"] != "actual" and row["observed_months"] > 0
+    )
+    service._training_metrics = []
+    service._coverage_audit_as_of = None
+    service._coverage_audit = [{
+        "source": "WFP", "series_id": "covered-only", "forecast_attempt_status": "generated",
+        "forecast_available": "true", "selected_strategy": "individual_series",
+        "selected_model_or_baseline": "naive_last_observation", "validation_observations": "4",
+        "validation_mape": "", "validation_r2": "",
+    }]
+    client = create_app(service).test_client()
+    coverage = client.get("/api/performance", query_string={
+        "dataset": "wfp", "series_id": selected["series_id"],
+    }).get_json()
+    assert coverage["status"] == "overall_coverage"
+    assert coverage["summary"]["evaluated_series_count"] == 1
+    assert coverage["summary"]["available_models"] == ["naive_last_observation"]
+    assert coverage["records"][0]["status"] == "overall_coverage"
+    assert coverage["records"][0]["mape"] is None and coverage["records"][0]["r2"] is None
+    assert coverage["summary_cards"]["mape"] is None
+    assert coverage["summary_cards"]["r2"] is None
+    assert coverage["summary_cards"]["validation_observations"] == 4
+    assert coverage["summary_cards"]["mape_unavailable_reason"]
+    assert "No valid overall validation scores" in coverage["message"]
+    assert coverage["predictions_by_date"] == []
+
+    service._coverage_audit = []
+    empty = client.get("/api/performance", query_string={
+        "dataset": "wfp", "series_id": selected["series_id"],
+    }).get_json()
+    assert empty["status"] == "overall_coverage"
+    assert empty["records"] == []
+    assert empty["summary"]["available_models"] == []
+    assert empty["summary_cards"]["validation_observations"] == 0
+    assert empty["summary_cards"]["mape"] is None
+    assert empty["predictions_by_date"] == []
 
 
 def test_recent_wfp_series_can_forecast_at_a_recent_reference_date(tmp_path):
