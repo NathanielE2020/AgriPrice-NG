@@ -9,6 +9,16 @@ from src.wfp_nbs_dashboard_service import DashboardService
 from src.ondemand_forecasting import ForecastingError, assess_wfp_series
 
 
+def _next_month(value: str) -> str:
+    year, month = (int(part) for part in value.split("-"))
+    ordinal = year * 12 + month
+    return f"{ordinal // 12:04d}-{ordinal % 12 + 1:02d}"
+
+
+def _first_future_month(origin: str, generation_date: str) -> str:
+    return _next_month(max(origin, generation_date[:7]))
+
+
 @pytest.fixture(scope="module")
 def service():
     return DashboardService()
@@ -59,6 +69,7 @@ def test_latest_value_dom_matches_render_latest_and_local_assets_load(client):
         "forecastSource",
         "forecastSelectedHorizon",
         "forecastSelectedModel",
+        "forecastConfidence",
         "forecastOriginGenerated",
         "forecastRmse",
         "forecastMae",
@@ -70,8 +81,9 @@ def test_latest_value_dom_matches_render_latest_and_local_assets_load(client):
     ):
         assert f'id="{element_id}"' in html
     assert '<details class="panel forecast-methodology" id="forecastMethodology">' in html
-    assert "Multi-month forecasts are recursive" in html
-    assert "naive last-observation baseline" in html
+    assert "Forecasts are recursive" in html
+    assert "shrunk toward zero by sample support and direction consistency" in html
+    assert "naive and robust-movement baselines" in html
     assert "Missing months are not interpolated or forward-filled" in html
 
     for asset_path in ("/static/js/dashboard.js", "/static/css/dashboard.css"):
@@ -157,7 +169,7 @@ def test_current_source_cutoffs_make_all_normalized_series_stale_for_forecasting
         assert all(item["forecast_freshness"] == "stale" for item in observed)
 
 
-def test_maiduguri_local_rice_81_month_actual_gap_is_rejected(client):
+def test_maiduguri_local_rice_81_month_actual_gap_gets_stale_origin_projection(client):
     record = next(
         item for item in client.get("/api/series?dataset=wfp").get_json()
         if item["commodity"] == "Rice (milled, local)"
@@ -171,11 +183,14 @@ def test_maiduguri_local_rice_81_month_actual_gap_is_rejected(client):
         "dataset": "wfp", "series_id": record["series_id"],
         "model": "auto", "mode": "on_demand", "horizon": "1",
     })
-    assert response.status_code == 422
-    error = response.get_json()["error"]
-    assert error["code"] == "stale_source_data"
-    assert "81 calendar month(s) old" in error["message"]
-    assert "No bridge values were generated" not in error["message"]
+    assert response.status_code == 200, response.get_json()
+    payload = response.get_json()
+    assert payload["metadata"]["source_age_months"] >= 81
+    assert payload["metadata"]["is_current_market_forecast"] is False
+    assert payload["forecast"][0]["month"] == _first_future_month(
+        record["last_observed_month"], payload["metadata"]["forecast_generation_date"],
+    )
+    assert payload["metadata"]["forecast_classification"] == "future_as_of_generation"
 
 
 def test_approved_wfp_market_series_are_present_as_actual_series(client):
@@ -227,7 +242,7 @@ def test_forecast_controls_are_usable_and_selection_states_are_independent(clien
         assert f'id="{element_id}"' in html
     assert "Validation selection" not in html
     assert 'id="forecastModel"' not in html
-    assert "The selected model has the lowest RMSE on the same chronological validation period" in html
+    assert "When enough history is available, model choice uses chronological validation" in html
 
     javascript = client.get("/static/js/dashboard.js").get_data(as_text=True)
     for selector in ("forecastCommodity", "forecastMarket", "forecastSeries", "forecastHorizon", "generateForecast"):
@@ -342,9 +357,9 @@ def test_duplicate_commodity_market_flags_remain_separate_and_ineligible_flags_a
 
     def exact_series_probe(record, series_id, horizon, **_kwargs):
         assessment = assess_wfp_series(record)
-        if not assessment["eligible"]:
+        if not assessment.get("price_map"):
             raise ForecastingError(assessment["code"], assessment["reason"])
-        return {"metadata": {"series_id": series_id, "horizon": horizon}, "forecast": []}
+        return {"metadata": {"series_id": series_id, "horizon": horizon, "price_flag": record["price_flag"]}, "forecast": []}
 
     from src import ondemand_forecasting
 
@@ -361,10 +376,8 @@ def test_duplicate_commodity_market_flags_remain_separate_and_ineligible_flags_a
             "dataset": "wfp", "series_id": flagged_record["series_id"],
             "model": "auto", "mode": "on_demand", "horizon": "1",
         })
-        assert response.status_code == 422
-        error = response.get_json()["error"]
-        assert error["code"] == "not_direct_actual"
-        assert "aggregate or mixed-price-flag" in error["message"]
+        assert response.status_code == 200
+        assert response.get_json()["metadata"]["price_flag"] == flagged_record["price_flag"]
 
 
 def test_history_keeps_real_months_and_does_not_fill_gaps(client):
@@ -555,7 +568,31 @@ def test_recent_wfp_series_can_forecast_at_a_recent_reference_date(tmp_path):
     assert payload["forecast"][0]["month"] == "2026-08"
 
 
-def test_registered_stale_wfp_series_is_not_projected_to_current_month(tmp_path):
+def test_april_wfp_observation_displays_december_to_may_future_window(tmp_path):
+    from datetime import date
+
+    service = DashboardService(reference_date=date(2026, 11, 19), forecast_cache_dir=tmp_path)
+    record = next(
+        item for item in service._series["wfp"]
+        if item["commodity"] == "Bananas" and item["market"] == "Abba Gamaram"
+        and item["price_flag"] == "actual" and item["last_observed_month"] == "2026-04"
+    )
+    response = create_app(service).test_client().get("/api/forecast", query_string={
+        "dataset": "wfp", "series_id": record["series_id"],
+        "model": "auto", "mode": "on_demand", "horizon": "6",
+    })
+    assert response.status_code == 200, response.get_json()
+    payload = response.get_json()
+    assert payload["metadata"]["latest_actual_date_in_source"] == "2026-04-15"
+    assert [row["month"] for row in payload["forecast"]] == [
+        "2026-12", "2027-01", "2027-02", "2027-03", "2027-04", "2027-05",
+    ]
+    assert max(row["month"] for row in payload["historical"]) == "2026-04"
+    assert payload["metadata"]["forecast_bridge_months"] == 7
+    assert payload["metadata"]["forecast_classification"] == "future_as_of_generation"
+
+
+def test_registered_stale_wfp_series_is_projected_from_its_actual_origin(tmp_path):
     from datetime import date
 
     service = DashboardService(reference_date=date(2026, 11, 19), forecast_cache_dir=tmp_path)
@@ -566,14 +603,16 @@ def test_registered_stale_wfp_series_is_not_projected_to_current_month(tmp_path)
         "dataset": "wfp", "series_id": registered, "model": "auto",
         "mode": "on_demand", "horizon": "1",
     })
-    assert response.status_code == 422
-    error = response.get_json()["error"]
-    assert error["code"] == "stale_source_data"
-    assert record["last_observed_month"] in error["message"]
-    assert "cannot be forecast as current market conditions" in error["message"]
+    assert response.status_code == 200, response.get_json()
+    payload = response.get_json()
+    assert payload["forecast"][0]["month"] == _first_future_month(
+        record["last_observed_month"], payload["metadata"]["forecast_generation_date"],
+    )
+    assert payload["metadata"]["forecast_classification"] == "future_as_of_generation"
+    assert payload["metadata"]["is_current_market_forecast"] is False
 
 
-def test_qualified_but_stale_wfp_series_is_not_a_current_forecast(tmp_path):
+def test_qualified_but_stale_wfp_series_is_labeled_as_historical_projection(tmp_path):
     from datetime import date
 
     service = DashboardService(reference_date=date(2026, 11, 19), forecast_cache_dir=tmp_path)
@@ -588,18 +627,22 @@ def test_qualified_but_stale_wfp_series_is_not_a_current_forecast(tmp_path):
         "dataset": "wfp", "series_id": candidate["series_id"],
         "mode": "on_demand", "horizon": "1",
     })
-    assert response.status_code == 422, response.get_json()
-    assert response.get_json()["error"]["code"] == "stale_source_data"
+    assert response.status_code == 200, response.get_json()
+    metadata = response.get_json()["metadata"]
+    assert metadata["forecast_classification"] == "future_as_of_generation"
+    assert metadata["is_current_market_forecast"] is False
+    assert "stale" in response.get_json()["warning"].lower()
 
 
-def test_on_demand_api_excludes_aggregate_flags_and_keeps_nbs_separate(client):
+def test_on_demand_api_keeps_aggregate_flags_separate_and_forecasts_each_exact_source(client):
     wfp_aggregate = next(item for item in client.get("/api/series?dataset=wfp").get_json() if item["price_flag"] != "actual")
     response = client.get("/api/forecast", query_string={
         "dataset": "wfp", "series_id": wfp_aggregate["series_id"],
         "model": "auto", "mode": "on_demand", "horizon": "1",
     })
-    assert response.status_code == 422
-    assert response.get_json()["error"]["code"] == "not_direct_actual"
+    assert response.status_code == 200, response.get_json()
+    assert response.get_json()["metadata"]["price_flag"] == wfp_aggregate["price_flag"]
+    assert response.get_json()["metadata"]["latest_actual_month_in_source"] is None
 
     short_actual = next(
         item for item in client.get("/api/series?dataset=wfp").get_json()
@@ -609,8 +652,8 @@ def test_on_demand_api_excludes_aggregate_flags_and_keeps_nbs_separate(client):
         "dataset": "wfp", "series_id": short_actual["series_id"],
         "model": "auto", "mode": "on_demand", "horizon": "1",
     })
-    assert response.status_code == 422
-    assert response.get_json()["error"]["code"] in {"stale_source_data", "insufficient_local_history", "insufficient_history"}
+    assert response.status_code == 200, response.get_json()
+    assert len(response.get_json()["forecast"]) == 1
 
     nbs_series = next(
         item for item in client.get("/api/series?dataset=nbs").get_json()
@@ -622,9 +665,10 @@ def test_on_demand_api_excludes_aggregate_flags_and_keeps_nbs_separate(client):
         "dataset": "nbs", "series_id": nbs_series["series_id"],
         "model": "auto", "mode": "on_demand", "horizon": "1",
     })
-    assert response.status_code == 422
-    assert response.get_json()["error"]["code"] == "stale_source_data"
-    assert "2026-05" in response.get_json()["error"]["message"]
+    assert response.status_code == 200, response.get_json()
+    nbs_payload = response.get_json()
+    assert nbs_payload["metadata"]["latest_observation_month_in_source"] == "2026-05"
+    assert nbs_payload["metadata"]["forecast_classification"] == "future_as_of_generation"
 
 
 def test_real_nbs_post_rebase_zone_forecast_uses_group_held_out_validation(tmp_path):
@@ -659,7 +703,7 @@ def test_real_nbs_post_rebase_zone_forecast_uses_group_held_out_validation(tmp_p
         assert all(row["temporal_status"] == "future_as_of_generation" for row in payload["forecast"])
 
 
-def test_real_extremely_sparse_old_wfp_series_is_rejected_as_stale(tmp_path):
+def test_real_extremely_sparse_old_wfp_series_gets_a_qualified_projection(tmp_path):
     from datetime import date
 
     service = DashboardService(reference_date=date(2026, 11, 19), forecast_cache_dir=tmp_path)
@@ -673,8 +717,11 @@ def test_real_extremely_sparse_old_wfp_series_is_rejected_as_stale(tmp_path):
         "dataset": "wfp", "series_id": candidate["series_id"],
         "model": "auto", "mode": "on_demand", "horizon": "1",
     })
-    assert response.status_code == 422
-    assert response.get_json()["error"]["code"] == "stale_source_data"
+    assert response.status_code == 200, response.get_json()
+    payload = response.get_json()
+    assert payload["metadata"]["source_observation_count"] == 4
+    assert payload["metadata"]["forecast_classification"] == "future_as_of_generation"
+    assert payload["metadata"]["confidence_level"] in {"low", "very low"}
 
 
 def test_training_metrics_recompute_from_saved_predictions():

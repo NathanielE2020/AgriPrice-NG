@@ -389,13 +389,13 @@ class DashboardService:
                 "message": (
                     "Historical model artifacts are available. Exact WFP and NBS series can be assessed independently for on-demand forecasting; origins may be stale and are not live prices."
                     if self._training_series else
-                    "On-demand WFP and NBS forecasting is enabled for exact series that pass chronological training and validation requirements."
+                    "Each exact WFP and NBS series with at least one valid positive reported price can receive a forecast; validated models are used where supported, otherwise a conservative movement or carry-forward estimate is disclosed."
                 ),
             },
             "training_note": (
                 "Historical WFP test results remain audit-only. WFP and NBS source series are forecast independently only when they pass gap-aware chronological training and validation checks."
                 if self._training_series else
-                "No historical model is registered. On-demand WFP and NBS forecasting remains available when an exact selected series passes its eligibility checks."
+                "No historical model is registered. Exact WFP and NBS series with a valid positive reported price can still receive a qualified movement or carry-forward estimate."
             ),
         }
 

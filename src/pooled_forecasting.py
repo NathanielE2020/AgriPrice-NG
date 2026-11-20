@@ -14,12 +14,13 @@ import math
 import os
 import tempfile
 import copy
+import calendar
 from datetime import date
 from pathlib import Path
 from typing import Any
 
 
-POOL_FORMAT_VERSION = 3
+POOL_FORMAT_VERSION = 4
 POOL_MODELS = ("pooled_random_forest", "pooled_gradient_boosting")
 POOL_MODEL_CONFIGURATION = {
     "pooled_random_forest": "150 trees; min_samples_leaf=3; max_features=0.8; seed=42; n_jobs=1; log monthly price movement target",
@@ -36,7 +37,7 @@ def compatibility_key(record: dict[str, Any], source_key: str) -> tuple[str, ...
         return (
             "wfp", str(record.get("commodity") or ""),
             str(record.get("unit") or ""), str(record.get("price_type") or ""),
-            str(record.get("currency") or ""),
+            str(record.get("currency") or ""), str(record.get("price_flag") or ""),
         )
     return (
         "nbs", str(record.get("commodity") or ""),
@@ -472,8 +473,8 @@ def generate_pooled_forecast(
     """Validate a compatible pool and optionally omit future prediction steps."""
     from .ondemand_forecasting import (
         ForecastingError, _collect_actual_history, _feature_row,
-        _month_from_ordinal, _month_ordinal, _source_age_months,
-        _check_source_freshness, forecast_policy,
+        _classify_forecast_months, _month_from_ordinal, _month_ordinal, _source_age_months,
+        _check_source_freshness, _future_forecast_window, forecast_policy,
     )
 
     if source_key == "wfp" and str(record.get("price_flag") or "") != "actual":
@@ -505,9 +506,20 @@ def generate_pooled_forecast(
                 f"This exact series has {len(prices)} valid reported observations; at least 3 are required to form a gap-aware prediction input. No other market's price was substituted.",
             )
 
-    # Peer records are cut at the same as-of boundary before they participate
-    # in either validation or the final pooled fit.
-    bounded_peers = _records_as_of(pool_records, as_of)
+    # Peer records must not carry information from after the selected series'
+    # forecast origin. Use the precise WFP observation day when present; NBS
+    # monthly summaries have a month-only origin and are bounded to month end.
+    if origin_date:
+        try:
+            pool_cutoff = date.fromisoformat(str(origin_date)[:10])
+        except ValueError:
+            pool_cutoff = None
+    else:
+        pool_cutoff = None
+    if pool_cutoff is None:
+        origin_year, origin_month_number = (int(part) for part in origin.split("-"))
+        pool_cutoff = date(origin_year, origin_month_number, calendar.monthrange(origin_year, origin_month_number)[1])
+    bounded_peers = _records_as_of(pool_records, pool_cutoff)
 
     assessment, bundle = _load_or_fit_pool(bounded_peers, source_key, record, cache_dir)
     if not assessment.get("eligible") or bundle is None:
@@ -523,7 +535,9 @@ def generate_pooled_forecast(
     working = dict(prices)
     forecasts: list[dict[str, Any]] = []
     bridge_count = 0
-    for target_ordinal in range(origin_ordinal + 1, current_ordinal + horizon + 1) if not evaluation_only else []:
+    starting_price = float(prices[origin])
+    _first_future, final_ordinal, bridge_count = _future_forecast_window(origin, horizon, as_of)
+    for target_ordinal in range(origin_ordinal + 1, final_ordinal + 1) if not evaluation_only else []:
         target_month = _month_from_ordinal(target_ordinal)
         observations = sorted(working.items(), key=lambda item: _month_ordinal(item[0]))
         feature = _feature_row(observations, target_month, trend_origin)
@@ -550,12 +564,15 @@ def generate_pooled_forecast(
         if not math.isfinite(prediction) or prediction <= 0:
             raise ForecastingError("forecast_prediction_failed", "The selected pooled strategy produced a non-positive or non-finite prediction; no forecast was returned.", 500)
         working[target_month] = float(prediction)
-        if target_ordinal <= current_ordinal:
-            bridge_count += 1
-        else:
+        percentage_change = (float(prediction) / starting_price - 1.0) * 100.0
+        if not math.isfinite(percentage_change):
+            percentage_change = None
+        if target_ordinal > current_ordinal:
             forecasts.append({
                 "date": target_month, "month": target_month, "price": float(prediction),
                 "step": len(forecasts) + 1, "quality_flag": "model_estimate",
+                "percentage_change_from_origin": percentage_change,
+                "method": f"recursive pooled {chosen.replace('_', ' ')} prediction",
                 "temporal_status": "future_as_of_generation",
             })
 
@@ -578,8 +595,11 @@ def generate_pooled_forecast(
             "observations": int(item.get("observed_months", 0) or 0),
         })
     history = [] if evaluation_only else [row for row in record.get("history", []) if row.get("month") and _month_ordinal(row["month"]) >= origin_ordinal - 23]
+    classification = _classify_forecast_months([str(row["month"]) for row in forecasts], as_of, evaluation_only)
+    is_wfp_actual = source_key == "wfp" and str(record.get("price_flag") or "") == "actual"
     metadata = {
         "source": source_key.upper(), "commodity": record.get("commodity"),
+        "source_key": source_key,
         "research_commodity_mapping": record.get("research_commodity_mapping"),
         "mapping_status": record.get("mapping_status"),
         "market": record.get("market"), "state": record.get("state"),
@@ -587,6 +607,7 @@ def generate_pooled_forecast(
         "methodology_regime": record.get("methodology_regime"), "unit": record.get("unit"),
         "unit_basis": record.get("unit_basis"),
         "price_type": record.get("price_type"), "currency": record.get("currency"),
+        "price_flag": record.get("price_flag") if source_key == "wfp" else None,
         "model": chosen,
         "model_type": "validated pooled/global model" if chosen in POOL_MODELS else "validated baseline",
         "strategy_level": "pooled_global",
@@ -596,18 +617,21 @@ def generate_pooled_forecast(
         "validation_scope": "same-source, same-commodity/item, compatible-definition pool; not an independent evaluation of only the selected series",
         "forecast_origin_month": origin, "forecast_start_month": forecasts[0]["month"] if forecasts else None,
         "forecast_end_month": forecasts[-1]["month"] if forecasts else None,
-        "latest_actual_month_in_source": origin if source_key == "wfp" else None,
-        "latest_actual_date_in_source": origin_date if source_key == "wfp" else None,
+        "latest_actual_month_in_source": origin if is_wfp_actual else None,
+        "latest_actual_date_in_source": origin_date if is_wfp_actual else None,
         "latest_observation_month_in_source": origin, "latest_observation_date_in_source": origin_date or origin,
         "latest_source_report_date": next((row.get("source_report_date") for row in reversed(record.get("history", [])) if row.get("month") == origin), None),
         "source_age_months": origin_age,
         "freshness_limit_months": policy["max_source_age_months"],
         "max_forecast_bridge_months": policy["max_bridge_months"],
         "source_freshness_classification": f"fresh_within_{policy['max_source_age_months']}_months" if origin_age <= policy["max_source_age_months"] else "stale_for_current_market",
-        "is_current_market_forecast": not evaluation_only and origin_age <= policy["max_source_age_months"],
-        "forecast_date_scope": "validation_only" if evaluation_only else "future_only_after_current_calendar_month",
-        "forecast_bridge_months": bridge_count,
-        "forecast_generation_date": as_of.isoformat(), "forecast_classification": "validation_only" if evaluation_only else "future_as_of_generation",
+        "is_current_market_forecast": not evaluation_only and origin_age <= policy["max_source_age_months"] and classification == "future_as_of_generation",
+        "forecast_date_scope": "validation_only" if evaluation_only else "future_calendar_months_after_generation_month",
+        "forecast_bridge_months": bridge_count if not evaluation_only else 0,
+        "forecast_generation_date": as_of.isoformat(), "forecast_classification": classification,
+        "historical_price_label": "WFP direct actual observations" if is_wfp_actual else (f"WFP reported priceflag={record.get('price_flag') or 'not stated'} observations; not direct actuals" if source_key == "wfp" else "NBS reported monthly observations"),
+        "confidence_level": "low" if origin_age > policy["max_source_age_months"] or len(prices) < 12 or max(0, _month_ordinal(origin) - _month_ordinal(months[0]) + 1 - len(prices)) > len(prices) else "limited",
+        "confidence_note": "Qualitative confidence only; no calibrated prediction interval is available.",
         "confidence_intervals": False,
         "selection_basis": "lowest RMSE across validation of naive last observation, historical trend, pooled random forest and pooled gradient boosting; all predictions are group-held-out and chronological",
         "validation_metrics": validation_metrics,
@@ -631,7 +655,7 @@ def generate_pooled_forecast(
         "training_observation_rows": bundle["training_rows"],
         "training_first_month": bundle["training_first_month"],
         "training_last_month": bundle["training_last_month"],
-        "pool_definition": "same exact commodity, unit, price type and currency" if source_key == "wfp" else "same exact NBS item label, methodology regime, geography level, unit, price type and currency",
+        "pool_definition": "same exact commodity, unit, price type, currency and WFP price flag" if source_key == "wfp" else "same exact NBS item label, methodology regime, geography level, unit, price type and currency",
         "other_series_contributors": peers,
         "source_observation_count": len(prices), "missing_calendar_months": max(0, _month_ordinal(origin) - _month_ordinal(months[0]) + 1 - len(prices)),
         "model_configurations": POOL_MODEL_CONFIGURATION,

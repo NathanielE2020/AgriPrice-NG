@@ -1,6 +1,7 @@
 """Retirement guards kept to ensure the former production source stays disabled."""
 
 import pytest
+import pandas as pd
 
 from app import create_app
 from src.wfp_nbs_dashboard_service import DashboardService
@@ -36,3 +37,25 @@ def test_legacy_world_bank_entrypoints_are_retired():
     ):
         with pytest.raises(RuntimeError, match="retired"):
             entrypoint()
+
+
+def test_world_bank_normalization_keeps_close_estimates_explicitly_estimated():
+    from src.world_bank_ingestion import normalize_world_bank
+
+    row = {
+        "price_date": pd.Timestamp("2026-11-01"), "adm1_name": "Lagos",
+        "adm2_name": "Lagos Island", "mkt_name": "Test Market", "geo_id": "NG001",
+        "currency": "NGN", "c_RICE": 640.0, "l_RICE": 600.0, "h_RICE": 680.0,
+        "trust_RICE": 0.9, "RICE": 630.0, "lat": 6.45, "lon": 3.39,
+        "data_coverage": 0.8, "data_coverage_recent": 0.7,
+        "index_confidence_score": 0.9, "spatially_interpolated": False,
+        "last_survey_point": "2026-10-15",
+    }
+    normalized = normalize_world_bank(
+        pd.DataFrame([row]), {"RICE": {"full_name": "Rice", "units": "KG"}},
+    )
+    estimate = normalized.iloc[0]
+    assert estimate["source"] == "world_bank"
+    assert estimate["price_type"] == "close_estimate"
+    assert bool(estimate["is_model_estimate"]) is True
+    assert bool(estimate["source_data_is_direct_observation"]) is True

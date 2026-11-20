@@ -397,6 +397,12 @@
     return labels;
   }
 
+  function shiftMonth(value, offset) {
+    const [year, month] = String(value).split("-").map(Number);
+    const ordinal = year * 12 + month - 1 + Number(offset);
+    return `${Math.floor(ordinal / 12)}-${String(ordinal % 12 + 1).padStart(2, "0")}`;
+  }
+
   function clearChart(key) {
     if (state.charts[key]) {
       state.charts[key].destroy();
@@ -586,13 +592,23 @@
     const metadata = payload.metadata || {};
     const generationDate = String(metadata.forecast_generation_date || "");
     const generationMonth = generationDate.slice(0, 7);
+    const originMonth = String(metadata.forecast_origin_month || "");
     const monthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
     const datePattern = /^\d{4}-(0[1-9]|1[0-2])-\d{2}$/;
-    if (!rows.length || !datePattern.test(generationDate) || rows.some((row) => {
-      const month = String(row.month || "");
-      return !monthPattern.test(month) || month <= generationMonth;
-    })) {
-      const error = new Error("The forecast was not displayed because its dates could not be verified as strictly later than the generation month.");
+    const requestedHorizon = Number(payload.horizon || rows.length);
+    const forecastBaseMonth = originMonth > generationMonth ? originMonth : generationMonth;
+    const expectedMonths = monthPattern.test(originMonth) && monthPattern.test(generationMonth)
+      && Number.isInteger(requestedHorizon) && requestedHorizon >= 1 && requestedHorizon <= 6
+      ? monthRange(shiftMonth(forecastBaseMonth, 1), shiftMonth(forecastBaseMonth, requestedHorizon))
+      : [];
+    if (!rows.length || !datePattern.test(generationDate) || !monthPattern.test(originMonth)
+      || rows.length !== requestedHorizon || rows.some((row, index) => {
+        const month = String(row.month || "");
+        return !monthPattern.test(month) || month !== expectedMonths[index]
+          || !Number.isFinite(Number(row.price)) || Number(row.price) <= 0
+          || (row.step !== undefined && Number(row.step) !== index + 1);
+      })) {
+      const error = new Error("The forecast was not displayed because its dates could not be verified as the requested future calendar months after generation.");
       error.code = "non_future_forecast_dates";
       throw error;
     }
@@ -605,16 +621,22 @@
     const metric = metadata.validation_metrics || {};
     const selectedModel = payload.model || metadata.model || "";
     const isBaseline = metadata.model_type === "validated baseline"
-      || ["naive_last_observation", "trend_baseline", "seasonal_naive_12"].includes(selectedModel);
+      || String(metadata.model_type || "").includes("baseline")
+      || ["naive_last_observation", "trend_baseline", "robust_recent_movement", "seasonal_naive_12", "last_price_carry_forward"].includes(selectedModel);
+    const isUnvalidatedFallback = String(metadata.model_type || "").includes("unvalidated");
     const modelLabel = isBaseline
-      ? "Baseline forecast: " + String(selectedModel || "baseline").replaceAll("_", " ")
+      ? (isUnvalidatedFallback ? "Unvalidated baseline estimate: " : "Baseline forecast: ") + String(selectedModel || "baseline").replaceAll("_", " ")
       : rawModelLabel;
     const sourceLabel = String(series.source || metadata.source || (payload.dataset || "WFP")).toUpperCase();
+    const isWorldBankEstimate = sourceLabel.includes("WORLD")
+      || metadata.price_value_type === "world_bank_close_estimate"
+      || metadata.is_model_estimate === true;
     const locationLabel = series.market || metadata.market || (series.geography_name ? `${series.geography_level || "Geography"}: ${series.geography_name}` : "");
     setText("forecastSubject", [series.commodity || metadata.commodity, locationLabel].filter(Boolean).join(" · ") || `Selected ${sourceLabel} series`);
     setText("forecastSource", sourceLabel);
     setText("forecastSelectedHorizon", `${payload.horizon || rows.length} month(s)`);
     setText("forecastSelectedModel", modelLabel);
+    setText("forecastConfidence", `${metadata.confidence_level || "unrated"} · no calibrated interval`);
     const latestObservation = metadata.latest_observation_date_in_source
       || metadata.latest_actual_date_in_source
       || metadata.latest_observation_month_in_source
@@ -633,11 +655,15 @@
     setText("forecastMape", metric.mape === null || metric.mape === undefined ? "n/a" : `${formatNumber(metric.mape, 2)}%`);
     setText("forecastR2", formatNumber(metric.r2, 3));
     setText("forecastValidationCount", formatNumber(metric.n));
-    $("#forecastChartTitle").textContent = sourceLabel === "NBS" ? "Historical NBS reports and future estimates" : "Historical WFP actuals and future estimates";
+    const historicalLabel = metadata.historical_price_label
+      || (isWorldBankEstimate ? "World Bank modeled close estimates (not direct market observations)"
+        : sourceLabel === "NBS" ? "NBS reported observations" : `WFP reported priceflag=${metadata.price_flag || "actual"} observations`);
+    $("#forecastChartTitle").textContent = `${historicalLabel} and estimates`;
     renderForecastTemporalStatus(payload);
     const methodology = [
       metadata.transformation ? `Forecast target: ${metadata.transformation}.` : "Forecast target details are unavailable.",
       metadata.method || "Forecast method details are unavailable.",
+      metadata.confidence_note || "Confidence is qualitative only; no calibrated interval is available.",
       metadata.validation_design ? `Validation design: ${metadata.validation_design}.` : "",
       metadata.validation_scope ? `Validation scope: ${metadata.validation_scope}.` : "",
       metadata.pool_definition ? `Pooling boundary: ${metadata.pool_definition}; ${formatNumber(metadata.training_contributing_series_count || metadata.training_series_count)} contributing series and ${formatNumber(metadata.training_observation_rows)} supervised training rows.` : "",
@@ -648,9 +674,19 @@
       payload.warning || "Source freshness warning is unavailable.",
     ].filter(Boolean);
     setText("forecastMethodDetails", methodology.join(" "));
-    $("#forecastTableBody").innerHTML = rows.map((row) => {
-      const status = "Future at generation";
-      return `<tr><td>${escapeHTML(row.month)}</td><td class="price-cell">${escapeHTML(formatPrice(row.price))}</td><td>${formatNumber(row.step)}</td><td>${status}</td></tr>`;
+    $("#forecastTableBody").innerHTML = rows.map((row, index) => {
+      const status = row.temporal_status === "historical_projection_from_latest_observation" || row.month < generationMonth
+        ? "Historical projection"
+        : row.temporal_status === "current_month_projection" || row.month === generationMonth
+          ? "Current-month projection"
+          : "Future at generation";
+      const change = Number(row.percentage_change_from_origin);
+      const changeLabel = Number.isFinite(change)
+        ? `${change > 0 ? "+" : ""}${formatNumber(change, 1)}% from starting price`
+        : "Change from starting price unavailable";
+      const label = formatMonth(row.month);
+      const methodLabel = row.method || metadata.method || modelLabel;
+      return `<tr><td class="forecast-value-cell"><span class="forecast-month-label">${escapeHTML(label)}</span><strong class="forecast-predicted-price">${escapeHTML(formatPrice(row.price))}</strong><small class="forecast-change-label">${escapeHTML(changeLabel)}</small><small class="forecast-method-label">${escapeHTML(methodLabel)}</small></td><td>${formatNumber(row.step ?? index + 1)}</td><td>${status}</td></tr>`;
     }).join("");
     clearChart("forecast");
     const actualByMonth = new Map(historical.map((row) => [row.month, row.price]));
@@ -662,7 +698,7 @@
       state.charts.forecast = new Chart(canvas, {
         type: "line",
         data: { labels, datasets: [
-          { label: sourceLabel === "NBS" ? "Historical NBS reported average" : "Historical WFP actual", data: labels.map((month) => actualByMonth.get(month) ?? null), borderColor: "#2c7a56", backgroundColor: "rgba(44,122,86,.08)", borderWidth: 2, pointRadius: 2, spanGaps: false },
+          { label: historicalLabel, data: labels.map((month) => actualByMonth.get(month) ?? null), borderColor: "#2c7a56", backgroundColor: "rgba(44,122,86,.08)", borderWidth: 2, pointRadius: 2, spanGaps: false },
           { label: isBaseline ? "Future baseline estimate" : "Future model estimate", data: labels.map((month) => forecastByMonth.get(month) ?? null), borderColor: "#cf5b45", backgroundColor: "rgba(207,91,69,.08)", borderWidth: 2, borderDash: [6, 4], pointRadius: 3, spanGaps: false },
         ] },
         options: { responsive: true, maintainAspectRatio: false, interaction: { intersect: false, mode: "index" }, plugins: { legend: { display: true } }, scales: { x: { title: { display: true, text: "Month" } }, y: { title: { display: true, text: `${metadata.currency || "NGN"} per ${metadata.unit || "source unit"}` } } } },
@@ -686,19 +722,26 @@
     const isFresh = typeof metadata.is_current_market_forecast === "boolean"
       ? metadata.is_current_market_forecast
       : (age !== null ? age <= freshnessLimit : freshness === "fresh");
+    const isRecent = age !== null ? age <= freshnessLimit : freshness === "fresh";
     let style = "stale";
     let title = "Forecast status unverified";
     let message = "The forecast dates or source recency could not be confirmed. Do not treat this as a current market forecast.";
 
-    if (["historical_projection_from_latest_actual", "historical_only"].includes(classification)) {
+    if (classification === "current_month_projection") {
+      style = "mixed";
+      title = "Current-month projection — not a reported price";
+      message = "The forecast target is the generation month itself. It is an estimate based on the last observation, not a current reported market price or a future calendar-month forecast.";
+      if (!isRecent) message += ` The source is ${age === null ? freshness : `${age} month(s) old`}; treat it as historical context.`;
+    } else if (["historical_projection_from_latest_actual", "historical_projection_from_latest_observation", "historical_only"].includes(classification)) {
       style = "historical";
       title = "Historical projection — not a current forecast";
-      message = "All requested forecast dates are already in the past relative to the generation date. They are historical projections only.";
+      message = "All requested forecast months are before the generation month. They are historical projections from earlier observations, not live reported prices or future calendar-month forecasts.";
     } else if (classification === "mixed_horizon_relative_to_generation") {
       style = "mixed";
       title = "Mixed-period projection";
-      message = "Some requested dates are already in the past. Those rows are historical projections; only future rows based on recent actual data can be considered current forecasts.";
-      if (!isFresh) message += ` Source data is ${age === null ? freshness : `${age} month(s) old`} and should be treated as historical context.`;
+      message = "Some requested months are historical or in the generation month; those rows are projections from the latest observation, not live reported prices.";
+      if (!isRecent) message += ` The source is ${age === null ? freshness : `${age} month(s) old`}; none of these estimates represent current market conditions.`;
+      else message += " Only the rows dated after the generation month are future estimates; earlier rows remain historical projections.";
     } else if (classification === "future_as_of_generation" && isFresh) {
       style = "current";
       title = "Future estimate · recent source data";

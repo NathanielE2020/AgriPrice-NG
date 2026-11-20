@@ -96,8 +96,10 @@ def test_insufficient_history_reports_actual_usable_counts():
     assessment = assess_wfp_series(record)
     assert not assessment["eligible"]
     assert assessment["usable_training_rows"] < 30
-    with pytest.raises(ForecastingError, match="gap-aware supervised rows"):
-        generate_wfp_forecast(record, record["series_id"], 1, as_of=date(2019, 10, 19))
+    result = generate_wfp_forecast(record, record["series_id"], 1, as_of=date(2019, 10, 19))
+    assert result["metadata"]["strategy_level"] == "exact_series_fallback"
+    assert result["metadata"]["validation_metrics"]["n"] == 0
+    assert len(result["forecast"]) == 1
 
 
 def test_latest_calendar_gap_is_not_filled_or_treated_as_previous_month():
@@ -114,6 +116,101 @@ def test_latest_calendar_gap_is_not_filled_or_treated_as_previous_month():
     assert "lag_1" not in forecasting.FEATURE_COLUMNS
 
 
+def test_one_positive_observation_gets_a_carry_forward_forecast(tmp_path):
+    record = _monthly_record(count=1)
+    result = generate_wfp_forecast(record, record["series_id"], 3, cache_dir=tmp_path, as_of=date(2026, 11, 19))
+    assert result["model"] == "last_price_carry_forward"
+    assert [row["price"] for row in result["forecast"]] == [record["history"][0]["price"]] * 3
+    assert result["metadata"]["confidence_level"] == "very low"
+    assert result["metadata"]["validation_metrics"]["n"] == 0
+
+
+def test_april_actual_origin_displays_december_future_forecast_with_one_observation(tmp_path):
+    record = _monthly_record(count=1)
+    record["history"][0].update({"month": "2026-04", "last_observation_date": "2026-04-15"})
+    result = generate_wfp_forecast(record, record["series_id"], 6, cache_dir=tmp_path, as_of=date(2026, 11, 19))
+    assert [row["month"] for row in result["forecast"]] == [
+        "2026-12", "2027-01", "2027-02", "2027-03", "2027-04", "2027-05",
+    ]
+    assert [row["price"] for row in result["forecast"]] == [record["history"][0]["price"]] * 6
+    assert result["historical"] == record["history"]
+    assert result["metadata"]["forecast_origin_month"] == "2026-04"
+    assert result["metadata"]["forecast_bridge_months"] == 7
+
+
+@pytest.mark.parametrize(
+    ("prices", "should_rise"),
+    [([100.0, 110.0, 121.0, 133.1], True), ([133.1, 121.0, 110.0, 100.0], False)],
+)
+def test_robust_movement_tracks_supported_rising_and_falling_directions(prices, should_rise, tmp_path):
+    record = _monthly_record(count=len(prices))
+    months = ["2026-01", "2026-02", "2026-03", "2026-04"]
+    record["history"] = [
+        {"month": month, "price": price, "last_observation_date": f"{month}-15"}
+        for month, price in zip(months, prices)
+    ]
+    outcome = generate_wfp_forecast(record, record["series_id"], 2, cache_dir=tmp_path, as_of=date(2026, 11, 19))
+    first = outcome["forecast"][0]["price"]
+    assert (first > prices[-1]) is should_rise
+    assert all(math.isfinite(row["price"]) and row["price"] > 0 for row in outcome["forecast"])
+
+
+def test_irregular_observation_gap_is_month_normalized_and_shrunk(tmp_path):
+    record = _monthly_record(count=2)
+    record["history"] = [
+        {"month": "2026-01", "price": 100.0, "last_observation_date": "2026-01-15"},
+        {"month": "2026-04", "price": 133.1, "last_observation_date": "2026-04-15"},
+    ]
+    movement = forecasting._robust_monthly_movement({"2026-01": 100.0, "2026-04": 133.1})
+    expected_log_change_per_month = math.log(133.1 / 100.0) / 3
+    assert movement["change_count"] == 1
+    assert movement["monthly_log_rate"] == pytest.approx(expected_log_change_per_month * 0.5)
+    outcome = generate_wfp_forecast(record, record["series_id"], 3, cache_dir=tmp_path, as_of=date(2026, 11, 19))
+    expected_first = 133.1 * math.exp(movement["monthly_log_rate"] * 8)
+    expected_second = expected_first * math.exp(movement["monthly_log_rate"])
+    assert outcome["forecast"][0]["price"] == pytest.approx(expected_first)
+    assert outcome["forecast"][1]["price"] == pytest.approx(expected_second)
+    assert outcome["forecast"][0]["percentage_change_from_origin"] == pytest.approx((expected_first / 133.1 - 1) * 100)
+    assert [row["month"] for row in outcome["forecast"]] == ["2026-12", "2027-01", "2027-02"]
+    assert outcome["metadata"]["forecast_origin_month"] == "2026-04"
+    assert outcome["metadata"]["forecast_bridge_months"] == 7
+    assert outcome["metadata"]["forecast_start_month"] == "2026-12"
+    assert outcome["historical"][-1]["month"] == "2026-04"
+    assert outcome["metadata"]["latest_observation_date_in_source"] == "2026-04-15"
+    assert "not actual observations" in outcome["warning"]
+
+
+def test_horizons_use_calendar_months_and_cross_year_from_observation_origin(tmp_path):
+    record = _monthly_record(count=1)
+    record["history"][0]["month"] = "2026-11"
+    record["history"][0]["last_observation_date"] = "2026-11-15"
+    expected = ["2026-12", "2027-01", "2027-02", "2027-03", "2027-04", "2027-05"]
+    for horizon in range(1, 7):
+        outcome = generate_wfp_forecast(record, record["series_id"], horizon, cache_dir=tmp_path, as_of=date(2026, 11, 19))
+        assert [row["month"] for row in outcome["forecast"]] == expected[:horizon]
+        assert [row["step"] for row in outcome["forecast"]] == list(range(1, horizon + 1))
+
+
+def test_current_month_is_bridged_and_not_displayed_as_a_forecast(tmp_path):
+    record = _monthly_record(count=1)
+    record["history"][0]["month"] = "2026-10"
+    record["history"][0]["last_observation_date"] = "2026-10-15"
+    result = generate_wfp_forecast(record, record["series_id"], 1, cache_dir=tmp_path, as_of=date(2026, 11, 19))
+    assert result["forecast"][0]["month"] == "2026-12"
+    assert result["forecast"][0]["temporal_status"] == "future_as_of_generation"
+    assert result["metadata"]["forecast_classification"] == "future_as_of_generation"
+    assert result["metadata"]["forecast_bridge_months"] == 1
+    assert result["metadata"]["is_current_market_forecast"] is True
+
+
+def test_future_observation_is_never_used_to_move_forecast_origin():
+    record = _monthly_record(count=2)
+    record["history"][-1].update({"month": "2026-12", "last_observation_date": "2026-12-15"})
+    with pytest.raises(ForecastingError) as caught:
+        generate_wfp_forecast(record, record["series_id"], 1, as_of=date(2026, 11, 19))
+    assert caught.value.code == "actual_data_after_generation_date"
+
+
 def test_recursive_forecast_keeps_historical_gap_missing_in_returned_history(tmp_path):
     record = _monthly_record(count=54, gap="2023-05")
     outcome = generate_wfp_forecast(record, record["series_id"], 3, cache_dir=tmp_path, as_of=date(2023, 6, 19))
@@ -124,13 +221,15 @@ def test_recursive_forecast_keeps_historical_gap_missing_in_returned_history(tmp
     assert outcome["metadata"]["missing_calendar_months"] == 1
 
 
-def test_aggregate_or_mixed_wfp_price_flags_are_rejected():
+def test_aggregate_or_mixed_wfp_price_flags_are_kept_separate_and_forecast_as_their_own_series(tmp_path):
     record = _monthly_record()
     record["price_flag"] = "actual,aggregate"
     assessment = assess_wfp_series(record)
-    assert not assessment["eligible"]
-    assert assessment["code"] == "not_direct_actual"
-    assert "pure priceflag=actual" in assessment["reason"]
+    assert assessment["eligible"]
+    result = generate_wfp_forecast(record, record["series_id"], 2, cache_dir=tmp_path, as_of=date(2023, 6, 19))
+    assert result["metadata"]["price_flag"] == "actual,aggregate"
+    assert result["metadata"]["latest_actual_month_in_source"] is None
+    assert "not direct actuals" in result["metadata"]["historical_price_label"]
 
 
 def test_conflicting_duplicate_month_is_not_silently_aggregated():
@@ -151,16 +250,18 @@ def test_invalid_prices_are_excluded_without_interpolation():
     assert assessment["missing_calendar_months"] == 1
 
 
-def test_stale_origin_is_rejected_before_a_long_recursive_bridge(tmp_path):
+def test_stale_origin_gets_future_window_with_stale_warning(tmp_path):
     record = _monthly_record()
-    with pytest.raises(ForecastingError) as caught:
-        generate_wfp_forecast(record, record["series_id"], 6, cache_dir=tmp_path, as_of=date(2026, 11, 19))
-    assert caught.value.code == "stale_source_data"
-    assert "41 calendar month(s) old" in caught.value.message
-    assert "cannot be forecast as current market conditions" in caught.value.message
+    result = generate_wfp_forecast(record, record["series_id"], 6, cache_dir=tmp_path, as_of=date(2026, 11, 19))
+    assert [row["month"] for row in result["forecast"]] == ["2026-12", "2027-01", "2027-02", "2027-03", "2027-04", "2027-05"]
+    assert result["metadata"]["source_age_months"] == 41
+    assert result["metadata"]["forecast_classification"] == "future_as_of_generation"
+    assert result["metadata"]["forecast_bridge_months"] == 41
+    assert result["metadata"]["is_current_market_forecast"] is False
+    assert "stale" in result["warning"].lower()
 
 
-def test_recent_origin_uses_only_a_short_bounded_calendar_bridge(tmp_path):
+def test_recent_origin_bridges_to_months_after_generation_month(tmp_path):
     record = _monthly_record()
     outcome = generate_wfp_forecast(
         record, record["series_id"], 2, cache_dir=tmp_path,
@@ -195,6 +296,7 @@ def test_nbs_assessment_and_forecast_keep_source_identity_separate(tmp_path):
     record.update({
         "source": "NBS", "source_key": "nbs", "price_flag": None,
         "market": None, "geography_level": "national", "geography_name": "Nigeria",
+        "commodity": "Rice local sold loose", "methodology_regime": "post_2025_cpi_rebase",
     })
     assessment = assess_nbs_series(record)
     assert assessment["eligible"]
@@ -206,6 +308,17 @@ def test_nbs_assessment_and_forecast_keep_source_identity_separate(tmp_path):
     assert outcome["metadata"]["latest_actual_month_in_source"] is None
     assert outcome["metadata"]["source_observation_count"] == 54
     assert outcome["series"]["source_key"] == "nbs"
+    assert outcome["metadata"]["commodity"] == "Rice local sold loose"
+    assert outcome["metadata"]["geography_name"] == "Nigeria"
+    assert outcome["metadata"]["methodology_regime"] == "post_2025_cpi_rebase"
+
+
+def test_world_bank_close_estimate_is_not_accepted_as_wfp_actual_data():
+    record = _monthly_record(count=3)
+    record.update({"source": "world_bank", "source_key": "world_bank", "price_type": "close_estimate", "is_model_estimate": True})
+    assessment = assess_wfp_series(record)
+    assert not assessment["eligible"]
+    assert assessment["code"] == "source_not_supported"
 
 
 def test_pooled_fallback_uses_compatible_peers_and_cuts_future_peer_observations(tmp_path):
@@ -237,13 +350,15 @@ def test_pooled_fallback_uses_compatible_peers_and_cuts_future_peer_observations
 
     result = generate_wfp_forecast(
         selected, selected["series_id"], 1, cache_dir=tmp_path,
-        as_of=date(2019, 1, 19), pool_records=peers,
+        as_of=date(2022, 6, 19), pool_records=peers,
     )
     assert result["metadata"]["strategy_level"] == "pooled_global"
     assert result["metadata"]["training_last_month"] == "2019-01"
     assert result["metadata"]["validation_training_target_last_month"] < result["metadata"]["validation_cutoff_month"]
     assert all(item["commodity"] == "Maize" for item in result["metadata"]["other_series_contributors"])
     assert all(row["temporal_status"] == "future_as_of_generation" for row in result["forecast"])
+    assert result["forecast"][0]["month"] == "2022-07"
+    assert result["metadata"]["forecast_bridge_months"] == 41
 
 
 def test_short_exact_history_can_use_a_rolling_origin_baseline_only(tmp_path):

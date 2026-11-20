@@ -1,0 +1,47 @@
+AgriPrice-NG WFP + NBS Source Migration Audit
+Generated from the source files currently present; no price values are fabricated.
+Original input files were read only. Normalized outputs are separate under data/processed/.
+
+SOURCE FILE INVENTORY
+- data/raw/nbs/2026/April/selected food table Apr26.xlsx | 22,195 bytes | .xlsx | SHA-256 5b98f83520f6294b05fd6964b6ac904dcec6e1ebde7f3102b8829d187fd195e7
+- data/raw/nbs/2026/April/Selected_Food_Report_April_2026.pdf | 5,606,834 bytes | .pdf | SHA-256 32332b395bd9acd60475836e5121dfd45439e87202e71752ba29920ccae3b879
+- data/raw/nbs/2026/Febuary/selected food table Feb 26.xlsx | 22,281 bytes | .xlsx | SHA-256 90c39793a9d7cf41af330b424591ee1316360668eea80f53faa2a866d15b1ce3
+- data/raw/nbs/2026/Febuary/Selected_Food_Report_Feb_2026.pdf | 6,463,157 bytes | .pdf | SHA-256 2c829b168ebd0e95af6788a1600fcf1b9a14c28d79c7255a8a5cda888bd6e95a
+- data/raw/nbs/2026/January/selected food table Jan26.xlsx | 22,165 bytes | .xlsx | SHA-256 27e8528cabb444d14d6bb0a37922c64a09d1a361c4f0f67a0d4171abf91dad96
+- data/raw/nbs/2026/January/Selected_Food_Report_Jan26.pdf | 6,487,129 bytes | .pdf | SHA-256 671f533c9cfb1e020a214a335427f98d85f9a7b8bbd694a2dadf9d10edd96d60
+- data/raw/nbs/2026/March/selected food table Mar26.xlsx | 22,020 bytes | .xlsx | SHA-256 4f62e611ba8d1eb3a97eac9a62b15867472d49e57c84e8126023a198c9c314ee
+- data/raw/nbs/2026/March/Selected_Food_Report_Mar_2026.pdf | 5,726,387 bytes | .pdf | SHA-256 2977fd97007bf4dd828ffcd765742b23dade1632c11d6c0ddd4db9e59734b75f
+- data/raw/nbs/2026/May/selected food table May 26.xlsx | 22,197 bytes | .xlsx | SHA-256 d72407cea0ae2456d6309dcec1cb9a19918b2f0f0652dc3e610ee5a9a08e7318
+- data/raw/nbs/2026/May/Selected_Food_Report_May 26.pdf | 5,695,827 bytes | .pdf | SHA-256 0e4db65328d203ecdf31c015f4dc071245495f880ead03ab5ac6d37e327d4e29
+- data/raw/wfp/wfp_food_prices_nga.csv | 11,128,392 bytes | .csv | SHA-256 63895c66a8362e138705df2fce98534d9ec63dcb8e23603a29180b3e3496c3af
+- data/raw/wfp/wfp_markets_nga.csv | 5,349 bytes | .csv | SHA-256 b275eac2d685b88be042caf0c97a2dd80d3bd1da3fe4850d50f4ee4f2b1821cd
+
+WFP FOOD-PRICE CSV
+- Source observations: 91,216; normalized monthly rows: 91,216.
+- Actual source date range: 2002-01-15 through 2026-11-15; observed months: 299.
+- Coverage: 43 commodities, 68 observed markets, 14 states, 20 source units.
+- Price flags (kept separate): {'actual': 51892, 'aggregate': 38107, 'actual,aggregate': 1217}.
+- Price types: {'Retail': 69734, 'Wholesale': 21482}; currencies: {'NGN': 91216}.
+- Missing cells: 0; full duplicate rows: 0; duplicate observation keys: 0.
+- Market metadata: 118 records; 68 observed IDs match; 0 observed IDs did not match.
+- Monthly normalization averages multiple rows only inside the same commodity, market, unit, price type, currency, and exact priceflag; source date bounds and row counts are retained. No absent month is filled.
+
+APPROVED WFP MARKET SERIES (pure priceflag='actual')
+- Sorghum (white) | Dawanau | 100 KG | Wholesale: 199 observed months, 2003-08–2021-12, 22 missing months, 90.05% coverage, longest gap 20 months.
+- Maize (white) | Dawanau | 100 KG | Wholesale: 199 observed months, 2003-08–2021-12, 22 missing months, 90.05% coverage, longest gap 20 months.
+- Millet | Dawanau | 100 KG | Wholesale: 186 observed months, 2003-08–2021-12, 35 missing months, 84.16% coverage, longest gap 20 months.
+- Maize | Illela (CBM) | KG | Wholesale: 145 observed months, 2002-01–2017-03, 38 missing months, 79.23% coverage, longest gap 12 months.
+- Sorghum | Mai Adoua (CBM) | KG | Wholesale: 136 observed months, 2002-11–2017-03, 37 missing months, 78.61% coverage, longest gap 12 months.
+- These data support the approved series as separate historical series, but the series are irregular and some stop years before the latest source date. No missing prices are interpolated.
+
+NBS MONTHLY WORKBOOKS AND PDF REPORTS
+- Structured workbook values: 1,470 item/geography/month rows (210 national and 1,260 zonal).
+- Workbook observation periods: 2026-01, 2026-02, 2026-03, 2026-04, 2026-05; latest actual reporting period: 2026-05.
+- Coverage: 43 source item labels and 7 geography labels; missing prices: 0; duplicate rows: 0.
+- Each workbook's current-period 'Average of <month-year>' column is used; prior-month and prior-year comparator columns are not treated as new observations. The national sheet and six-zone sheet remain separate.
+- No unit is asserted: the workbooks have no standardized unit column, so the full source item label is retained. The paired official PDFs were checked for the Naira symbol; NGN is recorded only when each PDF confirms it.
+- PDFs were opened and all pages yielded extractable text. They are preserved as supporting reports, not parsed as extra price rows, avoiding double counting.
+- NBS covers only five monthly periods and does not support reliable multi-step forecasting at this stage. It must remain separate from WFP because geography and measurement/unit definitions differ.
+
+TRAINING STATUS
+- No models were trained. Existing model/evaluation outputs from retired datasets must not be shown as results for the new source scope.

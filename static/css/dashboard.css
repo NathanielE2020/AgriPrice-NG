@@ -194,6 +194,12 @@ input[type="month"]:focus, input[type="date"]:focus { border-color: var(--forest
 .data-table td { border-bottom: 1px solid #f0f3f1; color: var(--ink); padding: 10px 7px; white-space: nowrap; }
 .data-table tbody tr:last-child td { border-bottom: 0; }
 .data-table tbody tr:hover { background: #f8fbf9; }
+.forecast-value-cell { white-space: normal !important; min-width: 150px; }
+.forecast-month-label, .forecast-predicted-price, .forecast-change-label, .forecast-method-label { display: block; }
+.forecast-month-label { color: var(--muted); font-size: 10px; font-weight: 700; margin-bottom: 3px; }
+.forecast-predicted-price { color: var(--forest-800); font-size: 13px; }
+.forecast-change-label { color: var(--muted-light); font-size: 9px; margin-top: 2px; }
+.forecast-method-label { color: var(--muted-light); font-size: 9px; margin-top: 3px; max-width: 320px; white-space: normal; }
 .price-cell { font-family: "Manrope", sans-serif; font-weight: 700; }
 .muted-cell { color: var(--muted-light) !important; }
 .status-observed { color: var(--forest-600); font-size: 10px; font-weight: 600; }
@@ -245,7 +251,7 @@ input[type="month"]:focus, input[type="date"]:focus { border-color: var(--forest
 .forecast-temporal-status.forecast-status-historical { background: #fff7e9; border-color: #f0e3c7; border-left-color: #c28b21; }
 .forecast-temporal-status.forecast-status-mixed { background: #fff3e8; border-color: #eedac7; border-left-color: #c47a2c; }
 .forecast-temporal-status.forecast-status-stale { background: #fff0ee; border-color: #f1d8d4; border-left-color: var(--danger); }
-.forecast-result-facts { display: grid; gap: 12px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.forecast-result-facts { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .forecast-result-facts > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .forecast-result-facts span { color: var(--muted-light); font-size: 9px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
 .forecast-result-facts strong { color: var(--forest-800); font-size: 12px; overflow-wrap: anywhere; }
