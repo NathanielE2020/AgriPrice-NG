@@ -96,6 +96,10 @@ def test_latest_value_dom_matches_render_latest_and_local_assets_load(client):
         "forecastMethodology",
         "forecastMethodDetails",
         "performanceViewLabel",
+        "overallPerformanceScope",
+        "performanceRmseHeading",
+        "performanceMaeHeading",
+        "performanceBiasHeading",
         "performanceMapeHeading",
         "performanceR2Heading",
         "overallPerformanceCards",
@@ -108,6 +112,7 @@ def test_latest_value_dom_matches_render_latest_and_local_assets_load(client):
         assert f'id="{element_id}"' in html
     assert '<details class="panel forecast-methodology" id="forecastMethodology">' in html
     assert '<details class="panel forecast-methodology forecast-series-details" id="forecastSeriesDetails">' in html
+    assert '<details class="panel forecast-methodology performance-methodology" id="performanceMethodologyDetails">' in html
     assert "Price series details" in html
     assert "Forecast dates begin after the generation month" in html
     assert "intervening months are estimated internally" in html
@@ -118,6 +123,8 @@ def test_latest_value_dom_matches_render_latest_and_local_assets_load(client):
     javascript = client.get("/static/js/dashboard.js").get_data(as_text=True)
     assert 'mode: "on_demand"' in javascript
     assert "state.forecastRequestId" in javascript
+    assert "Not comparable across different commodities and price scales." in javascript
+    assert "Overall metrics are available, but aligned prediction rows are not saved for plotting." in javascript
     assert "Based on older source data; it may not reflect current market conditions." not in javascript
     assert '"Recent data"' in javascript and '"Older data"' in javascript
     assert "Future-month prices are estimates, not reported prices." in javascript

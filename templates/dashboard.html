@@ -70,19 +70,31 @@
       </section>
 
       <section class="dashboard-section" id="performance-section" data-section="performance" hidden>
-        <div class="section-heading"><div><span class="eyebrow accent">MODEL PERFORMANCE</span><h1>Chronological model evaluation.</h1><p>Registered research series retain test metrics for audit only. Other selected series show on-demand validation comparisons; pooled metrics are labeled as group-held-out and are not represented as independent series results.</p></div></div>
+        <div class="section-heading"><div><span class="eyebrow accent">MODEL PERFORMANCE</span><h1>Chronological model evaluation.</h1><p>View validation results for the selected series or a clearly labelled overall evaluation when individual results are unavailable.</p></div></div>
         <article class="panel controls-panel"><div class="control-grid performance-controls"><div class="field-group field-wide"><label for="performanceSeries">Commodity series</label><select id="performanceSeries"></select></div><span class="soft-badge" id="performanceViewLabel" hidden>Overall evaluation</span><div class="performance-summary" id="performanceSummary">Loading evaluation status…</div></div></article>
         <section class="panel performance-cards" id="overallPerformanceCards" aria-label="Overall validation performance" hidden>
           <h2 id="overallPerformanceCardsTitle">Overall validation performance</h2>
+          <p class="performance-card-scope" id="overallPerformanceScope"></p>
           <dl>
-            <div><dt>RMSE</dt><dd id="overallRmse">Not available</dd><small id="overallRmseNote"></small></div>
-            <div><dt>MAE</dt><dd id="overallMae">Not available</dd><small id="overallMaeNote"></small></div>
+            <div><dt>RMSE</dt><dd id="overallRmse">Not comparable</dd><small id="overallRmseNote"></small></div>
+            <div><dt>MAE</dt><dd id="overallMae">Not comparable</dd><small id="overallMaeNote"></small></div>
             <div><dt id="overallMapeLabel">Median per-series MAPE</dt><dd id="overallMape">Not available</dd><small id="overallMapeNote"></small></div>
             <div><dt id="overallR2Label">Median per-series R²</dt><dd id="overallR2">Not available</dd><small id="overallR2Note"></small></div>
             <div><dt>Validation observations</dt><dd id="overallValidationObservations">0</dd><small id="overallValidationObservationsNote"></small></div>
           </dl>
         </section>
-        <div class="methodology-note"><span>ⓘ</span><p id="performanceMethodologyText">Model comparisons use shared chronological validation dates where on-demand evaluation is available. Registered research test metrics are audit-only; no test results are used to choose an on-demand model. Small or irregular samples limit generalization, and unavailable models have no fabricated metrics.</p></div><div id="performanceError" class="inline-alert" hidden></div><div class="soft-badge" id="performanceDates">No evaluation dates</div><article class="panel panel-chart"><div class="chart-wrap large-chart"><canvas id="performanceChart" aria-label="Actual and model validation or test predictions"></canvas><div class="empty-overlay" id="performanceChartEmpty">No actual-versus-predicted rows are available for this evaluation scope.</div></div></article><div class="table-scroll"><table class="data-table"><thead><tr><th>Model</th><th>RMSE</th><th>MAE</th><th id="performanceMapeHeading">MAPE</th><th id="performanceR2Heading">R²</th><th>Bias</th><th>Evaluation status / scope</th></tr></thead><tbody id="performanceTableBody"></tbody></table></div>
+        <div class="methodology-note"><span>ⓘ</span><p id="performanceMethodologyText">Registered research test metrics are audit-only and are not used in validation comparisons.</p></div>
+        <details class="panel forecast-methodology performance-methodology" id="performanceMethodologyDetails">
+          <summary>Evaluation methodology</summary>
+          <div class="forecast-methodology-content">
+            <p>Overall MAPE and R² are medians of genuine per-series or per-pool validation scores; the observation count is the actual validation coverage represented by the selected summary scope. RMSE, MAE and bias are omitted from overall comparisons because raw errors across different commodities, units and price scales are not directly comparable.</p>
+            <p>Exact-series chronological validation and compatible-pool group-held-out validation are separate evaluation scopes, not a controlled head-to-head comparison. Evaluation dates and coverage may differ by series. Research test metrics remain audit-only and are not mixed into validation results or used for model selection.</p>
+          </div>
+        </details>
+        <div id="performanceError" class="inline-alert" hidden></div>
+        <div class="soft-badge" id="performanceDates">No evaluation dates</div>
+        <article class="panel panel-chart"><div class="chart-wrap large-chart"><canvas id="performanceChart" aria-label="Actual and model validation or test predictions"></canvas><div class="empty-overlay" id="performanceChartEmpty">No actual-versus-predicted rows are available for this evaluation scope.</div></div></article>
+        <div class="table-scroll"><table class="data-table performance-table"><thead><tr><th>Model</th><th id="performanceRmseHeading">RMSE</th><th id="performanceMaeHeading">MAE</th><th id="performanceMapeHeading">MAPE</th><th id="performanceR2Heading">R²</th><th id="performanceBiasHeading">Bias</th><th>Evaluation status / scope</th></tr></thead><tbody id="performanceTableBody"></tbody></table></div>
       </section>
 
       <section class="dashboard-section" id="about-section" data-section="about" hidden>

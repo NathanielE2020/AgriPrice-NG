@@ -625,6 +625,14 @@
     const requestId = ++state.performanceRequestId;
     const overallCards = $("#overallPerformanceCards");
     if (overallCards) overallCards.hidden = true;
+    ["#performanceRmseHeading", "#performanceMaeHeading", "#performanceBiasHeading"].forEach((selector) => {
+      const heading = $(selector);
+      if (heading) heading.hidden = false;
+    });
+    const mapeHeading = $("#performanceMapeHeading");
+    const r2Heading = $("#performanceR2Heading");
+    if (mapeHeading) mapeHeading.textContent = "MAPE";
+    if (r2Heading) r2Heading.textContent = "R²";
     $("#performanceSummary").textContent = "Loading model evaluation…";
     try {
       const params = new URLSearchParams({ dataset, series_id: seriesId });
@@ -638,11 +646,16 @@
         viewLabel.hidden = !overall;
         viewLabel.textContent = overall ? "Overall evaluation" : "";
       }
-      const mapeHeading = $("#performanceMapeHeading");
-      const r2Heading = $("#performanceR2Heading");
       if (mapeHeading) mapeHeading.textContent = overall ? "Median MAPE" : "MAPE";
       if (r2Heading) r2Heading.textContent = overall ? "Median R²" : "R²";
-      $("#performanceSummary").textContent = payload.message || "No validated evaluation records are available.";
+      ["#performanceRmseHeading", "#performanceMaeHeading", "#performanceBiasHeading"].forEach((selector) => {
+        const heading = $(selector);
+        if (heading) heading.hidden = overall;
+      });
+      const sourceLabel = dataset === "wfp" ? "WFP" : dataset === "nbs" ? "NBS" : String(dataset).toUpperCase();
+      $("#performanceSummary").textContent = overall
+        ? `Overall ${sourceLabel} evaluation—not a result for the selected commodity. MAPE and R² are medians; exact-series and compatible-pool scopes are separate, not a head-to-head comparison.`
+        : (payload.message || "No validated evaluation records are available.");
       const validation = summary.evaluation_period === "validation";
       const dateCount = validation ? summary.validation_date_count : summary.test_date_count;
       const firstDate = validation ? summary.validation_first_month : summary.test_first_month;
@@ -662,13 +675,19 @@
           : ["overall_validation", "overall_coverage"].includes(row.status)
             ? `Overall ${row.status === "overall_validation" ? "validation" : "coverage"}${row.evaluation_scope ? ` · ${row.evaluation_scope}` : ""}`
           : (row.unavailable_reason || "Unavailable");
-        return `<tr><td>${escapeHTML(labels[row.model] || row.model)}${row.champion_selected_on_validation ? " ★" : ""}</td><td>${formatNumber(row.rmse, 2)}</td><td>${formatNumber(row.mae, 2)}</td><td>${row.mape === null ? "—" : `${formatNumber(row.mape, 2)}%`}</td><td>${formatNumber(row.r2, 3)}</td><td>${formatNumber(row.bias, 2)}</td><td>${escapeHTML(status)}</td></tr>`;
+        const rawErrorCells = overall ? "" : `<td>${formatNumber(row.rmse, 2)}</td><td>${formatNumber(row.mae, 2)}</td>`;
+        const mape = overall && (row.mape === null || row.mape === undefined)
+          ? "—" : row.mape === null ? "—" : `${formatNumber(row.mape, 2)}%`;
+        const r2 = overall && (row.r2 === null || row.r2 === undefined)
+          ? "—" : formatNumber(row.r2, 3);
+        const biasCell = overall ? "" : `<td>${formatNumber(row.bias, 2)}</td>`;
+        return `<tr><td>${escapeHTML(labels[row.model] || row.model)}${row.champion_selected_on_validation ? " ★" : ""}</td>${rawErrorCells}<td>${mape}</td><td>${r2}</td>${biasCell}<td>${escapeHTML(status)}</td></tr>`;
       }).join("");
       const acceptedStatuses = ["evaluated", "validation_evaluated", "overall_evaluated", "overall_coverage"];
       setMessage("#performanceError", acceptedStatuses.includes(payload.status) ? "" : (payload.message || "No validation or test metrics are available."), !acceptedStatuses.includes(payload.status));
       const chartEmpty = $("#performanceChartEmpty");
       if (chartEmpty) chartEmpty.textContent = overall
-        ? "The saved overall summary contains validation metrics only; no compatible actual-versus-predicted rows are available to chart."
+        ? "Overall metrics are available, but aligned prediction rows are not saved for plotting."
         : "No actual-versus-predicted rows are available for this evaluation scope.";
       drawPerformance(payload.predictions_by_date || [], summary.evaluation_period || "test");
     } catch (error) {
@@ -686,27 +705,35 @@
       const node = $(selector);
       if (node) node.textContent = String(value ?? "");
     };
-    const metricText = (value, digits, suffix = "") => {
+    const metricText = (value, digits, suffix = "", unavailable = "Not available") => {
       const number = Number(value);
       return value !== null && value !== undefined && value !== "" && Number.isFinite(number)
         ? `${formatNumber(number, digits)}${suffix}`
-        : "Not available";
+        : unavailable;
     };
     setText("#overallPerformanceCardsTitle", cards.label || "Overall validation performance");
-    setText("#overallRmse", metricText(cards.rmse, 2));
-    setText("#overallRmseNote", cards.rmse === null || cards.rmse === undefined
-      ? (cards.rmse_unavailable_reason || "No defensible common-scale RMSE is available.")
-      : "Overall validation RMSE.");
-    setText("#overallMae", metricText(cards.mae, 2));
-    setText("#overallMaeNote", cards.mae === null || cards.mae === undefined
-      ? (cards.mae_unavailable_reason || "No defensible common-scale MAE is available.")
-      : "Overall validation MAE.");
+    setText("#overallPerformanceScope", cards.evaluation_scope
+      ? `Evaluation scope: ${cards.evaluation_scope}.` : "Evaluation scope is not available.");
+    const incomparableError = "Not comparable across different commodities and price scales.";
+    setText("#overallRmse", metricText(cards.rmse, 2, "", "Not comparable"));
+    setText("#overallRmseNote", cards.rmse === null || cards.rmse === undefined ? incomparableError : "Overall validation RMSE.");
+    setText("#overallMae", metricText(cards.mae, 2, "", "Not comparable"));
+    setText("#overallMaeNote", cards.mae === null || cards.mae === undefined ? incomparableError : "Overall validation MAE.");
     setText("#overallMapeLabel", cards.mape_label || "MAPE");
     setText("#overallMape", metricText(cards.mape, 2, "%"));
-    setText("#overallMapeNote", cards.mape_method || cards.mape_unavailable_reason || "No valid overall MAPE is available.");
+    const hasScoredUnitCount = cards.metric_unit_count !== null
+      && cards.metric_unit_count !== undefined && cards.metric_unit_count !== ""
+      && Number.isFinite(Number(cards.metric_unit_count));
+    const scoredUnits = hasScoredUnitCount ? Number(cards.metric_unit_count) : NaN;
+    const evaluationUnits = cards.evaluation_scope?.includes("pool") ? "compatible pools" : "exact series";
+    setText("#overallMapeNote", hasScoredUnitCount && cards.mape !== null && cards.mape !== undefined
+      ? `Median across ${formatNumber(scoredUnits)} scored ${evaluationUnits}.`
+      : (cards.mape_unavailable_reason || "No valid overall MAPE is available."));
     setText("#overallR2Label", cards.r2_label || "R²");
     setText("#overallR2", metricText(cards.r2, 3));
-    setText("#overallR2Note", cards.r2_method || cards.r2_unavailable_reason || "No valid overall R² is available.");
+    setText("#overallR2Note", hasScoredUnitCount && cards.r2 !== null && cards.r2 !== undefined
+      ? `Median across ${formatNumber(scoredUnits)} scored ${evaluationUnits}; not a pooled R².`
+      : (cards.r2_unavailable_reason || "No valid overall R² is available."));
     const observationCount = Number(cards.validation_observations);
     setText("#overallValidationObservations", Number.isFinite(observationCount) && observationCount >= 0
       ? formatNumber(observationCount) : "Not available");
@@ -714,7 +741,9 @@
     const metricCoverageNote = Number.isFinite(metricCoverage)
       ? ` Metric medians use ${formatNumber(metricCoverage)} unambiguous evaluation units.`
       : "";
-    setText("#overallValidationObservationsNote", `${cards.observation_count_method || cards.evaluation_scope || "Validation observation coverage."}${metricCoverageNote}`);
+    setText("#overallValidationObservationsNote", Number.isFinite(observationCount) && observationCount > 0
+      ? `Counted once per distinct evaluation unit.${metricCoverageNote}`
+      : "No eligible validation observations are represented.");
   }
 
   function drawPerformance(rows, evaluationPeriod = "test") {

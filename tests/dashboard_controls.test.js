@@ -259,25 +259,38 @@ async function main() {
   assert.equal(calls.filter((url) => url.pathname === "/api/performance").at(-1).searchParams.get("series_id"), "rice-actual-baga");
   assert.equal(getNode("#performanceViewLabel").hidden, true, "validated selected-series results do not switch to the overall view");
   assert.equal(getNode("#overallPerformanceCards").hidden, true, "overall summary cards stay hidden for individual results");
+  assert.equal(getNode("#performanceRmseHeading").hidden, false, "individual metrics retain their original RMSE column");
+  assert.equal(getNode("#performanceMaeHeading").hidden, false, "individual metrics retain their original MAE column");
+  assert.equal(getNode("#performanceBiasHeading").hidden, false, "individual metrics retain their original bias column");
   assert.equal(getNode("#performanceMapeHeading").textContent, "MAPE");
-  assert.match(getNode("#performanceTableBody").innerHTML, /Validation evaluated/);
+  assert.equal((getNode("#performanceTableBody").innerHTML.match(/<td>/g) || []).length, 7, "individual rows retain all seven original columns");
+  const individualTable = getNode("#performanceTableBody").innerHTML;
+  assert.match(individualTable, /3\.00/);
+  assert.match(individualTable, /2\.00/);
+  assert.match(individualTable, /1\.00%/);
+  assert.match(individualTable, /0\.500/);
+  assert.match(individualTable, /Validation evaluated/);
   assert.equal(getNode("#performanceChartEmpty").hidden, true, "actual-versus-predicted rows remain charted when available");
 
+  const chartsBeforeOverallWithoutPredictions = charts.length;
   performanceResponses.set("rice-aggregate", {
     status: "overall_evaluated", overall_evaluation: true,
     message: "No individual validation results are available for Rice. This WFP summary is not a result for the selected commodity.",
     series: records.find((record) => record.series_id === "rice-aggregate"),
-    summary: { evaluation_period: "validation", evaluated_series_count: 2, evaluated_pool_count: 1, validation_audit_as_of: "2026-11-19" },
+    summary: { evaluation_period: "validation", evaluated_series_count: 744, evaluated_pool_count: 38, validation_audit_as_of: "2026-11-19" },
     summary_cards: {
       label: "Overall validation performance", source: "WFP", evaluation_scope: "exact-series chronological validation",
       rmse: null, mae: null, rmse_unavailable_reason: "Absolute errors cannot be combined across different price scales.",
       mae_unavailable_reason: "Absolute errors cannot be combined across different price scales.",
-      mape: 12.5, mape_label: "Median per-series MAPE", mape_method: "Median of genuine per-series MAPE values.",
-      r2: null, r2_label: "Median per-series R²", r2_unavailable_reason: "No valid R².",
-      validation_observations: 14, evaluation_unit_count: 2, metric_unit_count: 1,
+      mape: 9.96, mape_label: "Median per-series MAPE", mape_method: "Median of genuine per-series MAPE values.",
+      r2: 0.303, r2_label: "Median per-series R²", r2_method: "Median of genuine per-series R² values.",
+      validation_observations: 9520, evaluation_unit_count: 744, metric_unit_count: 744,
       observation_count_method: "Sum across unique exact-series validation observations.",
     },
-    records: [{ model: "naive_last_observation", status: "overall_validation", rmse: null, mae: null, mape: 12.5, r2: 0.3, bias: null, evaluation_unit_count: 2, evaluation_scope: "Exact-series chronological validation; median per-series MAPE/R²" }],
+    records: [
+      { model: "naive_last_observation", status: "overall_validation", rmse: null, mae: null, mape: 9.96, r2: 0.303, bias: null, evaluation_unit_count: 744, evaluation_scope: "Exact-series chronological validation; median per-series MAPE/R²" },
+      { model: "pooled_gradient_boosting", status: "overall_validation", rmse: null, mae: null, mape: 8.4, r2: 0.41, bias: null, evaluation_unit_count: 38, evaluation_scope: "Compatible-pool group-held-out validation; median per-pool MAPE/R²" },
+    ],
     predictions_by_date: [],
   });
   getNode("#performanceSeries").value = "rice-aggregate";
@@ -286,20 +299,43 @@ async function main() {
   assert.equal(getNode("#performanceViewLabel").hidden, false);
   assert.equal(getNode("#overallPerformanceCards").hidden, false);
   assert.equal(getNode("#overallPerformanceCardsTitle").textContent, "Overall validation performance");
-  assert.equal(getNode("#overallRmse").textContent, "Not available");
-  assert.match(getNode("#overallRmseNote").textContent, /different price scales/);
-  assert.equal(getNode("#overallMae").textContent, "Not available");
+  assert.equal(getNode("#overallPerformanceScope").textContent, "Evaluation scope: exact-series chronological validation.");
+  assert.equal(getNode("#overallRmse").textContent, "Not comparable");
+  assert.equal(getNode("#overallRmseNote").textContent, "Not comparable across different commodities and price scales.");
+  assert.equal(getNode("#overallMae").textContent, "Not comparable");
+  assert.equal(getNode("#overallMaeNote").textContent, "Not comparable across different commodities and price scales.");
   assert.equal(getNode("#overallMapeLabel").textContent, "Median per-series MAPE");
-  assert.equal(getNode("#overallMape").textContent, "12.50%");
-  assert.equal(getNode("#overallR2").textContent, "Not available");
-  assert.equal(getNode("#overallValidationObservations").textContent, "14");
-  assert.match(getNode("#overallValidationObservationsNote").textContent, /1 unambiguous evaluation units/);
+  assert.equal(getNode("#overallMape").textContent, "9.96%");
+  assert.equal(getNode("#overallR2").textContent, "0.303");
+  assert.equal(getNode("#overallValidationObservations").textContent, "9,520");
+  assert.match(getNode("#overallValidationObservationsNote").textContent, /744 unambiguous evaluation units/);
+  assert.equal(getNode("#performanceRmseHeading").hidden, true);
+  assert.equal(getNode("#performanceMaeHeading").hidden, true);
+  assert.equal(getNode("#performanceBiasHeading").hidden, true);
   assert.equal(getNode("#performanceMapeHeading").textContent, "Median MAPE");
-  assert.match(getNode("#performanceDates").textContent, /2 exact series.*1 compatible pools.*2026-11-19.*dates differ/);
-  assert.match(getNode("#performanceSummary").textContent, /not a result for the selected commodity/);
-  assert.match(getNode("#performanceTableBody").innerHTML, /Overall validation/);
+  assert.match(getNode("#performanceDates").textContent, /744 exact series.*38 compatible pools.*2026-11-19.*dates differ/);
+  assert.match(getNode("#performanceSummary").textContent, /Overall WFP evaluation.*not a result for the selected commodity.*medians.*not a head-to-head comparison/);
+  const overallTable = getNode("#performanceTableBody").innerHTML;
+  assert.equal((overallTable.match(/<td>/g) || []).length, 8, "overall rows contain only Model, Median MAPE, Median R² and scope");
+  assert.match(overallTable, /9\.96%/);
+  assert.match(overallTable, /0\.303/);
+  assert.match(overallTable, /Exact-series chronological validation/);
+  assert.match(overallTable, /Compatible-pool group-held-out validation/);
+  assert.doesNotMatch(overallTable, /n\/a|999999/i, "overall table omits unavailable errors and research test metrics");
   assert.equal(getNode("#performanceChartEmpty").hidden, false);
-  assert.match(getNode("#performanceChartEmpty").textContent, /validation metrics only/);
+  assert.equal(getNode("#performanceChartEmpty").textContent, "Overall metrics are available, but aligned prediction rows are not saved for plotting.");
+  assert.equal(charts.length, chartsBeforeOverallWithoutPredictions, "missing overall predictions do not fabricate chart points or suppress metrics");
+
+  const chartCountBeforeOverallPredictions = charts.length;
+  performanceResponses.set("rice-aggregate", {
+    ...performanceResponses.get("rice-aggregate"),
+    predictions_by_date: [{ month: "2026-03", models: { naive_last_observation: { actual: 100, predicted: 98 } } }],
+  });
+  await trigger("performanceSeries", "change");
+  assert.equal(getNode("#performanceChartEmpty").hidden, true, "genuine compatible prediction rows are charted when supplied");
+  assert.equal(charts.length, chartCountBeforeOverallPredictions + 1);
+  assert.deepEqual(charts.at(-1).config.data.datasets[0].data, [100]);
+  assert.deepEqual(charts.at(-1).config.data.datasets[1].data, [98]);
 
   performanceResponses.set("rice-aggregate", {
     status: "overall_coverage", overall_evaluation: true, message: "No valid overall scores are available.",
@@ -314,6 +350,7 @@ async function main() {
   });
   await trigger("performanceSeries", "change");
   assert.equal(getNode("#overallPerformanceCards").hidden, false);
+  assert.equal(getNode("#overallRmse").textContent, "Not comparable");
   assert.equal(getNode("#overallMape").textContent, "Not available");
   assert.equal(getNode("#overallR2").textContent, "Not available");
   assert.equal(getNode("#overallValidationObservations").textContent, "0");
@@ -326,6 +363,7 @@ async function main() {
   getNode("#performanceSeries").value = "rice-actual-baga";
   await trigger("performanceSeries", "change");
   assert.equal(getNode("#overallPerformanceCards").hidden, true, "returning to individual validation hides overall cards");
+  assert.equal(getNode("#performanceRmseHeading").hidden, false, "returning to individual evaluation restores raw-error columns");
 
   const forecastCallsBeforeHorizon = calls.filter((url) => url.pathname === "/api/forecast").length;
   horizon.value = "6";

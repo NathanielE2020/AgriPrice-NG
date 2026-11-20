@@ -237,12 +237,15 @@ input[type="month"]:focus, input[type="date"]:focus { border-color: var(--forest
 .performance-cards h2 { color: var(--forest-800); font-size: 12px; letter-spacing: .04em; margin: 0 0 11px; text-transform: uppercase; }
 .performance-cards dl { display: grid; gap: 8px; grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 0; }
 .performance-cards dl > div { background: #f8faf8; border-radius: 7px; display: flex; flex-direction: column; gap: 5px; min-width: 0; padding: 10px; }
+.performance-card-scope { color: var(--muted); font-size: 10px; line-height: 1.45; margin: -4px 0 11px; }
 .performance-cards dt { color: var(--muted-light); font-size: 9px; }
 .performance-cards dd { color: var(--ink); font-family: "Manrope", sans-serif; font-size: 14px; font-weight: 700; margin: 0; overflow-wrap: anywhere; }
 .performance-cards small { color: var(--muted); font-size: 9px; line-height: 1.45; }
 .methodology-note { align-items: flex-start; background: #eef5f0; border-left: 3px solid var(--forest-600); color: var(--forest-800); display: flex; font-size: 11px; gap: 9px; line-height: 1.55; margin: 0 0 18px; padding: 12px 14px; }
 .methodology-note span { font-size: 14px; }
 .methodology-note p { margin: 0; }
+.performance-methodology { margin: 0 0 14px; }
+.performance-table th[hidden] { display: none !important; }
 .performance-grid { grid-template-columns: 1fr 1fr; }
 .metrics-table th, .metrics-table td { text-align: right; }
 .metrics-table th:first-child, .metrics-table td:first-child { text-align: left; }
