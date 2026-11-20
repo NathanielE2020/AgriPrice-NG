@@ -188,6 +188,62 @@
     return location.join(" · ") || "Market not stated";
   }
 
+  function forecastDisplayUnit(unit) {
+    const value = String(unit ?? "").trim();
+    return !value || ["not stated in workbook", "not stated"].includes(value.toLowerCase())
+      ? "Unit not specified" : value;
+  }
+
+  function forecastDisplayPriceType(value) {
+    const text = String(value ?? "").trim();
+    if (text.toLowerCase() === "reported_monthly_average") return "Monthly reported average";
+    return text.replaceAll("_", " ");
+  }
+
+  function forecastDisplayRegime(value) {
+    const text = String(value ?? "").trim();
+    const normalized = text.toLowerCase();
+    if (!text) return "";
+    if (normalized === "pre_2025_cpi_rebase" || normalized === "pre 2025 cpi rebase") return "Pre-2025 CPI base";
+    if (normalized === "post_2025_cpi_rebase" || normalized === "post 2025 cpi rebase") return "Post-2025 CPI base";
+    return text.replaceAll("_", " ");
+  }
+
+  function forecastDisplayPriceFlag(series) {
+    const value = String(series?.price_flag ?? "").replace(/^priceflag=/i, "").trim();
+    if (String(series?.source || series?.source_key || "").toLowerCase().includes("nbs")) return "NBS reported average";
+    return value ? value.replaceAll("_", " ") : "Not stated";
+  }
+
+  function formatReportedObservations(value) {
+    const count = Number(value);
+    if (!Number.isFinite(count) || count < 0) return "Observation count unavailable";
+    const formatted = formatNumber(count);
+    return `${formatted} reported observation${count === 1 ? "" : "s"}`;
+  }
+
+  function renderForecastSeriesDetails(series) {
+    const location = series?.source_key === "nbs"
+      ? [series.geography_level || "Geography", series.geography_name].filter(Boolean).join(": ")
+      : [series?.market, series?.admin1].filter(Boolean).join(", ");
+    const values = {
+      forecastDetailSource: series?.source || "—",
+      forecastDetailItem: series?.commodity || "—",
+      forecastDetailGeography: location || "Not specified",
+      forecastDetailUnit: series ? forecastDisplayUnit(series.unit) : "—",
+      forecastDetailPriceType: series ? forecastDisplayPriceType(series.price_type) || "Not specified" : "—",
+      forecastDetailPriceFlag: series ? forecastDisplayPriceFlag(series) : "—",
+      forecastDetailRegime: series ? forecastDisplayRegime(series.methodology_regime) || "Not applicable" : "—",
+      forecastDetailObservationCount: series ? formatReportedObservations(series.observed_months) : "—",
+      forecastDetailSeriesId: series?.series_id || "—",
+      forecastDetailMapping: series?.research_commodity_mapping || "No research mapping",
+    };
+    Object.entries(values).forEach(([id, value]) => {
+      const element = document.getElementById(id);
+      if (element) element.textContent = value;
+    });
+  }
+
   function renderForecastLatest(series) {
     const rawAge = series?.forecast_source_age_months ?? series?.observation_age_months;
     const age = series && rawAge !== null && rawAge !== undefined && Number.isFinite(Number(rawAge))
@@ -199,13 +255,13 @@
       : 3;
     const forecastFreshness = series?.forecast_freshness || series?.freshness;
     const freshnessLabel = !series ? "Select a series" : age === null
-      ? "Freshness unavailable"
+      ? "—"
       : (forecastFreshness === "fresh" || age <= freshnessLimit
-        ? "Recent source data"
-        : "Older source data");
+        ? "Recent data"
+        : "Older data");
     const values = series ? {
       forecastLatestPrice: `Latest reported: ${formatPrice(series.latest_price)}`,
-      forecastLatestContext: `${series.source} · ${series.commodity}${series.research_commodity_mapping ? ` (research mapping: ${series.research_commodity_mapping}; ${String(series.mapping_status || "mapping status unavailable").replaceAll("_", " ")})` : ""} · ${series.market || series.geography_name || "geography not stated"} · ${series.methodology_regime ? String(series.methodology_regime).replaceAll("_", " ") + " · " : ""}${series.unit || "unit not stated"} · ${series.price_type}. This is a source observation, not a forecast.`,
+      forecastLatestContext: `${series.source} · ${series.commodity} · ${series.market || series.geography_name || "geography not stated"}. This is a source observation, not a forecast.`,
       forecastLatestDate: formatStartingObservation(series.last_observed_month, series.latest_observation_date),
       forecastLatestAge: age === null ? "n/a" : `${formatNumber(age)} month(s) old`,
       forecastFreshness: freshnessLabel,
@@ -216,6 +272,7 @@
       forecastLatestAge: "n/a",
       forecastFreshness: "Select a series",
     };
+    renderForecastSeriesDetails(series);
     Object.entries(values).forEach(([id, value]) => {
       const element = document.getElementById(id);
       if (element) element.textContent = value;
@@ -261,6 +318,9 @@
         : (dataset === "nbs"
           ? "No NBS monthly observations are available for this item and geography."
           : "No WFP monthly observations are available for this market selection."));
+    if (note && canCheck) {
+      note.textContent = `${formatReportedObservations(series.observed_months)} (${series.first_observed_month} to ${series.last_observed_month}). Exact source definitions stay separate; detailed series information is available below.`;
+    }
     renderForecastLatest(canCheck ? series : null);
     showForecastPrompt(canCheck
       ? `Review the exact ${dataset === "nbs" ? "item and geography" : "market, unit and price type"} and horizon, then generate the forecast. The response will state any history eligibility limitation.`
@@ -306,6 +366,7 @@
     }).join("");
     commodityNode.disabled = false;
     commodityNode.value = commodity;
+    commodityNode.querySelectorAll("option").forEach((option) => { option.textContent = option.value; });
 
     const commoditySeries = candidates.filter((item) => item.commodity === commodity);
     const markets = new Map();
@@ -326,7 +387,7 @@
     let seriesId = state.forecastSelected[dataset];
     if (!variants.some((item) => item.series_id === seriesId)) seriesId = variants.length === 1 ? variants[0].series_id : "";
     state.forecastSelected[dataset] = seriesId;
-    const prompt = variants.length > 1 ? '<option value="">Choose exact unit and price type</option>' : "";
+    const prompt = variants.length > 1 ? '<option value="">Choose exact reporting definition</option>' : "";
     seriesNode.innerHTML = prompt + variants.map((item) => {
       const regime = item.methodology_regime ? ` · ${item.methodology_regime.replaceAll("_", " ")}` : "";
       const mapping = dataset === "nbs" && item.research_commodity_mapping
@@ -346,6 +407,17 @@
         ? ` | maps to ${item.research_commodity_mapping}${item.mapping_status ? ` (${item.mapping_status.replaceAll("_", " ")})` : ""}`
         : "";
       option.textContent = `${item.unit || "Unit not stated"} | ${item.price_type} | ${flag}${regime} | ${formatNumber(item.observed_months)} months | latest ${item.last_observed_month || "unknown"}${mapping}`;
+    });
+    seriesNode.querySelectorAll("option").forEach((option) => {
+      const item = variants.find((candidate) => candidate.series_id === option.value);
+      if (!item) return;
+      option.textContent = [
+        forecastDisplayUnit(item.unit),
+        forecastDisplayPriceType(item.price_type),
+        forecastDisplayPriceFlag(item),
+        forecastDisplayRegime(item.methodology_regime),
+        formatReportedObservations(item.observed_months),
+      ].filter(Boolean).join(" · ");
     });
     updateForecastAvailability(dataset, seriesId);
   }
@@ -740,9 +812,9 @@
     if (rawSourceAge !== null && rawSourceAge !== undefined && Number.isFinite(Number(rawSourceAge))) {
       const sourceAge = Number(rawSourceAge);
       setText("forecastLatestAge", formatNumber(sourceAge) + " month(s) old");
-      setText("forecastFreshness", sourceAge <= freshnessLimit ? "Recent source data" : "Older source data");
+      setText("forecastFreshness", sourceAge <= freshnessLimit ? "Recent data" : "Older data");
     } else {
-      setText("forecastFreshness", "Freshness unavailable");
+      setText("forecastFreshness", "—");
     }
     setText("forecastOriginGenerated", formatLongDate(metadata.forecast_generation_date));
     setText("forecastRmse", formatNumber(metric.rmse, 2));
@@ -813,7 +885,6 @@
     const isFresh = typeof metadata.is_current_market_forecast === "boolean"
       ? metadata.is_current_market_forecast
       : (age !== null ? age <= freshnessLimit : freshness === "fresh");
-    const isRecent = age !== null ? age <= freshnessLimit : freshness === "fresh";
     let style = "stale";
     let title = "Forecast status unavailable";
     let message = "The source date or forecast period could not be confirmed. These are estimates, not reported market prices.";
@@ -822,7 +893,6 @@
       style = "mixed";
       title = "Price Forecast";
       message = "This is an estimate for the current month, not a reported market price.";
-      if (!isRecent) message += " The source data are older.";
     } else if (["historical_projection_from_latest_actual", "historical_projection_from_latest_observation", "historical_only"].includes(classification)) {
       style = "historical";
       title = "Past-period estimate";
@@ -831,15 +901,14 @@
       style = "mixed";
       title = "Price Forecast";
       message = "Some dates are in the past or current month. Those values are estimates, not reported prices.";
-      if (!isRecent) message += " The source data are older.";
     } else if (classification === "future_as_of_generation" && isFresh) {
       style = "current";
       title = "Price Forecast";
-      message = "Based on recent source data.";
+      message = "Future-month prices are estimates, not reported prices.";
     } else if (classification === "future_as_of_generation") {
       style = "stale";
       title = "Price Forecast";
-      message = "Based on older source data; it may not reflect current market conditions.";
+      message = "Future-month prices are estimates, not reported prices.";
     }
 
     const box = $("#forecastTemporalStatus");

@@ -115,8 +115,8 @@ global.fetch = async (url) => {
   if (parsed.pathname === "/api/series") return apiResponse({
     wfp: records,
     nbs: [
-      { ...makeSeries("nbs-yam-post", "Yam Tuber", "National", "actual"), source_key: "nbs", source: "NBS", market: null, market_id: null, geography_level: "national", geography_name: "Nigeria", methodology_regime: "post_2025_cpi_rebase", forecast_request_available: true, observed_months: 17, first_observed_month: "2025-01", last_observed_month: "2026-05", observation_age_months: 6, freshness: "recent" },
-      { ...makeSeries("nbs-yam-pre", "Yam Tuber", "National", "actual"), source_key: "nbs", source: "NBS", market: null, market_id: null, geography_level: "national", geography_name: "Nigeria", methodology_regime: "pre_2025_cpi_rebase", forecast_request_available: true, observed_months: 2, first_observed_month: "2024-11", last_observed_month: "2024-12", observation_age_months: 23, freshness: "stale" },
+      { ...makeSeries("nbs-yam-post", "Yam Tuber", "National", "actual"), source_key: "nbs", source: "NBS", market: null, market_id: null, geography_level: "national", geography_name: "Nigeria", unit: "Not stated in workbook", price_type: "reported_monthly_average", price_flag: "NBS reported average", methodology_regime: "post_2025_cpi_rebase", forecast_request_available: true, observed_months: 17, first_observed_month: "2025-01", last_observed_month: "2026-05", latest_observation_date: "2026-05-31", observation_age_months: 6, freshness: "recent" },
+      { ...makeSeries("nbs-yam-pre", "Yam Tuber", "National", "actual"), source_key: "nbs", source: "NBS", market: null, market_id: null, geography_level: "national", geography_name: "Nigeria", unit: "Not stated in workbook", price_type: "reported_monthly_average", price_flag: "NBS reported average", methodology_regime: "pre_2025_cpi_rebase", forecast_request_available: true, observed_months: 2, first_observed_month: "2024-11", last_observed_month: "2024-12", latest_observation_date: "2024-12-31", observation_age_months: 23, freshness: "stale" },
     ],
   });
   if (parsed.pathname === "/api/history") {
@@ -136,7 +136,7 @@ global.fetch = async (url) => {
         last_observed_month: parsed.searchParams.get("series_id") === "nbs-yam-post" ? "2026-05" : "2024-12",
         latest_observation_date: parsed.searchParams.get("series_id") === "nbs-yam-post" ? "2026-05-31" : "2024-12-31",
         observation_age_months: parsed.searchParams.get("series_id") === "nbs-yam-post" ? 6 : 23,
-        unit: "Not stated", price_type: "Retail", currency: "NGN", freshness: "stale",
+        unit: "Not stated in workbook", price_type: "reported_monthly_average", price_flag: "NBS reported average", currency: "NGN", freshness: "stale",
       }
       : null;
     const chosen = selected || nbsRecord;
@@ -220,7 +220,8 @@ async function main() {
   assert.equal(exactSeries.options.length, 4, "same-market flag, unit and price-type variants require an explicit choice");
   assert.equal(exactSeries.options[0].value, "", "no exact unit/type is silently selected when variants are ambiguous");
   assert.ok(exactSeries.options.some((option) => option.value === "rice-aggregate"), "aggregate selections remain visible for an explicit eligibility attempt");
-  assert.match(exactSeries.options.find((option) => option.value === "rice-aggregate").textContent, /priceflag=aggregate/);
+  assert.match(exactSeries.options.find((option) => option.value === "rice-aggregate").textContent, /aggregate/);
+  assert.doesNotMatch(exactSeries.options.find((option) => option.value === "rice-aggregate").textContent, /priceflag=/);
   exactSeries.value = "rice-aggregate";
   await trigger("forecastSeries", "change");
   assert.equal(getNode("#generateForecast").disabled, false, "non-actual WFP records can be explicitly checked rather than silently omitted");
@@ -343,11 +344,12 @@ async function main() {
   assert.match(getNode("#forecastTableBody").innerHTML, /Dec 2026[\s\S]*May 2027/);
   assert.equal((getNode("#forecastTableBody").innerHTML.match(/<tr>/g) || []).length, 6, "the six-month action renders six forecast dates");
   assert.equal(getNode("#forecastStatusTitle").textContent, "Price Forecast");
-  assert.match(getNode("#forecastStatusMessage").textContent, /older source data/);
+  assert.equal(getNode("#forecastStatusMessage").textContent, "Future-month prices are estimates, not reported prices.");
+  assert.doesNotMatch(getNode("#forecastStatusMessage").textContent, /market conditions|older source data/i);
   assert.equal(getNode("#forecastConfidence").textContent, "Low", "the existing low-confidence classification is presented in plain language");
   assert.match(getNode("#forecastTableBody").innerHTML, /<td>Forecast<\/td>/);
   assert.equal(getNode("#forecastLatestDate").textContent, "April 2026 (2026-04-14)", "the starting month and exact observation date remain visible");
-  assert.equal(getNode("#forecastFreshness").textContent, "Older source data", "the result clearly identifies older data");
+  assert.equal(getNode("#forecastFreshness").textContent, "Older data", "the result clearly identifies older data");
   assert.equal(getNode("#forecastOriginGenerated").textContent, "19 November 2026");
   assert.equal(getNode("#forecastSource").textContent, "WFP");
   assert.match(getNode("#forecastSelectedModel").textContent, /random forest/);
@@ -383,8 +385,8 @@ async function main() {
   await trigger("forecastHorizon", "change");
   await trigger("generateForecast", "click");
   assert.equal(getNode("#forecastStatusTitle").textContent, "Price Forecast");
-  assert.match(getNode("#forecastStatusMessage").textContent, /recent source data/);
-  assert.equal(getNode("#forecastFreshness").textContent, "Recent source data");
+  assert.equal(getNode("#forecastStatusMessage").textContent, "Future-month prices are estimates, not reported prices.");
+  assert.equal(getNode("#forecastFreshness").textContent, "Recent data");
   assert.equal(getNode("#forecastConfidence").textContent, "Medium", "the existing limited-confidence classification is presented in plain language");
   assert.match(getNode("#forecastSelectedModel").textContent, /^Baseline forecast: naive last observation$/);
   assert.deepEqual(charts.at(-1).config.data.datasets.map((dataset) => dataset.label), ["WFP direct actual observations", "Baseline estimate"]);
@@ -420,11 +422,29 @@ async function main() {
   assert.equal(commodity.value, "Yam Tuber");
   assert.equal(market.options[0].textContent, "national: Nigeria");
   assert.equal(exactSeries.value, "", "the pre/post-rebase NBS observations require an explicit methodology choice");
-  assert.ok(exactSeries.options.some((option) => option.textContent.includes("post 2025 cpi rebase")));
-  assert.ok(exactSeries.options.some((option) => option.textContent.includes("pre 2025 cpi rebase")));
+  const preNbsOption = exactSeries.options.find((option) => option.value === "nbs-yam-pre");
+  const postNbsOption = exactSeries.options.find((option) => option.value === "nbs-yam-post");
+  assert.ok(postNbsOption.textContent.includes("Post-2025 CPI base"));
+  assert.ok(preNbsOption.textContent.includes("Pre-2025 CPI base"));
+  assert.ok(preNbsOption.textContent.includes("Unit not specified"));
+  assert.ok(preNbsOption.textContent.includes("Monthly reported average"));
+  assert.ok(preNbsOption.textContent.includes("NBS reported average"));
+  assert.ok(preNbsOption.textContent.includes("2 reported observations"));
+  assert.ok(postNbsOption.textContent.includes("17 reported observations"));
+  assert.doesNotMatch(preNbsOption.textContent, /reported_monthly_average|priceflag=|2 months|pre_2025/i);
   assert.equal(getNode("#generateForecast").disabled, true);
   exactSeries.value = "nbs-yam-post";
   await trigger("forecastSeries", "change");
+  assert.equal(getNode("#forecastLatestPrice").textContent, "Latest reported: ₦500.00");
+  assert.equal(getNode("#forecastLatestDate").textContent, "May 2026 (2026-05-31)");
+  assert.equal(getNode("#forecastDetailSource").textContent, "NBS");
+  assert.equal(getNode("#forecastDetailItem").textContent, "Yam Tuber");
+  assert.equal(getNode("#forecastDetailGeography").textContent, "national: Nigeria");
+  assert.equal(getNode("#forecastDetailUnit").textContent, "Unit not specified");
+  assert.equal(getNode("#forecastDetailPriceType").textContent, "Monthly reported average");
+  assert.equal(getNode("#forecastDetailPriceFlag").textContent, "NBS reported average");
+  assert.equal(getNode("#forecastDetailRegime").textContent, "Post-2025 CPI base");
+  assert.equal(getNode("#forecastDetailSeriesId").textContent, "nbs-yam-post");
   assert.equal(getNode("#generateForecast").disabled, false, "reported NBS history is sent to exact-series eligibility validation");
   await trigger("generateForecast", "click");
   assert.equal(calls.filter((url) => url.pathname === "/api/forecast").at(-1).searchParams.get("dataset"), "nbs");

@@ -68,6 +68,17 @@ def test_latest_value_dom_matches_render_latest_and_local_assets_load(client):
         "forecastLatestDate",
         "forecastLatestAge",
         "forecastFreshness",
+        "forecastSeriesDetails",
+        "forecastDetailSource",
+        "forecastDetailItem",
+        "forecastDetailGeography",
+        "forecastDetailUnit",
+        "forecastDetailPriceType",
+        "forecastDetailPriceFlag",
+        "forecastDetailRegime",
+        "forecastDetailObservationCount",
+        "forecastDetailSeriesId",
+        "forecastDetailMapping",
         "forecastTemporalStatus",
         "forecastStatusTitle",
         "forecastStatusMessage",
@@ -96,6 +107,8 @@ def test_latest_value_dom_matches_render_latest_and_local_assets_load(client):
     ):
         assert f'id="{element_id}"' in html
     assert '<details class="panel forecast-methodology" id="forecastMethodology">' in html
+    assert '<details class="panel forecast-methodology forecast-series-details" id="forecastSeriesDetails">' in html
+    assert "Price series details" in html
     assert "Forecast dates begin after the generation month" in html
     assert "intervening months are estimated internally" in html
     assert "Validation results summarize past checks" in html
@@ -105,6 +118,9 @@ def test_latest_value_dom_matches_render_latest_and_local_assets_load(client):
     javascript = client.get("/static/js/dashboard.js").get_data(as_text=True)
     assert 'mode: "on_demand"' in javascript
     assert "state.forecastRequestId" in javascript
+    assert "Based on older source data; it may not reflect current market conditions." not in javascript
+    assert '"Recent data"' in javascript and '"Older data"' in javascript
+    assert "Future-month prices are estimates, not reported prices." in javascript
     assert "forecastMethodText" not in javascript
     assert "forecastMetaLabel" not in javascript
 
@@ -169,8 +185,8 @@ def test_nbs_revised_rice_labels_map_for_context_but_remain_exact_series(client)
     assert agric["series_id"] not in {old_local["series_id"], new_local["series_id"]}
     assert old_local["unit"] == new_local["unit"] == "Not stated in workbook"
     javascript = client.get("/static/js/dashboard.js").get_data(as_text=True)
-    assert "mapped research group" in javascript
-    assert "research mappings are descriptive only" in client.get("/").get_data(as_text=True)
+    assert "forecastDetailMapping" in javascript
+    assert "Research mapping" in client.get("/").get_data(as_text=True)
 
 
 def test_current_source_cutoffs_make_all_normalized_series_stale_for_forecasting(client):

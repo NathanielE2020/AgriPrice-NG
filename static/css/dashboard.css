@@ -276,6 +276,10 @@ input[type="month"]:focus, input[type="date"]:focus { border-color: var(--forest
 .forecast-methodology-content p { margin: 0 0 8px; }
 .forecast-methodology-content ul { margin: 0; padding-left: 19px; }
 .forecast-methodology-content li + li { margin-top: 5px; }
+.series-details-grid { display: grid; gap: 12px 18px; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; }
+.series-details-grid > div { min-width: 0; }
+.series-details-grid dt { color: var(--muted-light); font-size: 9px; font-weight: 700; text-transform: uppercase; }
+.series-details-grid dd { color: var(--ink); font-size: 11px; margin: 2px 0 0; overflow-wrap: anywhere; }
 
 .about-grid { grid-template-columns: minmax(0, 1.05fr) minmax(320px, .95fr); }
 .about-lead, .about-method { padding: 27px; }
@@ -316,6 +320,7 @@ input[type="month"]:focus, input[type="date"]:focus { border-color: var(--forest
   .forecast-controls { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .forecast-controls .primary-button { grid-column: 3; }
   .forecast-result-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .series-details-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .forecast-metrics dl { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .performance-cards dl { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .series-grid { grid-template-columns: repeat(2, 1fr); }
@@ -358,6 +363,7 @@ input[type="month"]:focus, input[type="date"]:focus { border-color: var(--forest
   .large-chart, .forecast-chart-wrap { height: 310px; }
   .forecast-result-summary { gap: 14px; padding: 15px; }
   .forecast-result-facts { gap: 11px 8px; }
+  .series-details-grid { gap: 10px; grid-template-columns: 1fr; }
   .forecast-metrics dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .performance-cards dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .forecast-methodology > summary { padding: 14px 15px; }
