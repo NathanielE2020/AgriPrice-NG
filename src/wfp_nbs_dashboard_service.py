@@ -12,6 +12,7 @@ import statistics
 import threading
 from collections import defaultdict
 from datetime import date, datetime
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +29,36 @@ TRAINING_FORECASTS = ROOT / "outputs" / "training" / "forecasts.csv"
 COVERAGE_AUDIT = ROOT / "reports" / "final_commodity_coverage_audit.csv"
 COVERAGE_AUDIT_REPORT = ROOT / "reports" / "final_commodity_coverage_audit.txt"
 SUPPORTED_DATASETS = ("wfp", "nbs")
+DEMO_MAX_WEIGHT_KG = Decimal("2.8")
+_DEMO_WEIGHT_UNIT_PATTERN = re.compile(
+    r"(?:(\d+(?:\.\d+)?|\.\d+)\s*)?(kg|kilograms?|g|grams?)",
+    re.IGNORECASE,
+)
+
+
+def is_demo_small_unit(unit: Any) -> bool:
+    """Accept explicit positive gram/kilogram quantities up to 2.8 kg.
+
+    Conversion to kilograms is used only for this eligibility decision. The
+    recorded source unit, price, and exact series identity are never changed.
+    A bare ``kg`` or ``g`` is treated as one unit of that measure, matching
+    existing source labels such as WFP's ``KG``.
+    """
+    text = str(unit or "").strip()
+    match = _DEMO_WEIGHT_UNIT_PATTERN.fullmatch(text)
+    if not match:
+        return False
+
+    try:
+        quantity = Decimal(match.group(1) or "1")
+    except InvalidOperation:
+        return False
+    if not quantity.is_finite() or quantity <= 0:
+        return False
+
+    measure = match.group(2).casefold()
+    quantity_kg = quantity / Decimal("1000") if measure in {"g", "gram", "grams"} else quantity
+    return quantity_kg <= DEMO_MAX_WEIGHT_KG
 
 
 class DashboardError(Exception):
@@ -365,8 +396,8 @@ class DashboardService:
     def _require_series(self, dataset: str, series_id: str) -> dict[str, Any]:
         dataset = self._dataset(dataset)
         record = self._series_index.get((dataset, series_id))
-        if record is None:
-            raise DashboardError("series_not_found", "The selected series is not available for this data source.", 404)
+        if record is None or not is_demo_small_unit(record.get("unit")):
+            raise DashboardError("series_not_found", "Choose a listed small-unit price series for this data source.", 404)
         return record
 
     def _stats(self, dataset: str) -> dict[str, Any]:
@@ -419,8 +450,17 @@ class DashboardService:
     def series(self, dataset: str | None = None) -> dict[str, Any] | list[dict[str, Any]]:
         if dataset is not None:
             dataset = self._dataset(dataset)
-            return [self._public_series(item) for item in self._series[dataset]]
-        return {key: [self._public_series(item) for item in self._series[key]] for key in SUPPORTED_DATASETS}
+            return [
+                self._public_series(item) for item in self._series[dataset]
+                if is_demo_small_unit(item.get("unit"))
+            ]
+        return {
+            key: [
+                self._public_series(item) for item in self._series[key]
+                if is_demo_small_unit(item.get("unit"))
+            ]
+            for key in SUPPORTED_DATASETS
+        }
 
     def _public_series(self, record: dict[str, Any]) -> dict[str, Any]:
         public = {key: value for key, value in record.items() if key != "history"}
@@ -460,6 +500,11 @@ class DashboardService:
             "forecast_request_available": bool(
                 record.get("source_key") in SUPPORTED_DATASETS
                 and int(record.get("observed_months", 0) or 0) > 0
+                and (record.get("source_key") != "wfp" or record.get("price_flag") == "actual")
+                and any(
+                    row.get("price") is not None and float(row["price"]) > 0
+                    for row in record.get("history", [])
+                )
             ),
         })
         return public
@@ -491,9 +536,15 @@ class DashboardService:
         """Adapt saved validation-only research metrics when the coverage audit is absent."""
         if dataset != "wfp":
             return []
+        demo_series_ids = {
+            record["series_id"] for record in self._series[dataset]
+            if is_demo_small_unit(record.get("unit"))
+        }
         rows = []
         for row in self._training_metrics:
             if row.get("source", "WFP").upper() != "WFP":
+                continue
+            if row.get("series_id") not in demo_series_ids:
                 continue
             if _integer(row.get("validation_n"), 0) <= 0 or not row.get("validation_dates"):
                 continue
@@ -520,7 +571,16 @@ class DashboardService:
     ) -> dict[str, Any]:
         """Build source-separated, validation-only summaries without cross-scale errors."""
         source = dataset.upper()
-        audit_rows = [row for row in self._coverage_audit if row.get("source", "").upper() == source]
+        demo_series_ids = {
+            record["series_id"] for record in self._series[dataset]
+            if is_demo_small_unit(record.get("unit"))
+        }
+        audit_rows = [
+            row for row in self._coverage_audit
+            if row.get("source", "").upper() == source
+            and row.get("series_id") in demo_series_ids
+            and is_demo_small_unit(row.get("unit"))
+        ]
         has_saved_audit_evaluation = any(
             row.get("forecast_attempt_status") == "generated"
             and str(row.get("forecast_available", "")).lower() == "true"
@@ -961,6 +1021,12 @@ class DashboardService:
         evaluation_only: bool = False,
     ) -> dict[str, Any]:
         record = self._require_series(dataset, series_id)
+        if dataset == "wfp" and record.get("price_flag") != "actual":
+            raise DashboardError(
+                "forecast_series_not_actual",
+                "Choose a WFP series with direct actual prices for forecasting.",
+                422,
+            )
         if horizon not in range(1, 7):
             raise DashboardError("invalid_horizon", "horizon must be an integer from 1 through 6 months.", 400)
         if mode not in ("", "on_demand", "historical"):

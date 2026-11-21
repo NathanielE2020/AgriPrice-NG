@@ -70,12 +70,26 @@ const records = [
   { ...makeSeries("rice-wholesale-dawanau", "Rice (local)", "Dawanau", "actual"), unit: "50 KG", price_type: "Wholesale" },
   makeSeries("rice-actual-baga", "Rice (local)", "Baga Road", "actual"),
   makeSeries("rice-current-fresh", "Rice (local)", "Current Market", "actual"),
+  { ...makeSeries("rice-13kg", "Rice (local)", "Mislabelled Bulk Market", "actual"), unit: "13 KG" },
+  { ...makeSeries("rice-13decimal", "Rice (local)", "Small Pack Market", "actual"), unit: "1.3 KG" },
+  { ...makeSeries("rice-500g", "Rice (local)", "Gram Unit Market", "actual"), unit: "500 G" },
+  { ...makeSeries("rice-unlisted-2.3kg", "Rice (local)", "Unlisted Size Market", "actual"), unit: "2.3 KG" },
+  { ...makeSeries("rice-over-limit", "Rice (local)", "Over Limit Market", "actual"), unit: "2.8001 KG" },
+  { ...makeSeries("rice-liter", "Rice (local)", "Volume Unit Market", "actual"), unit: "L" },
+  { ...makeSeries("rice-crate", "Rice (local)", "Package Unit Market", "actual"), unit: "30 pieces (crate)" },
   makeSeries("beans-insufficient", "Beans (red)", "Baga Road", "actual"),
   makeSeries("rice-aggregate", "Rice (local)", "Dawanau", "aggregate"),
+  { ...makeSeries("millet-spaced-unit", "Millet", "Spaced Unit Market", "actual"), unit: " 2.5 Kg " },
+];
+const nbsRecords = [
+  { ...makeSeries("nbs-semovita-post", "Semovita, Prepacked (1kg)", "National", "actual"), source_key: "nbs", source: "NBS", market: null, market_id: null, geography_level: "national", geography_name: "Nigeria", unit: "1kg", price_type: "reported_monthly_average", price_flag: "NBS reported average", methodology_regime: "post_2025_cpi_rebase", forecast_request_available: true, observed_months: 17, first_observed_month: "2025-01", last_observed_month: "2026-05", latest_observation_date: "2026-05-31", observation_age_months: 6, freshness: "recent" },
+  { ...makeSeries("nbs-semovita-pre", "Semovita, Prepacked (1kg)", "National", "actual"), source_key: "nbs", source: "NBS", market: null, market_id: null, geography_level: "national", geography_name: "Nigeria", unit: "1kg", price_type: "reported_monthly_average", price_flag: "NBS reported average", methodology_regime: "pre_2025_cpi_rebase", forecast_request_available: true, observed_months: 2, first_observed_month: "2024-11", last_observed_month: "2024-12", latest_observation_date: "2024-12-31", observation_age_months: 23, freshness: "stale" },
+  { ...makeSeries("nbs-unknown-unit", "Yam Tuber", "National", "actual"), source_key: "nbs", source: "NBS", geography_level: "national", geography_name: "Nigeria", unit: "Not stated in workbook", forecast_request_available: true },
 ];
 const calls = [];
 const charts = [];
 const performanceResponses = new Map();
+let mismatchForecastUnit = false;
 function shiftMonthKey(value, offset) {
   const [year, month] = value.split("-").map(Number);
   const ordinal = year * 12 + month - 1 + offset;
@@ -114,13 +128,11 @@ global.fetch = async (url) => {
   if (parsed.pathname === "/api/overview") return apiResponse(overview);
   if (parsed.pathname === "/api/series") return apiResponse({
     wfp: records,
-    nbs: [
-      { ...makeSeries("nbs-yam-post", "Yam Tuber", "National", "actual"), source_key: "nbs", source: "NBS", market: null, market_id: null, geography_level: "national", geography_name: "Nigeria", unit: "Not stated in workbook", price_type: "reported_monthly_average", price_flag: "NBS reported average", methodology_regime: "post_2025_cpi_rebase", forecast_request_available: true, observed_months: 17, first_observed_month: "2025-01", last_observed_month: "2026-05", latest_observation_date: "2026-05-31", observation_age_months: 6, freshness: "recent" },
-      { ...makeSeries("nbs-yam-pre", "Yam Tuber", "National", "actual"), source_key: "nbs", source: "NBS", market: null, market_id: null, geography_level: "national", geography_name: "Nigeria", unit: "Not stated in workbook", price_type: "reported_monthly_average", price_flag: "NBS reported average", methodology_regime: "pre_2025_cpi_rebase", forecast_request_available: true, observed_months: 2, first_observed_month: "2024-11", last_observed_month: "2024-12", latest_observation_date: "2024-12-31", observation_age_months: 23, freshness: "stale" },
-    ],
+    nbs: nbsRecords,
   });
   if (parsed.pathname === "/api/history") {
-    const selected = records.find((record) => record.series_id === parsed.searchParams.get("series_id"));
+    const sourceRecords = parsed.searchParams.get("dataset") === "nbs" ? nbsRecords : records;
+    const selected = sourceRecords.find((record) => record.series_id === parsed.searchParams.get("series_id"));
     return apiResponse({ series: selected, history: [{ month: "2026-04", price: 500 }] });
   }
   if (parsed.pathname === "/api/performance") {
@@ -128,18 +140,8 @@ global.fetch = async (url) => {
       || { status: "not_evaluated", message: "No evaluation", records: [], predictions_by_date: [] });
   }
   if (parsed.pathname === "/api/forecast") {
-    const selected = records.find((record) => record.series_id === parsed.searchParams.get("series_id"));
-    const nbsRecord = parsed.searchParams.get("dataset") === "nbs"
-      ? {
-        series_id: parsed.searchParams.get("series_id"), commodity: "Yam Tuber", source: "NBS", source_key: "nbs",
-        geography_name: "Nigeria", geography_level: "national", methodology_regime: parsed.searchParams.get("series_id") === "nbs-yam-post" ? "post_2025_cpi_rebase" : "pre_2025_cpi_rebase",
-        last_observed_month: parsed.searchParams.get("series_id") === "nbs-yam-post" ? "2026-05" : "2024-12",
-        latest_observation_date: parsed.searchParams.get("series_id") === "nbs-yam-post" ? "2026-05-31" : "2024-12-31",
-        observation_age_months: parsed.searchParams.get("series_id") === "nbs-yam-post" ? 6 : 23,
-        unit: "Not stated in workbook", price_type: "reported_monthly_average", price_flag: "NBS reported average", currency: "NGN", freshness: "stale",
-      }
-      : null;
-    const chosen = selected || nbsRecord;
+    const sourceRecords = parsed.searchParams.get("dataset") === "nbs" ? nbsRecords : records;
+    const chosen = sourceRecords.find((record) => record.series_id === parsed.searchParams.get("series_id"));
     if (!chosen) return apiResponse({ error: { code: "series_not_found", message: "No exact series" } }, 404);
     const requestedHorizon = Number(parsed.searchParams.get("horizon"));
     const actualMonth = chosen.last_observed_month;
@@ -158,11 +160,11 @@ global.fetch = async (url) => {
     const model = chosen.series_id === "rice-current-fresh" ? "naive_last_observation"
       : chosen.series_id === "beans-insufficient" ? "robust_recent_movement"
         : chosen.price_flag !== "actual" ? "robust_recent_movement" : "random_forest";
-    const isFallback = ["beans-insufficient", "nbs-yam-post", "nbs-yam-pre"].includes(chosen.series_id) || chosen.price_flag !== "actual";
+    const isFallback = ["beans-insufficient", "nbs-semovita-post", "nbs-semovita-pre"].includes(chosen.series_id) || chosen.price_flag !== "actual";
     const historicalPriceLabel = chosen.source_key === "nbs" ? "NBS reported monthly observations"
       : chosen.price_flag === "actual" ? "WFP direct actual observations" : `WFP reported priceflag=${chosen.price_flag} observations; not direct actuals`;
     return apiResponse({
-      series: chosen, horizon: requestedHorizon, model,
+      series: mismatchForecastUnit ? { ...chosen, unit: "50 KG" } : chosen, horizon: requestedHorizon, model,
       historical: [{ month: actualMonth, price: 500 }],
       forecast: returnedMonths.map((month, index) => ({ month, price: 510 + index, step: index + 1, percentage_change_from_origin: 2 + index, temporal_status: month <= generatedMonth ? "historical_projection_from_latest_observation" : "future_as_of_generation" })),
       metadata: {
@@ -206,7 +208,37 @@ async function main() {
   const market = getNode("#forecastMarket");
   const exactSeries = getNode("#forecastSeries");
   const horizon = getNode("#forecastHorizon");
-  assert.deepEqual(commodity.options.map((option) => option.value), ["Beans (red)", "Rice (local)"]);
+  assert.deepEqual(commodity.options.map((option) => option.value), ["Beans (red)", "Millet", "Rice (local)"]);
+  assert.equal(getNode("#latestDate").textContent, "15th April 2026");
+  assert.equal(getNode("#overallDateRange").textContent, "All WFP price flags: January 2018 – April 2026");
+  assert.equal((getNode("#statGrid").innerHTML.match(/class="stat-card"/g) || []).length, 5);
+  assert.match(getNode("#statGrid").innerHTML, /class="stat-label"[\s\S]*class="stat-value"[\s\S]*class="stat-sub"/);
+  const dashboardTemplate = fs.readFileSync("templates/dashboard.html", "utf8");
+  const dashboardCss = fs.readFileSync("static/css/dashboard.css", "utf8");
+  assert.match(dashboardTemplate, /About the Project/);
+  assert.doesNotMatch(dashboardTemplate, /CURRENT STATUS|What is available now|Source freshness limits interpretation|Current-market forecasting is unavailable/);
+  assert.doesNotMatch(dashboardTemplate, /modelAvailabilityNote|reported observations \(/i);
+  assert.match(dashboardCss, /\.stat-grid \{ display: grid; gap: 14px;/);
+  assert.match(dashboardCss, /@media \(max-width: 380px\) \{[\s\S]*\.stat-grid \{ grid-template-columns: 1fr;/);
+  assert.ok(!getNode("#analysisSeries").options.some((option) => option.value === "rice-wholesale-dawanau"), "bulk units stay out of historical selection");
+  assert.ok(!getNode("#analysisSeries").options.some((option) => option.value === "rice-13kg"), "13 KG is not treated as 1.3 KG");
+  assert.ok(getNode("#analysisSeries").options.some((option) => option.value === "rice-13decimal"), "an actual 1.3 KG series remains selectable");
+  assert.ok(getNode("#analysisSeries").options.some((option) => option.value === "rice-500g"), "a source-recorded 500 G series remains selectable");
+  assert.ok(getNode("#analysisSeries").options.some((option) => option.value === "rice-unlisted-2.3kg"), "an unlisted but valid 2.3 KG size remains selectable without an allowlist");
+  assert.ok(!getNode("#analysisSeries").options.some((option) => option.value === "rice-over-limit"), "a weight just above 2.8 KG is excluded");
+  assert.ok(!getNode("#analysisSeries").options.some((option) => option.value === "rice-liter"), "volume units are excluded from history selection");
+  assert.ok(!getNode("#analysisSeries").options.some((option) => option.value === "rice-crate"), "count/package units are excluded from history selection");
+  assert.ok(getNode("#analysisSeries").options.some((option) => option.value === "rice-aggregate"), "small-unit aggregate history remains inspectable");
+  assert.ok(getNode("#analysisSeries").options.some((option) => option.value === "millet-spaced-unit"), "unit matching ignores capitalization and spacing while retaining source text");
+  getNode("#analysisSeries").value = "rice-unlisted-2.3kg";
+  const historyChartsBeforeUnlistedSize = charts.length;
+  await trigger("analysisSeries", "change");
+  assert.equal(calls.filter((url) => url.pathname === "/api/history").at(-1).searchParams.get("series_id"), "rice-unlisted-2.3kg", "the unlisted valid weight resolves to its exact history series");
+  assert.equal(charts.length, historyChartsBeforeUnlistedSize + 1, "the selected unlisted size is rendered in the history chart");
+  assert.deepEqual(charts.at(-1).config.data.datasets[0].data, [500]);
+  assert.doesNotMatch(getNode("#overviewSeriesGrid").innerHTML, /50 KG/);
+  assert.doesNotMatch(getNode("#overviewSeriesGrid").innerHTML, /13 KG/);
+  assert.match(getNode("#overviewSeriesGrid").innerHTML, /January 2018 – April 2026/);
   commodity.value = "Rice (local)";
   await trigger("forecastCommodity", "change");
   const baga = market.options.find((option) => option.textContent.includes("Baga Road"));
@@ -217,23 +249,41 @@ async function main() {
   const dawanau = market.options.find((option) => option.textContent.includes("Dawanau"));
   market.value = dawanau.value;
   await trigger("forecastMarket", "change");
-  assert.equal(exactSeries.options.length, 4, "same-market flag, unit and price-type variants require an explicit choice");
-  assert.equal(exactSeries.options[0].value, "", "no exact unit/type is silently selected when variants are ambiguous");
-  assert.ok(exactSeries.options.some((option) => option.value === "rice-aggregate"), "aggregate selections remain visible for an explicit eligibility attempt");
-  assert.match(exactSeries.options.find((option) => option.value === "rice-aggregate").textContent, /aggregate/);
-  assert.doesNotMatch(exactSeries.options.find((option) => option.value === "rice-aggregate").textContent, /priceflag=/);
-  exactSeries.value = "rice-aggregate";
-  await trigger("forecastSeries", "change");
-  assert.equal(getNode("#generateForecast").disabled, false, "non-actual WFP records can be explicitly checked rather than silently omitted");
+  assert.equal(exactSeries.options.length, 1, "only the exact small-unit pure-actual series is offered for WFP forecasting");
+  assert.ok(!market.options.some((option) => option.textContent.includes("Over Limit Market")), "over-limit weights are omitted from forecast market choices");
+  assert.equal(exactSeries.value, "rice-actual-dawanau");
+  assert.ok(!exactSeries.options.some((option) => option.value === "rice-aggregate"), "aggregate flags remain history-only");
+  assert.ok(!exactSeries.options.some((option) => option.value === "rice-wholesale-dawanau"), "bulk prices cannot appear under a small-unit label");
+  assert.ok(!exactSeries.options.some((option) => option.value === "rice-13kg"), "13 KG cannot appear as a small-unit forecast option");
+  assert.equal(exactSeries.options.find((option) => option.value === "rice-actual-dawanau").textContent, "KG · Retail · Actual", "exact-series selector is concise and readable");
+  assert.equal(getNode("#generateForecast").disabled, false);
+
+  const gramMarket = market.options.find((option) => option.textContent.includes("Gram Unit Market"));
+  market.value = gramMarket.value;
+  await trigger("forecastMarket", "change");
+  assert.equal(exactSeries.value, "rice-500g", "forecast selection resolves the exact gram-based series");
+  assert.equal(exactSeries.options[0].textContent, "500 G · Retail · Actual", "the recorded gram label is not converted for display");
   horizon.value = "1";
   await trigger("generateForecast", "click");
-  const rejectedAggregateRequest = calls.filter((url) => url.pathname === "/api/forecast").at(-1);
-  assert.equal(rejectedAggregateRequest.searchParams.get("series_id"), "rice-aggregate");
-  assert.equal(getNode("#forecastResults").hidden, false, "an exact aggregate-flag series with positive history can receive its own qualified estimate");
-  assert.match(getNode("#forecastChartTitle").textContent, /priceflag=aggregate/);
+  assert.equal(calls.filter((url) => url.pathname === "/api/forecast").at(-1).searchParams.get("series_id"), "rice-500g");
+
+  const unlistedSizeMarket = market.options.find((option) => option.textContent.includes("Unlisted Size Market"));
+  market.value = unlistedSizeMarket.value;
+  await trigger("forecastMarket", "change");
+  assert.equal(exactSeries.value, "rice-unlisted-2.3kg", "an unlisted valid quantity reaches the exact forecast selector");
+  assert.ok(exactSeries.options[0].textContent.startsWith("2.3 KG") && exactSeries.options[0].textContent.includes("Retail"), "the original unit text remains visible");
+  await trigger("generateForecast", "click");
+  assert.equal(calls.filter((url) => url.pathname === "/api/forecast").at(-1).searchParams.get("series_id"), "rice-unlisted-2.3kg");
+
+  market.value = dawanau.value;
+  await trigger("forecastMarket", "change");
+  assert.equal(exactSeries.value, "rice-actual-dawanau", "returning to another market restores only that market's exact series");
+
+  horizon.value = "1";
+  await trigger("generateForecast", "click");
+  assert.equal(calls.filter((url) => url.pathname === "/api/forecast").at(-1).searchParams.get("series_id"), "rice-actual-dawanau");
+  assert.equal(getNode("#forecastResults").hidden, false, "a selected small-unit pure-actual series can use its existing estimate path");
   assert.match(getNode("#forecastTableBody").innerHTML, /Dec 2026[\s\S]*₦510\.00[\s\S]*\+2\.0%/);
-  exactSeries.value = "rice-actual-dawanau";
-  await trigger("forecastSeries", "change");
 
   const historyForecastContext = getNode("#forecastLatestContext").textContent;
   getNode("#analysisSeries").value = "rice-aggregate";
@@ -313,7 +363,7 @@ async function main() {
   assert.equal(getNode("#performanceMaeHeading").hidden, true);
   assert.equal(getNode("#performanceBiasHeading").hidden, true);
   assert.equal(getNode("#performanceMapeHeading").textContent, "Median MAPE");
-  assert.match(getNode("#performanceDates").textContent, /744 exact series.*38 compatible pools.*2026-11-19.*dates differ/);
+  assert.match(getNode("#performanceDates").textContent, /744 exact series.*38 compatible pools.*19th November 2026.*dates differ/);
   assert.match(getNode("#performanceSummary").textContent, /Overall WFP evaluation.*not a result for the selected commodity.*medians.*not a head-to-head comparison/);
   const overallTable = getNode("#performanceTableBody").innerHTML;
   assert.equal((overallTable.match(/<td>/g) || []).length, 8, "overall rows contain only Model, Median MAPE, Median R² and scope");
@@ -323,7 +373,7 @@ async function main() {
   assert.match(overallTable, /Compatible-pool group-held-out validation/);
   assert.doesNotMatch(overallTable, /n\/a|999999/i, "overall table omits unavailable errors and research test metrics");
   assert.equal(getNode("#performanceChartEmpty").hidden, false);
-  assert.equal(getNode("#performanceChartEmpty").textContent, "Overall metrics are available, but aligned prediction rows are not saved for plotting.");
+  assert.equal(getNode("#performanceChartEmpty").textContent, "The overall summary contains evaluation scores; this chart appears when compatible prediction rows are saved.");
   assert.equal(charts.length, chartsBeforeOverallWithoutPredictions, "missing overall predictions do not fabricate chart points or suppress metrics");
 
   const chartCountBeforeOverallPredictions = charts.length;
@@ -386,9 +436,9 @@ async function main() {
   assert.doesNotMatch(getNode("#forecastStatusMessage").textContent, /market conditions|older source data/i);
   assert.equal(getNode("#forecastConfidence").textContent, "Low", "the existing low-confidence classification is presented in plain language");
   assert.match(getNode("#forecastTableBody").innerHTML, /<td>Forecast<\/td>/);
-  assert.equal(getNode("#forecastLatestDate").textContent, "April 2026 (2026-04-14)", "the starting month and exact observation date remain visible");
+  assert.equal(getNode("#forecastLatestDate").textContent, "14th April 2026", "the exact starting observation date is readable without an ISO duplicate");
   assert.equal(getNode("#forecastFreshness").textContent, "Older data", "the result clearly identifies older data");
-  assert.equal(getNode("#forecastOriginGenerated").textContent, "19 November 2026");
+  assert.equal(getNode("#forecastOriginGenerated").textContent, "19th November 2026");
   assert.equal(getNode("#forecastSource").textContent, "WFP");
   assert.match(getNode("#forecastSelectedModel").textContent, /random forest/);
   assert.equal(getNode("#forecastSelectedHorizon").textContent, "6 month(s)");
@@ -408,8 +458,8 @@ async function main() {
   await trigger("forecastHorizon", "change");
   await trigger("generateForecast", "click");
   assert.equal(getNode("#forecastResults").hidden, true, "a response outside the generation-relative requested future calendar months is not rendered");
-  assert.match(getNode("#forecastEmpty h2").textContent, /not verifiably future-only/);
-  assert.match(getNode("#forecastEmpty p").textContent, /future calendar months after generation/);
+  assert.equal(getNode("#forecastEmpty h2").textContent, "Price Forecast");
+  assert.match(getNode("#forecastEmpty p").textContent, /follows the selected series' latest observation/);
   horizon.value = "3";
   await trigger("forecastHorizon", "change");
   await trigger("generateForecast", "click");
@@ -457,39 +507,48 @@ async function main() {
   getNode("#forecastDataset").value = "nbs";
   await trigger("forecastDataset", "change");
   assert.equal(commodity.disabled, false);
-  assert.equal(commodity.value, "Yam Tuber");
+  assert.equal(commodity.value, "Semovita, Prepacked (1kg)");
   assert.equal(market.options[0].textContent, "national: Nigeria");
   assert.equal(exactSeries.value, "", "the pre/post-rebase NBS observations require an explicit methodology choice");
-  const preNbsOption = exactSeries.options.find((option) => option.value === "nbs-yam-pre");
-  const postNbsOption = exactSeries.options.find((option) => option.value === "nbs-yam-post");
+  assert.ok(!exactSeries.options.some((option) => option.value === "nbs-unknown-unit"), "unitless NBS records are not selectable");
+  const preNbsOption = exactSeries.options.find((option) => option.value === "nbs-semovita-pre");
+  const postNbsOption = exactSeries.options.find((option) => option.value === "nbs-semovita-post");
   assert.ok(postNbsOption.textContent.includes("Post-2025 CPI base"));
   assert.ok(preNbsOption.textContent.includes("Pre-2025 CPI base"));
-  assert.ok(preNbsOption.textContent.includes("Unit not specified"));
+  assert.ok(preNbsOption.textContent.includes("1kg"));
   assert.ok(preNbsOption.textContent.includes("Monthly reported average"));
   assert.ok(preNbsOption.textContent.includes("NBS reported average"));
-  assert.ok(preNbsOption.textContent.includes("2 reported observations"));
-  assert.ok(postNbsOption.textContent.includes("17 reported observations"));
-  assert.doesNotMatch(preNbsOption.textContent, /reported_monthly_average|priceflag=|2 months|pre_2025/i);
+  assert.doesNotMatch(preNbsOption.textContent, /reported_monthly_average|priceflag=|\d+ reported observation|latest 202\d|pre_2025/i);
   assert.equal(getNode("#generateForecast").disabled, true);
-  exactSeries.value = "nbs-yam-post";
+  exactSeries.value = "nbs-semovita-post";
   await trigger("forecastSeries", "change");
   assert.equal(getNode("#forecastLatestPrice").textContent, "Latest reported: ₦500.00");
-  assert.equal(getNode("#forecastLatestDate").textContent, "May 2026 (2026-05-31)");
+  assert.equal(getNode("#forecastLatestDate").textContent, "31st May 2026");
   assert.equal(getNode("#forecastDetailSource").textContent, "NBS");
-  assert.equal(getNode("#forecastDetailItem").textContent, "Yam Tuber");
+  assert.equal(getNode("#forecastDetailItem").textContent, "Semovita, Prepacked (1kg)");
   assert.equal(getNode("#forecastDetailGeography").textContent, "national: Nigeria");
-  assert.equal(getNode("#forecastDetailUnit").textContent, "Unit not specified");
+  assert.equal(getNode("#forecastDetailUnit").textContent, "1kg");
   assert.equal(getNode("#forecastDetailPriceType").textContent, "Monthly reported average");
   assert.equal(getNode("#forecastDetailPriceFlag").textContent, "NBS reported average");
   assert.equal(getNode("#forecastDetailRegime").textContent, "Post-2025 CPI base");
-  assert.equal(getNode("#forecastDetailSeriesId").textContent, "nbs-yam-post");
+  assert.equal(getNode("#forecastDetailSeriesId").textContent, "nbs-semovita-post");
   assert.equal(getNode("#generateForecast").disabled, false, "reported NBS history is sent to exact-series eligibility validation");
   await trigger("generateForecast", "click");
   assert.equal(calls.filter((url) => url.pathname === "/api/forecast").at(-1).searchParams.get("dataset"), "nbs");
-  assert.equal(calls.filter((url) => url.pathname === "/api/forecast").at(-1).searchParams.get("series_id"), "nbs-yam-post");
+  assert.equal(calls.filter((url) => url.pathname === "/api/forecast").at(-1).searchParams.get("series_id"), "nbs-semovita-post");
   assert.equal(getNode("#forecastResults").hidden, false, "an exact NBS item/geography/regime with positive history receives an estimate");
   assert.equal(getNode("#forecastStatusTitle").textContent, "Price Forecast");
   assert.equal(getNode("#forecastSource").textContent, "NBS");
+  assert.match(getNode("#forecastSubject").textContent, /Semovita, Prepacked \(1kg\).*per 1kg.*Nigeria/);
+
+  mismatchForecastUnit = true;
+  await trigger("generateForecast", "click");
+  assert.equal(getNode("#forecastResults").hidden, true, "a response for another unit is rejected rather than shown under the selected series");
+  assert.equal(getNode("#forecastEmpty h2").textContent, "Price Forecast");
+  assert.match(getNode("#forecastEmpty p").textContent, /No other unit or location was substituted/);
+  mismatchForecastUnit = false;
+  await trigger("generateForecast", "click");
+  assert.equal(getNode("#forecastResults").hidden, false, "the exact-unit response remains available after rejecting a mismatch");
 
   console.log("Frontend workflow passed: simple forecast wording, visible starting date and freshness, confidence labels, generation-relative dates, and limited-history estimates.");
 }

@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from app import create_app
-from src.wfp_nbs_dashboard_service import DashboardService
+from src.wfp_nbs_dashboard_service import DashboardError, DashboardService, is_demo_small_unit
 from src.ondemand_forecasting import ForecastingError, assess_wfp_series
 
 
@@ -39,6 +39,9 @@ def test_dashboard_page_and_overview_use_only_migrated_sources(client):
     assert "<h1>Price Forecast</h1>" in html
     assert "Starting observation:" in html
     assert "These are estimated prices. Actual market prices may differ." in html
+    assert "Choose a listed small-unit series" in html
+    assert "Forecast not generated yet" not in html
+    assert "Forecast unavailable" not in html
     assert "Estimate confidence" not in html
     assert "Future projection · stale source data" not in html
 
@@ -113,10 +116,20 @@ def test_latest_value_dom_matches_render_latest_and_local_assets_load(client):
     assert '<details class="panel forecast-methodology" id="forecastMethodology">' in html
     assert '<details class="panel forecast-methodology forecast-series-details" id="forecastSeriesDetails">' in html
     assert '<details class="panel forecast-methodology performance-methodology" id="performanceMethodologyDetails">' in html
-    assert "Price series details" in html
+    assert "Price Series Details" in html
+    assert "modelAvailabilityNote" not in html
     assert "Forecast dates begin after the generation month" in html
     assert "intervening months are estimated internally" in html
     assert "Validation results summarize past checks" in html
+    assert "About the Project" in html
+    assert "Making food-price information easier to explore." in html
+    for old_status in (
+        "CURRENT STATUS", "What is available now", "Forecasting unavailable",
+        "Not enough data for forecasting", "No performance available",
+        "No validated predictions", "Source freshness limits interpretation",
+        "Current-market forecasting is unavailable",
+    ):
+        assert old_status not in html
 
     for asset_path in ("/static/js/dashboard.js", "/static/css/dashboard.css"):
         assert client.get(asset_path).status_code == 200
@@ -124,7 +137,22 @@ def test_latest_value_dom_matches_render_latest_and_local_assets_load(client):
     assert 'mode: "on_demand"' in javascript
     assert "state.forecastRequestId" in javascript
     assert "Not comparable across different commodities and price scales." in javascript
-    assert "Overall metrics are available, but aligned prediction rows are not saved for plotting." in javascript
+    assert "The overall summary contains evaluation scores; this chart appears when compatible prediction rows are saved." in javascript
+    assert "No actual-versus-predicted rows are available" not in javascript
+
+
+def test_user_facing_dates_and_demo_unit_selector_are_readable(client):
+    page = client.get("/")
+    assert page.status_code == 200
+    html = page.get_data(as_text=True)
+    assert "Price Series Details" in html
+    assert "13 KG" not in html
+    javascript = client.get("/static/js/dashboard.js").get_data(as_text=True)
+    assert "function formatUserDate(value)" in javascript
+    assert "function formatDateRange(start, end)" in javascript
+    assert not is_demo_small_unit("13kg")
+    assert client.get("/static/css/dashboard.css").status_code == 200
+    assert "Forecast unavailable" not in javascript
     assert "Based on older source data; it may not reflect current market conditions." not in javascript
     assert '"Recent data"' in javascript and '"Older data"' in javascript
     assert "Future-month prices are estimates, not reported prices." in javascript
@@ -156,17 +184,101 @@ def test_overview_facts_match_prepared_source_data(client):
 def test_series_catalogue_keeps_source_identities_separate(client):
     payload = client.get("/api/series").get_json()
     assert set(payload) == {"wfp", "nbs"}
-    assert len(payload["wfp"]) == 3_432
-    assert len(payload["nbs"]) == 596
+    assert len(payload["wfp"]) == 2_337
+    assert len(payload["nbs"]) == 77
     assert all(item["source"] == "WFP" for item in payload["wfp"])
     assert all(item["source"] == "NBS" for item in payload["nbs"])
+    assert all(is_demo_small_unit(item["unit"]) for dataset in payload.values() for item in dataset)
+    assert {item["unit"] for item in payload["wfp"]} <= {
+        "KG", "0.5 KG", "1.3 KG", "2.1 KG", "2.2 KG", "2.5 KG", "2.6 KG",
+        "2.7 KG", "2.8 KG", "250 G", "300 G", "400 G", "500 G",
+    }
+    assert {item["unit"] for item in payload["nbs"]} == {"1kg", "2kg", "150g", "160g", "170g", "450g", "500g"}
+    assert len({item["commodity"] for item in payload["nbs"]}) == 11
     assert all(item["price_flag"] for item in payload["wfp"])
     assert all(item["geography_level"] in {"national", "zone"} for item in payload["nbs"])
-    assert {item["methodology_regime"] for item in payload["nbs"]} == {"pre_2025_cpi_rebase", "post_2025_cpi_rebase"}
+    assert {item["methodology_regime"] for item in payload["nbs"]} == {
+        "pre_2025_cpi_rebase", "post_2025_cpi_rebase",
+    }
 
 
-def test_nbs_revised_rice_labels_map_for_context_but_remain_exact_series(client):
-    nbs = client.get("/api/series?dataset=nbs").get_json()
+def test_bulk_and_unapproved_units_are_not_public_or_historically_requestable(client, service):
+    public_ids = {item["series_id"] for dataset in client.get("/api/series").get_json().values() for item in dataset}
+    excluded = [
+        next(item for item in service._series["wfp"] if item["unit"] == unit)
+        for unit in ("100 KG", "50 KG", "L")
+    ]
+    excluded.extend(
+        item for item in service._series["nbs"]
+        if item["unit"] in {"Not stated in workbook", "30 pieces (crate)", "75cl"}
+    )
+    assert excluded
+    for item in excluded:
+        assert item["series_id"] not in public_ids
+        assert client.get("/api/history", query_string={"dataset": item["source_key"], "series_id": item["series_id"]}).status_code == 404
+        assert client.get("/api/forecast", query_string={
+            "dataset": item["source_key"], "series_id": item["series_id"],
+            "model": "auto", "mode": "on_demand", "horizon": "1",
+        }).status_code == 404
+
+
+def test_gram_series_keep_source_units_prices_and_dataset_identities(client, service):
+    catalogue = client.get("/api/series").get_json()
+    wfp = next(item for item in catalogue["wfp"] if item["unit"] == "500 G")
+    nbs = next(item for item in catalogue["nbs"] if item["unit"] == "450g")
+    nbs_kilogram = next(item for item in catalogue["nbs"] if item["unit"] == "2kg")
+    assert wfp["source_key"] == "wfp" and nbs["source_key"] == "nbs"
+    assert wfp["series_id"] != nbs["series_id"]
+
+    for dataset, item in (("wfp", wfp), ("nbs", nbs), ("nbs", nbs_kilogram)):
+        original = service._series_index[(dataset, item["series_id"])]
+        history = client.get("/api/history", query_string={
+            "dataset": dataset, "series_id": item["series_id"],
+        })
+        assert history.status_code == 200
+        payload = history.get_json()
+        assert payload["series"]["unit"] == original["unit"]
+        assert payload["series"]["unit"] == item["unit"]
+        assert payload["series"]["series_id"] == original["series_id"]
+        assert payload["history"] == original["history"]
+
+
+def test_eligible_wfp_gram_series_reaches_forecaster_without_unit_or_id_substitution(client, service, monkeypatch):
+    record = next(
+        item for item in service._series["wfp"]
+        if item["unit"] in {"250 G", "300 G", "400 G", "500 G"}
+        and item["price_flag"] == "actual"
+        and assess_wfp_series(item)["eligible"]
+    )
+    routed = []
+
+    def fake_generate(selected, series_id, horizon, **_kwargs):
+        routed.append((selected["series_id"], selected["unit"], horizon))
+        return {
+            "model": "naive_last_observation",
+            "historical": selected["history"],
+            "forecast": [],
+            "metadata": {"unit": selected["unit"], "series_id": series_id},
+        }
+
+    from src import ondemand_forecasting
+
+    monkeypatch.setattr(ondemand_forecasting, "generate_wfp_forecast", fake_generate)
+    response = client.get("/api/forecast", query_string={
+        "dataset": "wfp", "series_id": record["series_id"],
+        "model": "auto", "mode": "on_demand", "horizon": "1",
+    })
+    assert response.status_code == 200, response.get_json()
+    payload = response.get_json()
+    assert payload["series"]["series_id"] == record["series_id"]
+    assert payload["series"]["unit"] == record["unit"]
+    assert payload["metadata"]["unit"] == record["unit"]
+    assert payload["historical"] == record["history"]
+    assert routed == [(record["series_id"], record["unit"], 1)]
+
+
+def test_nbs_revised_unitless_rice_labels_remain_internal_but_are_not_selectable(client, service):
+    nbs = service._series["nbs"]
     old_local = next(
         item for item in nbs
         if item["commodity"] == "Rice local sold loose"
@@ -191,6 +303,11 @@ def test_nbs_revised_rice_labels_map_for_context_but_remain_exact_series(client)
     assert agric["mapping_status"] == "related_variant_requires_review"
     assert agric["series_id"] not in {old_local["series_id"], new_local["series_id"]}
     assert old_local["unit"] == new_local["unit"] == "Not stated in workbook"
+    assert old_local["series_id"] not in {item["series_id"] for item in client.get("/api/series?dataset=nbs").get_json()}
+    assert client.get("/api/history", query_string={"dataset": "nbs", "series_id": old_local["series_id"]}).status_code == 404
+    assert client.get("/api/forecast", query_string={
+        "dataset": "nbs", "series_id": old_local["series_id"], "horizon": "1",
+    }).status_code == 404
     javascript = client.get("/static/js/dashboard.js").get_data(as_text=True)
     assert "forecastDetailMapping" in javascript
     assert "Research mapping" in client.get("/").get_data(as_text=True)
@@ -206,36 +323,28 @@ def test_current_source_cutoffs_make_all_normalized_series_stale_for_forecasting
         assert all(item["forecast_freshness"] == "stale" for item in observed)
 
 
-def test_maiduguri_local_rice_81_month_actual_gap_gets_stale_origin_projection(client):
+def test_bulk_wfp_series_is_not_selectable_or_addressable_for_history_or_forecast(client, service):
     record = next(
-        item for item in client.get("/api/series?dataset=wfp").get_json()
+        item for item in service._series["wfp"]
         if item["commodity"] == "Rice (milled, local)"
         and item["market"] == "Maiduguri"
         and item["unit"] == "50 KG"
         and item["price_type"] == "Wholesale"
         and item["price_flag"] == "actual"
     )
-    assert record["last_observed_month"] == "2020-02"
+    public_ids = {item["series_id"] for item in client.get("/api/series?dataset=wfp").get_json()}
+    assert record["series_id"] not in public_ids
+    assert client.get("/api/history", query_string={"dataset": "wfp", "series_id": record["series_id"]}).status_code == 404
     response = client.get("/api/forecast", query_string={
         "dataset": "wfp", "series_id": record["series_id"],
         "model": "auto", "mode": "on_demand", "horizon": "1",
     })
-    assert response.status_code == 200, response.get_json()
-    payload = response.get_json()
-    assert payload["metadata"]["source_age_months"] >= 81
-    assert payload["metadata"]["is_current_market_forecast"] is False
-    assert payload["forecast"][0]["month"] == _first_future_month(
-        record["last_observed_month"], payload["metadata"]["forecast_generation_date"],
-    )
-    assert payload["metadata"]["forecast_classification"] == "future_as_of_generation"
+    assert response.status_code == 404
 
 
 def test_approved_wfp_market_series_are_present_as_actual_series(client):
     series = client.get("/api/series?dataset=wfp").get_json()
     approved = {
-        ("Sorghum (white)", "Dawanau", "100 KG", "Wholesale"),
-        ("Maize (white)", "Dawanau", "100 KG", "Wholesale"),
-        ("Millet", "Dawanau", "100 KG", "Wholesale"),
         ("Maize", "Illela (CBM)", "KG", "Wholesale"),
         ("Sorghum", "Mai Adoua (CBM)", "KG", "Wholesale"),
     }
@@ -244,17 +353,19 @@ def test_approved_wfp_market_series_are_present_as_actual_series(client):
         for item in series if item["price_flag"] == "actual"
     }
     assert approved.issubset(found)
+    assert not any(item["unit"] in {"50 KG", "100 KG"} for item in series)
 
 
-def test_forecast_catalogue_exposes_every_exact_wfp_flag_for_an_eligibility_attempt(client, service):
+def test_forecast_catalogue_exposes_small_units_and_only_pure_actual_wfp_forecasts(client, service):
     catalogue = client.get("/api/series?dataset=wfp").get_json()
     actual = [item for item in catalogue if item["price_flag"] == "actual"]
     non_actual = [item for item in catalogue if item["price_flag"] != "actual"]
     assert actual and non_actual
     assert all(item["forecast_request_available"] for item in actual)
-    assert all(item["forecast_request_available"] for item in non_actual)
-    assert len({item["commodity"] for item in catalogue if item["forecast_request_available"]}) == 43
-    assert len({item["commodity"] for item in client.get("/api/series?dataset=nbs").get_json()}) == 86
+    assert all(not item["forecast_request_available"] for item in non_actual)
+    assert len({item["commodity"] for item in catalogue if item["forecast_request_available"]}) == 36
+    assert len({item["commodity"] for item in client.get("/api/series?dataset=nbs").get_json()}) == 11
+    assert all(item["unit"] not in {"50 KG", "100 KG", "Unit", "30 pcs", "100 Tubers"} for item in catalogue)
 
     javascript = client.get("/static/js/dashboard.js").get_data(as_text=True)
     assert 'getSeries(dataset).filter((item) => isForecastRequestableSeries(item, dataset))' in javascript
@@ -332,6 +443,7 @@ def test_forecast_api_routes_multiple_commodity_market_ids_without_substitution(
             if item["commodity"] == commodity
             and item["market"] == market
             and item["price_flag"] == "actual"
+        and is_demo_small_unit(item["unit"])
             and assess_wfp_series(item)["eligible"]
         )
         records.append(record)
@@ -363,6 +475,8 @@ def test_forecast_api_routes_multiple_commodity_market_ids_without_substitution(
         assert payload["series"]["series_id"] == record["series_id"]
         assert payload["series"]["commodity"] == record["commodity"]
         assert payload["series"]["market"] == record["market"]
+        assert payload["series"]["unit"] == record["unit"]
+        assert payload["series"]["price_type"] == record["price_type"]
         assert payload["series"]["price_flag"] == "actual"
     assert routed == [
         (record["series_id"], record["commodity"], record["market"], "actual")
@@ -382,6 +496,7 @@ def test_duplicate_commodity_market_flags_remain_separate_and_ineligible_flags_a
     variants = next(
         group for group in groups.values()
         if {"actual", "aggregate", "actual,aggregate"}.issubset(group)
+        and is_demo_small_unit(group["actual"].get("unit"))
         and assess_wfp_series(group["actual"])["eligible"]
     )
     assert len({variants[flag]["series_id"] for flag in ("actual", "aggregate", "actual,aggregate")}) == 3
@@ -389,6 +504,7 @@ def test_duplicate_commodity_market_flags_remain_separate_and_ineligible_flags_a
     aggregate_only = next(
         record for record in service._series["wfp"]
         if record["price_flag"] == "aggregate"
+        and is_demo_small_unit(record.get("unit"))
         and "actual" not in groups[tuple(record[field] for field in grouping_fields)]
         and "actual,aggregate" not in groups[tuple(record[field] for field in grouping_fields)]
     )
@@ -414,42 +530,51 @@ def test_duplicate_commodity_market_flags_remain_separate_and_ineligible_flags_a
             "dataset": "wfp", "series_id": flagged_record["series_id"],
             "model": "auto", "mode": "on_demand", "horizon": "1",
         })
-        assert response.status_code == 200
-        assert response.get_json()["metadata"]["price_flag"] == flagged_record["price_flag"]
+        assert response.status_code == 422
+        assert response.get_json()["error"]["code"] == "forecast_series_not_actual"
 
 
-def test_history_keeps_real_months_and_does_not_fill_gaps(client):
+def test_history_keeps_small_unit_real_months_and_does_not_fill_gaps(client, service):
     series = client.get("/api/series?dataset=wfp").get_json()
-    item = next(row for row in series if row["commodity"] == "Sorghum (white)" and row["market"] == "Dawanau" and row["price_flag"] == "actual")
+    item = next(
+        row for row in series
+        if row["price_flag"] == "actual"
+        and len(service._series_index[("wfp", row["series_id"])]["history"])
+        < (int(row["last_observed_month"][:4]) * 12 + int(row["last_observed_month"][5:7]))
+          - (int(row["first_observed_month"][:4]) * 12 + int(row["first_observed_month"][5:7])) + 1
+    )
     result = client.get("/api/history", query_string={"dataset": "wfp", "series_id": item["series_id"]})
     assert result.status_code == 200
     payload = result.get_json()
     assert payload["gaps_filled"] is False
     history = payload["history"]
-    assert len(history) == 199
     months = {row["month"] for row in history}
-    assert "2019-05" not in months
-    assert history[0]["month"] == "2003-08"
-    assert history[-1]["month"] == "2021-12"
+    expected = [row["month"] for row in service._series_index[("wfp", item["series_id"])]["history"]]
+    assert [row["month"] for row in history] == expected
+    assert len(months) == len(history)
+    assert len(months) < (
+        int(history[-1]["month"][:4]) * 12 + int(history[-1]["month"][5:7])
+        - int(history[0]["month"][:4]) * 12 - int(history[0]["month"][5:7]) + 1
+    )
 
 
-def test_nbs_history_is_a_distinct_reported_average_series(client):
+def test_nbs_history_is_an_explicit_approved_small_unit_reported_series(client):
     series = client.get("/api/series?dataset=nbs").get_json()
-    item = next(row for row in series if row["commodity"] == "Yam Tuber" and row["geography_level"] == "national" and row["methodology_regime"] == "post_2025_cpi_rebase")
+    item = next(row for row in series if row["unit"] == "1kg" and row["geography_level"] == "national" and row["methodology_regime"] == "post_2025_cpi_rebase" and row["observed_months"] == 17)
     result = client.get("/api/history", query_string={"dataset": "nbs", "series_id": item["series_id"]})
     assert result.status_code == 200
     payload = result.get_json()
     assert payload["series"]["source"] == "NBS"
     assert payload["series"]["methodology_regime"] == "post_2025_cpi_rebase"
-    assert payload["series"]["unit"] == "Not stated in workbook"
+    assert payload["series"]["unit"] == "1kg"
     assert len(payload["history"]) == 17
     assert [row["month"] for row in payload["history"]] == [
         f"{year}-{month:02d}" for year, months in ((2025, range(1, 13)), (2026, range(1, 6))) for month in months
     ]
 
 
-def test_nbs_cpi_methodology_regimes_are_distinct_series(client):
-    series = client.get("/api/series?dataset=nbs").get_json()
+def test_nbs_cpi_methodology_regimes_remain_exact_internally_but_unknown_units_are_not_selectable(client, service):
+    series = service._series["nbs"]
     chicken = [
         row for row in series
         if row["commodity"] == "Chicken Wings" and row["geography_level"] == "national" and row["geography_name"] == "Nigeria"
@@ -458,10 +583,26 @@ def test_nbs_cpi_methodology_regimes_are_distinct_series(client):
     pre = next(row for row in chicken if row["methodology_regime"] == "pre_2025_cpi_rebase")
     post = next(row for row in chicken if row["methodology_regime"] == "post_2025_cpi_rebase")
     assert pre["series_id"] != post["series_id"]
+    public_ids = {row["series_id"] for row in client.get("/api/series?dataset=nbs").get_json()}
+    assert pre["series_id"] not in public_ids and post["series_id"] not in public_ids
     for item, expected in ((pre, ["2024-11", "2024-12"]), (post, [f"2025-{month:02d}" for month in range(1, 13)] + [f"2026-{month:02d}" for month in range(1, 6)])):
-        history = client.get("/api/history", query_string={"dataset": "nbs", "series_id": item["series_id"]}).get_json()["history"]
-        assert [row["month"] for row in history] == expected
-        assert {row["methodology_regime"] for row in history} == {item["methodology_regime"]}
+        assert [row["month"] for row in item["history"]] == expected
+        assert client.get("/api/history", query_string={"dataset": "nbs", "series_id": item["series_id"]}).status_code == 404
+
+
+def test_small_unit_matching_accepts_positive_gram_and_kilogram_quantities_through_2_8kg():
+    accepted = (
+        "100 G", "250 g", "500 G", "750 g", "1 KG", "1.3 KG", "1.8 KG",
+        "2.5 KG", "2.7 KG", "2.8 KG", "  2.50   kG  ", "400 grams", "1 kilogram",
+        "KG", " 1.3KG ", "25 g", "2.3 KG", "2.75 kg", "0.001 KG", "2800 grams",
+    )
+    rejected = (
+        "2.9 KG", "13 KG", "50 KG", "100 KG", "0 G", "0kg", "-1kg", "NaN kg",
+        "2.8001 KG", "2801 g", "2,5 KG", "75cl", "L", "1 Litre", "1 bottle", "crates", "pieces",
+        "30 pieces (crate)", "Unit", "Not stated in workbook", "", None,
+    )
+    assert all(is_demo_small_unit(unit) for unit in accepted)
+    assert all(not is_demo_small_unit(unit) for unit in rejected)
 
 
 def test_history_date_filters_and_invalid_requests(client):
@@ -591,14 +732,19 @@ def test_unregistered_series_gets_validation_comparison_not_a_blank_performance_
     assert max(prediction_months) == payload["summary"]["validation_last_month"]
 
 
-def test_overall_performance_fallback_is_source_separated_and_validation_only(tmp_path):
+def test_overall_performance_fallback_is_source_separated_and_validation_only(tmp_path, monkeypatch):
     from datetime import date
 
     service = DashboardService(reference_date=date(2026, 11, 19), forecast_cache_dir=tmp_path)
     selected = next(
         row for row in service._series["wfp"]
-        if row["price_flag"] != "actual" and row["observed_months"] > 0
+        if row["price_flag"] == "actual" and is_demo_small_unit(row["unit"])
+        and row["observed_months"] > 0 and row["series_id"] not in service._training_series
     )
+    demo_actual_ids = [
+        row["series_id"] for row in service._series["wfp"]
+        if row["price_flag"] == "actual" and is_demo_small_unit(row["unit"])
+    ][:4]
 
     def audit_row(source, series_id, strategy, model, mape, r2, **extra):
         row = {
@@ -615,21 +761,25 @@ def test_overall_performance_fallback_is_source_separated_and_validation_only(tm
         return row
 
     service._coverage_audit = [
-        audit_row("WFP", "exact-one", "individual_series", "naive_last_observation", 10, 0.1),
-        audit_row("WFP", "exact-two", "individual_series", "naive_last_observation", 30, 0.3),
+        audit_row("WFP", demo_actual_ids[0], "individual_series", "naive_last_observation", 10, 0.1),
+        audit_row("WFP", demo_actual_ids[1], "individual_series", "naive_last_observation", 30, 0.3),
         # A repeated exact audit row is not counted as another evaluation.
-        audit_row("WFP", "exact-one", "individual_series", "naive_last_observation", 10, 0.1),
-        audit_row("WFP", "exact-one", "individual_series", "random_forest", 25, 0.4),
-        audit_row("WFP", "pool-member-one", "pooled_global", "pooled_gradient_boosting", 4, 0.8),
-        audit_row("WFP", "pool-member-two", "pooled_global", "pooled_gradient_boosting", 4, 0.8),
+        audit_row("WFP", demo_actual_ids[0], "individual_series", "naive_last_observation", 10, 0.1),
+        audit_row("WFP", demo_actual_ids[0], "individual_series", "random_forest", 25, 0.4),
+        audit_row("WFP", demo_actual_ids[2], "pooled_global", "pooled_gradient_boosting", 4, 0.8),
+        audit_row("WFP", demo_actual_ids[3], "pooled_global", "pooled_gradient_boosting", 4, 0.8),
         # Same compatibility definition and evaluation counts: one pool, not two.
         audit_row(
-            "NBS", "nbs-only", "pooled_global", "pooled_random_forest", 99, -1,
-            commodity="Rice local sold loose", unit="Not stated", price_flag="",
+            "NBS", next(row["series_id"] for row in service._series["nbs"] if is_demo_small_unit(row["unit"])), "pooled_global", "pooled_random_forest", 99, -1,
+            commodity="Semovita, Prepacked (1kg)", unit="1kg", price_flag="NBS reported average",
             methodology_regime="post_2025_cpi_rebase", geography_level="national",
         ),
     ]
     service._coverage_audit_as_of = "2026-11-19"
+    service._training_metrics = []
+    monkeypatch.setattr(service, "forecast", lambda *_args, **_kwargs: (_ for _ in ()).throw(
+        DashboardError("test_no_validation", "No compatible validation result for this test fixture.", 422)
+    ))
     # Test-partition metrics in the research report must never enter this validation summary.
     service._training_metrics.append({
         "series_id": "unrelated-test-only", "source": "WFP",
@@ -676,7 +826,7 @@ def test_overall_performance_fallback_is_source_separated_and_validation_only(tm
     assert all("nbs" not in row["model"] for row in payload["records"])
     assert all(row["model"] != "xgboost" for row in payload["records"])
 
-    nbs_selected = next(row for row in service._series["nbs"] if row["observed_months"] < 3)
+    nbs_selected = next(row for row in service._series["nbs"] if is_demo_small_unit(row["unit"]))
     nbs_payload = create_app(service).test_client().get("/api/performance", query_string={
         "dataset": "nbs", "series_id": nbs_selected["series_id"],
     }).get_json()
@@ -692,21 +842,26 @@ def test_overall_performance_fallback_is_source_separated_and_validation_only(tm
     assert "WFP" not in nbs_payload["summary"]["evaluation_scope"]
 
 
-def test_empty_overall_performance_falls_back_to_real_coverage_without_scores(tmp_path):
+def test_empty_overall_performance_falls_back_to_real_coverage_without_scores(tmp_path, monkeypatch):
     from datetime import date
 
     service = DashboardService(reference_date=date(2026, 11, 19), forecast_cache_dir=tmp_path)
     selected = next(
         row for row in service._series["wfp"]
-        if row["price_flag"] != "actual" and row["observed_months"] > 0
+        if row["price_flag"] == "actual" and is_demo_small_unit(row["unit"])
+        and row["observed_months"] > 0 and row["series_id"] not in service._training_series
     )
     service._training_metrics = []
+    monkeypatch.setattr(service, "forecast", lambda *_args, **_kwargs: (_ for _ in ()).throw(
+        DashboardError("test_no_validation", "No compatible validation result for this test fixture.", 422)
+    ))
     service._coverage_audit_as_of = None
     service._coverage_audit = [{
-        "source": "WFP", "series_id": "covered-only", "forecast_attempt_status": "generated",
+        "source": "WFP", "series_id": selected["series_id"], "forecast_attempt_status": "generated",
         "forecast_available": "true", "selected_strategy": "individual_series",
         "selected_model_or_baseline": "naive_last_observation", "validation_observations": "4",
-        "validation_mape": "", "validation_r2": "",
+        "validation_mape": "", "validation_r2": "", "unit": selected["unit"],
+        "price_type": selected["price_type"], "price_flag": selected["price_flag"],
     }]
     client = create_app(service).test_client()
     coverage = client.get("/api/performance", query_string={
@@ -831,13 +986,13 @@ def test_on_demand_api_keeps_aggregate_flags_separate_and_forecasts_each_exact_s
         "dataset": "wfp", "series_id": wfp_aggregate["series_id"],
         "model": "auto", "mode": "on_demand", "horizon": "1",
     })
-    assert response.status_code == 200, response.get_json()
-    assert response.get_json()["metadata"]["price_flag"] == wfp_aggregate["price_flag"]
-    assert response.get_json()["metadata"]["latest_actual_month_in_source"] is None
+    assert response.status_code == 422, response.get_json()
+    assert response.get_json()["error"]["code"] == "forecast_series_not_actual"
 
     short_actual = next(
         item for item in client.get("/api/series?dataset=wfp").get_json()
         if item["price_flag"] == "actual" and item["observed_months"] < 3
+        and is_demo_small_unit(item["unit"])
     )
     response = client.get("/api/forecast", query_string={
         "dataset": "wfp", "series_id": short_actual["series_id"],
@@ -858,6 +1013,9 @@ def test_on_demand_api_keeps_aggregate_flags_separate_and_forecasts_each_exact_s
     })
     assert response.status_code == 200, response.get_json()
     nbs_payload = response.get_json()
+    assert nbs_payload["series"]["series_id"] == nbs_series["series_id"]
+    assert nbs_payload["series"]["unit"] == nbs_series["unit"]
+    assert nbs_payload["metadata"]["unit"] == nbs_series["unit"]
     assert nbs_payload["metadata"]["latest_observation_month_in_source"] == "2026-05"
     assert nbs_payload["metadata"]["forecast_classification"] == "future_as_of_generation"
 
@@ -872,6 +1030,7 @@ def test_real_nbs_post_rebase_zone_forecast_uses_group_held_out_validation(tmp_p
         if item["geography_level"] == "zone"
         and item["methodology_regime"] == "post_2025_cpi_rebase"
         and item["observed_months"] >= 15
+        and is_demo_small_unit(item["unit"])
     )
     for horizon in range(1, 7):
         response = client.get("/api/forecast", query_string={
