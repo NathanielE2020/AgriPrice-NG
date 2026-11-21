@@ -123,8 +123,16 @@
 
   function getSeries(dataset = state.dataset) {
     return (state.series[dataset] || []).filter((series) => {
-      return isDemoSmallUnit(series.unit);
+      const unit = series.source_key === "nbs" ? (series.verified_unit || series.unit) : series.unit;
+      return isDemoSmallUnit(unit);
     });
+  }
+
+  function updateVerifiedUnitFootnote() {
+    const note = $("#verifiedUnitFootnote");
+    if (!note) return;
+    note.hidden = !(state.series.nbs || []).some((series) => Boolean(series.verified_unit));
+    if (!note.hidden) note.textContent = "* Unit verified from the paired official NBS report; the original workbook did not specify a unit.";
   }
 
   function isDemoSmallUnit(value) {
@@ -182,15 +190,7 @@
     let analysisId = preferredId || state.analysisSelected[dataset];
     if (!items.some((item) => item.series_id === analysisId)) analysisId = items[0]?.series_id || "";
     state.analysisSelected[dataset] = analysisId;
-    const optionMarkup = (item) => {
-      const geo = item.market || item.geography_name || "";
-      const flag = item.price_flag ? ` · ${item.price_flag}` : "";
-      const regime = item.methodology_regime ? ` · ${item.methodology_regime.replaceAll("_", " ")}` : "";
-      const mapping = dataset === "nbs" && item.research_commodity_mapping
-        ? ` · research mapping: ${item.research_commodity_mapping}${item.mapping_status ? ` (${item.mapping_status.replaceAll("_", " ")})` : ""}`
-        : "";
-      return `<option value="${escapeHTML(item.series_id)}">${escapeHTML(item.commodity)} · ${escapeHTML(item.unit || "Not stated")} · ${escapeHTML(item.price_type)} · ${escapeHTML(geo)}${escapeHTML(flag)}${escapeHTML(regime)}${escapeHTML(mapping)}</option>`;
-    };
+    const optionMarkup = (item) => `<option value="${escapeHTML(item.series_id)}" title="${escapeHTML(seriesDetailsTooltip(item))}">${escapeHTML(compactSeriesLabel(item, items))}</option>`;
     if (analysisNode) {
       analysisNode.innerHTML = items.map(optionMarkup).join("") || '<option value="">No series available</option>';
       analysisNode.value = analysisId;
@@ -205,15 +205,7 @@
     if (!items.some((item) => item.series_id === performanceId)) performanceId = items[0]?.series_id || "";
     state.performanceSelected[dataset] = performanceId;
     if (performanceNode) {
-      performanceNode.innerHTML = items.map((item) => {
-        const geo = item.market || item.geography_name || "";
-        const flag = item.price_flag ? ` · ${item.price_flag}` : "";
-        const regime = item.methodology_regime ? ` · ${item.methodology_regime.replaceAll("_", " ")}` : "";
-        const mapping = dataset === "nbs" && item.research_commodity_mapping
-          ? ` · research mapping: ${item.research_commodity_mapping}${item.mapping_status ? ` (${item.mapping_status.replaceAll("_", " ")})` : ""}`
-          : "";
-        return `<option value="${escapeHTML(item.series_id)}">${escapeHTML(item.commodity)} · ${escapeHTML(item.unit || "Not stated")} · ${escapeHTML(item.price_type)} · ${escapeHTML(geo)}${escapeHTML(flag)}${escapeHTML(regime)}${escapeHTML(mapping)}</option>`;
-      }).join("") || '<option value="">No series available</option>';
+      performanceNode.innerHTML = items.map((item) => `<option value="${escapeHTML(item.series_id)}" title="${escapeHTML(seriesDetailsTooltip(item))}">${escapeHTML(compactSeriesLabel(item, items))}</option>`).join("") || '<option value="">No series available</option>';
       performanceNode.value = performanceId;
     }
     return getSeriesItem(dataset, performanceId);
@@ -234,6 +226,92 @@
     const value = String(unit ?? "").trim();
     return !value || ["not stated in workbook", "not stated"].includes(value.toLowerCase())
       ? "Unit not specified" : value;
+  }
+
+  function seriesDisplayUnit(series) {
+    if (series?.source_key === "nbs" && series.verified_unit) {
+      return `${series.verified_unit}*`;
+    }
+    return forecastDisplayUnit(series?.unit);
+  }
+
+  function seriesOptionUnit(series) {
+    return seriesDisplayUnit(series);
+  }
+
+  function displayGeographyName(value) {
+    const text = String(value || "").trim();
+    if (!text) return "";
+    if (/^[A-Z]{2,4}$/.test(text)) return text;
+    return text.toLowerCase().replace(/(^|[\s-])([a-z])/g, (_match, separator, letter) => `${separator}${letter.toUpperCase()}`);
+  }
+
+  function seriesGeographyLabel(series) {
+    if (series?.source_key === "nbs") return displayGeographyName(series.geography_name);
+    const place = displayGeographyName(series?.market || series?.geography_name);
+    const state = displayGeographyName(series?.admin1 || series?.state);
+    return [place, state && state.toLowerCase() !== place.toLowerCase() ? state : ""].filter(Boolean).join(", ");
+  }
+
+  function seriesBaseLabel(series) {
+    return [series?.commodity, seriesDisplayUnit(series), seriesGeographyLabel(series)].filter(Boolean).join(" · ");
+  }
+
+  function compactSeriesLabel(series, peers = getSeries(series?.source_key || state.dataset)) {
+    if (!series) return "Series not specified";
+    const base = seriesBaseLabel(series);
+    const baseKey = base.toLocaleLowerCase();
+    const matches = peers.filter((item) => item.series_id !== series.series_id
+      && seriesBaseLabel(item).toLocaleLowerCase() === baseKey);
+    if (!matches.length) return base;
+
+    const group = [series, ...matches];
+    const suffixes = [];
+    const differing = (field, formatter) => {
+      const values = new Set(group.map((item) => String(item?.[field] ?? "").trim()).filter(Boolean));
+      if (values.size > 1) suffixes.push(formatter(series));
+    };
+    differing("price_type", (item) => forecastDisplayPriceType(item.price_type));
+    differing("price_flag", (item) => forecastDisplayPriceFlag(item));
+    differing("methodology_regime", (item) => forecastDisplayRegime(item.methodology_regime));
+    differing("currency", (item) => item.currency);
+    return [base, ...suffixes.filter(Boolean)].join(" · ");
+  }
+
+  function seriesDetailsTooltip(series) {
+    if (!series) return "Series metadata unavailable.";
+    const geography = series.source_key === "nbs"
+      ? `${series.geography_level || "Geography"}: ${series.geography_name || "not specified"}`
+      : [series.market, series.admin1 || series.state].filter(Boolean).join(", ");
+    const recordedUnit = series.source_unit || series.unit || "Not stated in source";
+    const unitDetails = series.verified_unit
+      ? `Verified unit: ${series.verified_unit}. Unit verified from the paired official NBS report; the original workbook did not specify a unit. Evidence: ${series.unit_evidence?.source_file || "paired NBS report"} (${series.unit_evidence?.report_observation_month || "date not stated"}${series.unit_evidence?.page ? `, page ${series.unit_evidence.page}` : ""}).`
+      : `Recorded unit: ${recordedUnit}.`;
+    const parts = [
+      `Source: ${series.source || series.source_key || "not specified"}`,
+      `Original item: ${series.commodity || "not specified"}`,
+      `Geography: ${geography || "not specified"}`,
+      unitDetails,
+      `Price type: ${series.price_type || "not specified"}`,
+      `Price flag: ${series.price_flag || "not specified"}`,
+      series.methodology_regime ? `CPI regime: ${forecastDisplayRegime(series.methodology_regime)}` : "",
+      series.research_commodity_mapping
+        ? `Research mapping: ${series.research_commodity_mapping}${series.mapping_status ? ` (${series.mapping_status.replaceAll("_", " ")})` : ""}` : "",
+      `Exact series ID: ${series.series_id}`,
+    ];
+    return parts.filter(Boolean).join(" | ");
+  }
+
+  function seriesUnitEvidence(series) {
+    const evidence = series?.unit_evidence;
+    if (evidence?.source_file) {
+      const month = evidence.report_observation_month || "report date not stated";
+      const page = evidence.page ? `, p. ${evidence.page}` : "";
+      return `${evidence.source_file} (${month}${page})`;
+    }
+    return series?.source_unit || (series?.source_key === "wfp" && series?.unit)
+      ? "Recorded in the source item/unit fields."
+      : "No supplementary unit evidence.";
   }
 
   function forecastDisplayPriceType(value) {
@@ -278,7 +356,10 @@
       forecastDetailSource: series?.source || "—",
       forecastDetailItem: series?.commodity || "—",
       forecastDetailGeography: location || "Not specified",
-      forecastDetailUnit: series ? forecastDisplayUnit(series.unit) : "—",
+      forecastDetailUnit: series?.verified_unit
+        ? `${series.verified_unit}* (workbook unit not specified)`
+        : (series ? seriesDisplayUnit(series) : "—"),
+      forecastDetailUnitEvidence: seriesUnitEvidence(series),
       forecastDetailPriceType: series ? forecastDisplayPriceType(series.price_type) || "Not specified" : "—",
       forecastDetailPriceFlag: series ? forecastDisplayPriceFlag(series) : "—",
       forecastDetailRegime: series ? forecastDisplayRegime(series.methodology_regime) || "Not applicable" : "—",
@@ -309,7 +390,7 @@
         : "Older data");
     const values = series ? {
       forecastLatestPrice: `Latest reported: ${formatPrice(series.latest_price)}`,
-      forecastLatestContext: `${series.source} · ${series.commodity} · ${series.market || series.geography_name || "geography not stated"}. This is a source observation, not a forecast.`,
+      forecastLatestContext: `${series.source} · ${compactSeriesLabel(series, getSeries(series.source_key))}. This is a source observation, not a forecast.`,
       forecastLatestDate: formatStartingObservation(series.last_observed_month, series.latest_observation_date),
       forecastLatestAge: age === null ? "n/a" : `${formatNumber(age)} month(s) old`,
       forecastFreshness: freshnessLabel,
@@ -321,6 +402,8 @@
       forecastFreshness: "Select a series",
     };
     renderForecastSeriesDetails(series);
+    const context = document.getElementById("forecastLatestContext");
+    if (context && series) context.title = seriesDetailsTooltip(series);
     Object.entries(values).forEach(([id, value]) => {
       const element = document.getElementById(id);
       if (element) element.textContent = value;
@@ -418,12 +501,7 @@
     state.forecastSelected[dataset] = seriesId;
     const prompt = variants.length > 1 ? '<option value="">Choose price series details</option>' : "";
     seriesNode.innerHTML = prompt + variants.map((item) =>
-      `<option value="${escapeHTML(item.series_id)}">${escapeHTML([
-        forecastDisplayUnit(item.unit),
-        forecastDisplayPriceType(item.price_type),
-        forecastDisplayPriceFlag(item),
-        forecastDisplayRegime(item.methodology_regime),
-      ].filter(Boolean).join(" · "))}</option>`
+      `<option value="${escapeHTML(item.series_id)}" title="${escapeHTML(seriesDetailsTooltip(item))}">${escapeHTML(compactSeriesLabel(item, variants))}</option>`
     ).join("") || '<option value="">No reported series available</option>';
     seriesNode.disabled = !variants.length;
     seriesNode.value = seriesId;
@@ -470,9 +548,8 @@
     }
     const preview = items.slice(0, 18);
     grid.innerHTML = preview.map((item) => {
-      const location = item.market || item.geography_name || "";
-      const flag = item.price_flag ? ` · ${item.price_flag}` : "";
-      return `<button class="series-tile" type="button" data-series-id="${escapeHTML(item.series_id)}"><span class="series-tile-heading"><strong>${escapeHTML(item.commodity)}</strong><span class="series-type">${escapeHTML(item.source)}</span></span><small>${escapeHTML(item.unit || "Unit not specified")} · ${escapeHTML(item.price_type)} · ${escapeHTML(location)}${escapeHTML(flag)}</small><small>${formatNumber(item.observed_months)} reported months · ${escapeHTML(formatDateRange(item.first_observed_month, item.last_observed_month))}</small></button>`;
+      const flag = forecastDisplayPriceFlag(item);
+      return `<button class="series-tile" type="button" data-series-id="${escapeHTML(item.series_id)}" title="${escapeHTML(seriesDetailsTooltip(item))}"><span class="series-tile-heading"><strong>${escapeHTML(compactSeriesLabel(item, items))}</strong><span class="series-type">${escapeHTML(item.source)}</span></span><small>${escapeHTML(forecastDisplayPriceType(item.price_type))} · ${escapeHTML(flag)}</small><small>${formatNumber(item.observed_months)} reported months · ${escapeHTML(formatDateRange(item.first_observed_month, item.last_observed_month))}</small></button>`;
     }).join("") + (items.length > preview.length ? `<div class="loading-line">Showing the first ${preview.length} series. Use Price analysis to access all ${formatNumber(items.length)} series.</div>` : "");
     grid.querySelectorAll("button.series-tile").forEach((button) => {
       const item = getSeriesItem(state.dataset, button.dataset.seriesId);
@@ -560,11 +637,12 @@
 
   function renderLatest(series) {
     if (!series) return;
-    const isNbs = series.source === "NBS";
-    const location = series.market || series.geography_name || "";
+    const isNbs = series.source === "NBS" || series.source_key === "nbs";
     const date = series.latest_observation_date || series.last_observed_month;
     $("#analysisLatestPrice").textContent = formatPrice(series.latest_price);
-    $("#analysisLatestContext").textContent = `${series.commodity} · ${series.unit || "unit not stated"} · ${series.price_type}${location ? ` · ${location}` : ""}`;
+    const latestContext = $("#analysisLatestContext");
+    latestContext.textContent = `${series.source || "Source"} · ${compactSeriesLabel(series, getSeries(series.source_key))}`;
+    latestContext.title = seriesDetailsTooltip(series);
     $("#analysisLatestDate").textContent = formatUserDate(date);
     $("#analysisLatestAge").textContent = series.observation_age_months !== null && series.observation_age_months !== undefined && Number.isFinite(Number(series.observation_age_months))
       ? `${formatNumber(series.observation_age_months)} month${Number(series.observation_age_months) === 1 ? "" : "s"} old`
@@ -575,9 +653,11 @@
     $("#analysisFreshness").textContent = !isNbs && series.price_flag !== "actual"
       ? `WFP ${String(series.price_flag || "reported").replaceAll("_", " ")} · ${freshnessLabel}`
       : freshnessLabel;
-    $("#analysisFreshnessExplanation").textContent = series.price_flag && series.price_flag !== "actual"
-      ? "This is a WFP aggregate record, not a direct actual-market observation."
-      : "Reported value for the observation date shown.";
+    $("#analysisFreshnessExplanation").textContent = isNbs
+      ? "This is an NBS reported average for the selected geography, not an individual market-level observation."
+      : series.price_flag && series.price_flag !== "actual"
+        ? "This is a WFP aggregate record, not a direct actual-market observation."
+        : "Reported value for the observation date shown.";
   }
 
   function renderHistoryTable(history, series) {
@@ -586,7 +666,7 @@
     body.innerHTML = history.slice().reverse().map((row) => {
       const place = series.market || series.geography_name || "—";
       const status = row.price === null ? "Price missing in source" : (row.price_flag || "Reported");
-      return `<tr><td>${escapeHTML(formatMonthYear(row.month))}</td><td>${escapeHTML(series.commodity)}</td><td class="price-cell">${escapeHTML(formatPrice(row.price))}</td><td>${escapeHTML(series.unit || "Unit not specified")}</td><td>${escapeHTML(series.price_type)}</td><td>${escapeHTML(place)}</td><td>${escapeHTML(status)}</td></tr>`;
+      return `<tr><td>${escapeHTML(formatMonthYear(row.month))}</td><td>${escapeHTML(series.commodity)}</td><td class="price-cell">${escapeHTML(formatPrice(row.price))}</td><td>${escapeHTML(seriesDisplayUnit(series))}</td><td>${escapeHTML(series.price_type)}</td><td>${escapeHTML(place)}</td><td>${escapeHTML(status)}</td></tr>`;
     }).join("");
     $("#historyCount").textContent = `${formatNumber(history.length)} source rows`;
   }
@@ -609,15 +689,16 @@
       if (view === "overview" && (dataset !== state.dataset || seriesId !== state.overviewSelected[dataset])) return;
       state.history = payload.history || [];
       const selectedSeries = payload.series || series;
-      const location = selectedSeries.market || selectedSeries.geography_name || "";
       if (view === "analysis") {
-        $("#historyTitle").textContent = `${selectedSeries.commodity} · ${selectedSeries.unit || "unit not stated"}${location ? ` · ${location}` : ""}`;
+        $("#historyTitle").textContent = compactSeriesLabel(selectedSeries, getSeries(dataset));
+        $("#historyTitle").title = seriesDetailsTooltip(selectedSeries);
         $("#historyCoverage").textContent = formatDateRange(selectedSeries.first_observed_month, selectedSeries.last_observed_month);
         drawHistory(state.history, selectedSeries, "history", "#historyChart", "#historyEmpty");
         renderHistoryTable(state.history, selectedSeries);
         renderLatest(selectedSeries);
       } else {
-        $("#overviewChartTitle").textContent = `${selectedSeries.commodity} monthly history`;
+        $("#overviewChartTitle").textContent = `${compactSeriesLabel(selectedSeries, getSeries(dataset))} monthly history`;
+        $("#overviewChartTitle").title = seriesDetailsTooltip(selectedSeries);
         $("#overviewChartMeta").textContent = `${formatNumber(selectedSeries.observed_months)} reported months · ${selectedSeries.price_type}`;
         drawHistory(state.history, selectedSeries, "overview", "#overviewChart", "#overviewChartEmpty");
       }
@@ -635,6 +716,8 @@
   async function loadPerformance(dataset, seriesId) {
     if (!seriesId) return;
     const requestId = ++state.performanceRequestId;
+    const validationNote = $("#performanceValidationNote");
+    if (validationNote) validationNote.hidden = true;
     const overallCards = $("#overallPerformanceCards");
     if (overallCards) overallCards.hidden = true;
     ["#performanceRmseHeading", "#performanceMaeHeading", "#performanceBiasHeading"].forEach((selector) => {
@@ -676,6 +759,8 @@
       const lastDate = validation ? summary.validation_last_month : summary.test_last_month;
       const periodLabel = validation ? "chronological validation dates" : "common historical test dates";
       const scopeLabel = summary.validation_scope ? ` · ${summary.validation_scope}` : "";
+      if (validationNote) validationNote.hidden = !(validation && Number(dateCount) === 3);
+      if (validationNote && !validationNote.hidden) validationNote.textContent = "Validation covers only three chronological months; results should be interpreted as limited validation evidence.";
       $("#performanceDates").textContent = overall
         ? `Saved validation coverage · ${summary.evaluated_series_count || 0} exact series · ${summary.evaluated_pool_count || 0} compatible pools${summary.validation_audit_as_of ? ` · audit as of ${formatUserDate(summary.validation_audit_as_of)}` : ""} · evaluation dates differ by series`
         : dateCount
@@ -683,12 +768,22 @@
           : "Evaluation dates appear with saved results.";
       const labels = { naive_last_observation: "Naive last observation", trend_baseline: "Trend baseline", random_forest: "Random Forest", pooled_random_forest: "Pooled Random Forest", xgboost: "XGBoost", gradient_boosting: "Gradient Boosting", pooled_gradient_boosting: "Pooled Gradient Boosting", stacking: "Hybrid stacking", lstm: "LSTM" };
       $("#performanceTableBody").innerHTML = (payload.records || []).map((row) => {
-        const champion = row.champion_selected_on_validation ? " · champion by validation" : "";
-        const status = ["trained_and_evaluated", "validation_evaluated"].includes(row.status)
-          ? `${row.status === "validation_evaluated" ? "Validation evaluated" : "Test evaluated"}${champion}${row.evaluation_scope ? ` · ${row.evaluation_scope}` : ""}`
-          : ["overall_validation", "overall_coverage"].includes(row.status)
-            ? `Overall ${row.status === "overall_validation" ? "validation" : "coverage"}${row.evaluation_scope ? ` · ${row.evaluation_scope}` : ""}`
-          : "Not evaluated";
+        const scope = String(row.evaluation_scope || "");
+        const scopeLabel = /pool|group-held-out|compatible/i.test(scope)
+          ? "Compatible-pool validation"
+          : /exact|selected series|chronological/i.test(scope)
+            ? "Exact-series validation" : "";
+        const status = row.status === "validation_evaluated"
+          ? [scopeLabel || "Validation evaluated", row.champion_selected_on_validation ? "Champion by validation" : ""].filter(Boolean).join(" · ")
+          : row.status === "trained_and_evaluated"
+            ? ["Test evaluated", row.champion_selected_on_validation ? "Champion by validation" : "", scopeLabel].filter(Boolean).join(" · ")
+            : ["overall_validation", "overall_coverage"].includes(row.status)
+              ? [`Overall ${row.status === "overall_validation" ? "validation" : "coverage"}`, scopeLabel].filter(Boolean).join(" · ")
+              : "Not evaluated";
+        const scopeTitle = [
+          row.evaluation_scope ? `Full evaluation scope: ${row.evaluation_scope}` : "",
+          row.unavailable_reason || "",
+        ].filter(Boolean).join(" | ");
         const metricCell = (value, digits) => value === null || value === undefined || value === "" || !Number.isFinite(Number(value))
           ? "—" : formatNumber(value, digits);
         const rawErrorCells = overall ? "" : `<td>${metricCell(row.rmse, 2)}</td><td>${metricCell(row.mae, 2)}</td>`;
@@ -697,7 +792,7 @@
         const r2 = overall && (row.r2 === null || row.r2 === undefined)
           ? "—" : metricCell(row.r2, 3);
         const biasCell = overall ? "" : `<td>${metricCell(row.bias, 2)}</td>`;
-        return `<tr><td>${escapeHTML(labels[row.model] || row.model)}${row.champion_selected_on_validation ? " ★" : ""}</td>${rawErrorCells}<td>${mape}</td><td>${r2}</td>${biasCell}<td>${escapeHTML(status)}</td></tr>`;
+        return `<tr><td>${escapeHTML(labels[row.model] || row.model)}${row.champion_selected_on_validation ? " ★" : ""}</td>${rawErrorCells}<td>${mape}</td><td>${r2}</td>${biasCell}<td${scopeTitle ? ` title="${escapeHTML(scopeTitle)}"` : ""}>${escapeHTML(status)}</td></tr>`;
       }).join("");
       const acceptedStatuses = ["evaluated", "validation_evaluated", "overall_evaluated", "overall_coverage"];
       setMessage("#performanceError", acceptedStatuses.includes(payload.status) ? "" : "Evaluation details are not available for this selection.", !acceptedStatuses.includes(payload.status));
@@ -766,6 +861,10 @@
     clearChart("performance");
     const canvas = $("#performanceChart");
     const empty = $("#performanceChartEmpty");
+    const heading = evaluationPeriod === "validation" ? "Actual vs. validation predictions" : "Actual vs. test predictions";
+    const headingNode = $("#performanceChartTitle");
+    if (headingNode) headingNode.textContent = heading;
+    if (canvas?.setAttribute) canvas.setAttribute("aria-label", heading);
     if (!rows.length || !canvas || !window.Chart) {
       if (empty) empty.hidden = false;
       return;
@@ -838,8 +937,12 @@
     const isWorldBankEstimate = sourceLabel.includes("WORLD")
       || metadata.price_value_type === "world_bank_close_estimate"
       || metadata.is_model_estimate === true;
-    const locationLabel = series.market || metadata.market || (series.geography_name ? `${series.geography_level || "Geography"}: ${series.geography_name}` : "");
-    setText("forecastSubject", [series.commodity || metadata.commodity, series.unit ? `per ${series.unit}` : "", locationLabel].filter(Boolean).join(" · ") || `Selected ${sourceLabel} series`);
+    const selectedLabel = series.series_id
+      ? compactSeriesLabel(series, getSeries(series.source_key || payload.dataset || state.forecastDataset))
+      : [series.commodity || metadata.commodity, series.unit].filter(Boolean).join(" · ");
+    setText("forecastSubject", selectedLabel || `Selected ${sourceLabel} series`);
+    const subject = document.getElementById("forecastSubject");
+    if (subject) subject.title = seriesDetailsTooltip(series);
     setText("forecastSource", sourceLabel);
     setText("forecastSelectedHorizon", `${payload.horizon || rows.length} month(s)`);
     setText("forecastSelectedModel", modelLabel);
@@ -1140,6 +1243,7 @@
       const [overview, series] = await Promise.all([apiGet("/api/overview"), apiGet("/api/series")]);
       state.overview = overview;
       state.series = { wfp: series.wfp || [], nbs: series.nbs || [] };
+      updateVerifiedUnitFootnote();
       configureDatasetSelectors(overview.default_dataset || "wfp");
       const current = fillSeriesSelectors(state.analysisDataset);
       fillPerformanceSelector(state.dataset);

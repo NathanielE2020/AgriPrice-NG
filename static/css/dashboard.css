@@ -232,6 +232,8 @@ input[type="month"]:focus, input[type="date"]:focus { border-color: var(--forest
 .error-alert { background: var(--danger-soft); border: 1px solid #f3cdca; color: var(--danger); }
 .performance-controls { grid-template-columns: minmax(230px, 380px) 1fr; }
 .performance-summary { align-self: center; color: var(--muted); font-size: 11px; padding: 0 0 0 10px; }
+.unit-evidence-footnote, .validation-window-note { color: var(--muted); font-size: 11px; line-height: 1.5; margin: 0 0 12px; }
+.validation-window-note { background: var(--gold-soft); border-left: 3px solid var(--gold); color: var(--ink); padding: 9px 12px; }
 .performance-cards { margin: 14px 0; padding: 16px; }
 .performance-cards[hidden] { display: none; }
 .performance-cards h2 { color: var(--forest-800); font-size: 12px; letter-spacing: .04em; margin: 0 0 11px; text-transform: uppercase; }

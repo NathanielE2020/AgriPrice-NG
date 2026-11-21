@@ -20,6 +20,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 WFP_DATA = ROOT / "data" / "processed" / "wfp_monthly.csv"
 NBS_DATA = ROOT / "data" / "processed" / "nbs_monthly.csv"
+NBS_UNIT_EVIDENCE = ROOT / "data" / "processed" / "nbs_verified_unit_evidence.csv"
 TRAINING_REPORT_DIR = ROOT / "reports" / "training"
 TRAINING_REGISTRY = TRAINING_REPORT_DIR / "model_registry.json"
 TRAINING_METRICS = TRAINING_REPORT_DIR / "model_comparison.csv"
@@ -59,6 +60,20 @@ def is_demo_small_unit(unit: Any) -> bool:
     measure = match.group(2).casefold()
     quantity_kg = quantity / Decimal("1000") if measure in {"g", "gram", "grams"} else quantity
     return quantity_kg <= DEMO_MAX_WEIGHT_KG
+
+
+def series_eligibility_unit(record: dict[str, Any]) -> Any:
+    """Return the recorded unit or NBS report-verified unit for filtering only."""
+    source_unit = str(record.get("unit") or "").strip()
+    if source_unit.lower() not in {"", "not stated", "not stated in workbook", "unit not specified"}:
+        return source_unit
+    if record.get("source_key") == "nbs":
+        return record.get("verified_unit") or source_unit
+    return source_unit
+
+
+def is_demo_series(record: dict[str, Any]) -> bool:
+    return is_demo_small_unit(series_eligibility_unit(record))
 
 
 class DashboardError(Exception):
@@ -143,6 +158,7 @@ class DashboardService:
         self.forecast_cache_dir = forecast_cache_dir
         self._forecast_lock = threading.RLock()
         self._training_registry = self._load_training_registry()
+        self._nbs_unit_evidence = self._load_nbs_unit_evidence()
         self._training_metrics = _read_optional_dict_rows(TRAINING_METRICS)
         self._training_predictions = _read_optional_dict_rows(TRAINING_PREDICTIONS)
         self._training_eligibility = _read_optional_dict_rows(TRAINING_ELIGIBILITY)
@@ -182,6 +198,47 @@ class DashboardService:
             return payload
         except (OSError, json.JSONDecodeError, TypeError, ValueError):
             return {}
+
+    @staticmethod
+    def _load_nbs_unit_evidence() -> dict[tuple[str, str], dict[str, Any]]:
+        """Load only explicit, bounded units with a cited official report record.
+
+        The normalized workbook unit remains untouched. Conflicting evidence
+        for the same exact item label and CPI regime is rejected.
+        """
+        candidates: dict[tuple[str, str], list[dict[str, str]]] = defaultdict(list)
+        for row in _read_optional_dict_rows(NBS_UNIT_EVIDENCE):
+            key = (row.get("item_label", ""), row.get("methodology_regime", ""))
+            if (
+                row.get("source", "").upper() != "NBS"
+                or not all(key)
+                or not is_demo_small_unit(row.get("verified_unit"))
+                or not row.get("source_pdf")
+                or not row.get("source_observation_month")
+                or not row.get("source_page")
+                or not row.get("evidence_text")
+            ):
+                continue
+            candidates[key].append(row)
+
+        verified: dict[tuple[str, str], dict[str, Any]] = {}
+        for key, rows in candidates.items():
+            units = {row.get("verified_unit", "").strip() for row in rows}
+            if len(units) != 1:
+                continue
+            row = rows[0]
+            verified[key] = {
+                "status": "verified_in_paired_official_report",
+                "source_file": row["source_pdf"],
+                "report_observation_month": row["source_observation_month"],
+                "page": _integer(row.get("source_page")),
+                "reported_national_price_ngn": _number(row.get("reported_national_price_ngn")),
+                "normalized_national_price_ngn": _number(row.get("normalized_national_price_ngn")),
+                "evidence_text": row["evidence_text"],
+                "workbook_unit_status": "not_specified",
+            }
+            verified[key]["verified_unit"] = next(iter(units))
+        return verified
 
     def _load_wfp(self) -> None:
         grouped: dict[tuple[str, ...], dict[str, Any]] = {}
@@ -281,6 +338,9 @@ class DashboardService:
                     "market": "",
                     "state": "",
                     "unit": fields[3] or "Not stated in workbook",
+                    "source_unit": fields[3],
+                    "verified_unit": "",
+                    "unit_evidence": None,
                     "price_type": fields[4],
                     "currency": fields[5] or "NGN (confirmed by paired PDF)",
                     "price_flag": "NBS reported average",
@@ -295,6 +355,12 @@ class DashboardService:
                     "price_measure": row.get("price_measure", ""),
                     "history": [],
                 }
+                evidence = self._nbs_unit_evidence.get((fields[0], fields[6])) if not fields[3] else None
+                if evidence:
+                    record["verified_unit"] = evidence["verified_unit"]
+                    record["unit_evidence"] = {
+                        key: value for key, value in evidence.items() if key != "verified_unit"
+                    }
                 grouped[fields] = record
             month = row.get("observation_month", "")
             record["history"].append({
@@ -339,7 +405,7 @@ class DashboardService:
             "latest_observation_date": max(periods) if periods else None,
             "frequency": "monthly report periods",
             "currency": "NGN (confirmed by paired official PDF reports)",
-            "unit_note": "No standardized unit column; the source item label is preserved verbatim.",
+            "unit_note": "The workbook unit field is preserved. Blank units are selectable only when an exact item label and CPI regime have explicit weight evidence in a paired official report.",
             "source_description": "NBS Selected Food Price Watch; national and zone summary averages, not market-level observations.",
         }
 
@@ -396,7 +462,7 @@ class DashboardService:
     def _require_series(self, dataset: str, series_id: str) -> dict[str, Any]:
         dataset = self._dataset(dataset)
         record = self._series_index.get((dataset, series_id))
-        if record is None or not is_demo_small_unit(record.get("unit")):
+        if record is None or not is_demo_series(record):
             raise DashboardError("series_not_found", "Choose a listed small-unit price series for this data source.", 404)
         return record
 
@@ -452,12 +518,12 @@ class DashboardService:
             dataset = self._dataset(dataset)
             return [
                 self._public_series(item) for item in self._series[dataset]
-                if is_demo_small_unit(item.get("unit"))
+                if is_demo_series(item)
             ]
         return {
             key: [
                 self._public_series(item) for item in self._series[key]
-                if is_demo_small_unit(item.get("unit"))
+                if is_demo_series(item)
             ]
             for key in SUPPORTED_DATASETS
         }
@@ -538,7 +604,7 @@ class DashboardService:
             return []
         demo_series_ids = {
             record["series_id"] for record in self._series[dataset]
-            if is_demo_small_unit(record.get("unit"))
+            if is_demo_series(record)
         }
         rows = []
         for row in self._training_metrics:
@@ -573,13 +639,12 @@ class DashboardService:
         source = dataset.upper()
         demo_series_ids = {
             record["series_id"] for record in self._series[dataset]
-            if is_demo_small_unit(record.get("unit"))
+            if is_demo_series(record)
         }
         audit_rows = [
             row for row in self._coverage_audit
             if row.get("source", "").upper() == source
             and row.get("series_id") in demo_series_ids
-            and is_demo_small_unit(row.get("unit"))
         ]
         has_saved_audit_evaluation = any(
             row.get("forecast_attempt_status") == "generated"

@@ -125,6 +125,33 @@ def test_one_positive_observation_gets_a_carry_forward_forecast(tmp_path):
     assert result["metadata"]["validation_metrics"]["n"] == 0
 
 
+def test_one_positive_nbs_observation_gets_a_nonzero_carry_forward_forecast(tmp_path):
+    record = _monthly_record(count=1)
+    record.update({
+        "series_id": "nbs-test-yam-national-post-cpi",
+        "source": "NBS",
+        "source_key": "nbs",
+        "price_flag": None,
+        "market": "",
+        "market_id": "",
+        "state": "",
+        "geography_level": "national",
+        "geography_name": "Nigeria",
+        "commodity": "Yam Tuber",
+        "unit": "Not stated in workbook",
+        "verified_unit": "1kg",
+        "methodology_regime": "post_2025_cpi_rebase",
+    })
+    last_price = record["history"][0]["price"]
+    result = generate_nbs_forecast(
+        record, record["series_id"], 3, cache_dir=tmp_path, as_of=date(2019, 2, 19),
+    )
+    assert result["metadata"]["source"] == "NBS"
+    assert result["model"] == "last_price_carry_forward"
+    assert [row["price"] for row in result["forecast"]] == [last_price] * 3
+    assert all(math.isfinite(row["price"]) and row["price"] > 0 for row in result["forecast"])
+
+
 def test_april_actual_origin_displays_december_future_forecast_with_one_observation(tmp_path):
     record = _monthly_record(count=1)
     record["history"][0].update({"month": "2026-04", "last_observation_date": "2026-04-15"})

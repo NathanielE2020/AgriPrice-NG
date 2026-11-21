@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import csv
 from pathlib import Path
 
 import pytest
 
 from app import create_app
-from src.wfp_nbs_dashboard_service import DashboardError, DashboardService, is_demo_small_unit
+from src.wfp_nbs_dashboard_service import DashboardError, DashboardService, _series_id, is_demo_series, is_demo_small_unit
 from src.ondemand_forecasting import ForecastingError, assess_wfp_series
 
 
@@ -76,6 +77,7 @@ def test_latest_value_dom_matches_render_latest_and_local_assets_load(client):
         "forecastDetailItem",
         "forecastDetailGeography",
         "forecastDetailUnit",
+        "forecastDetailUnitEvidence",
         "forecastDetailPriceType",
         "forecastDetailPriceFlag",
         "forecastDetailRegime",
@@ -111,11 +113,17 @@ def test_latest_value_dom_matches_render_latest_and_local_assets_load(client):
         "overallMape",
         "overallR2",
         "overallValidationObservations",
+        "performanceValidationNote",
+        "performanceChartTitle",
+        "verifiedUnitFootnote",
     ):
         assert f'id="{element_id}"' in html
     assert '<details class="panel forecast-methodology" id="forecastMethodology">' in html
     assert '<details class="panel forecast-methodology forecast-series-details" id="forecastSeriesDetails">' in html
     assert '<details class="panel forecast-methodology performance-methodology" id="performanceMethodologyDetails">' in html
+    assert "* Unit verified from the paired official NBS report; the original workbook did not specify a unit." in html
+    assert "Validation covers only three chronological months; results should be interpreted as limited validation evidence." in html
+    assert 'aria-label="Actual vs. validation predictions"' in html
     assert "Price Series Details" in html
     assert "modelAvailabilityNote" not in html
     assert "Forecast dates begin after the generation month" in html
@@ -139,6 +147,8 @@ def test_latest_value_dom_matches_render_latest_and_local_assets_load(client):
     assert "Not comparable across different commodities and price scales." in javascript
     assert "The overall summary contains evaluation scores; this chart appears when compatible prediction rows are saved." in javascript
     assert "No actual-versus-predicted rows are available" not in javascript
+    assert "This is an NBS reported average for the selected geography, not an individual market-level observation." in javascript
+    assert "This is a WFP aggregate record, not a direct actual-market observation." in javascript
 
 
 def test_user_facing_dates_and_demo_unit_selector_are_readable(client):
@@ -181,20 +191,25 @@ def test_overview_facts_match_prepared_source_data(client):
     assert nbs["geography_count"] == 7
 
 
-def test_series_catalogue_keeps_source_identities_separate(client):
+def test_series_catalogue_keeps_source_identities_separate(client, service):
     payload = client.get("/api/series").get_json()
     assert set(payload) == {"wfp", "nbs"}
     assert len(payload["wfp"]) == 2_337
-    assert len(payload["nbs"]) == 77
+    assert len(payload["nbs"]) == 189
     assert all(item["source"] == "WFP" for item in payload["wfp"])
     assert all(item["source"] == "NBS" for item in payload["nbs"])
-    assert all(is_demo_small_unit(item["unit"]) for dataset in payload.values() for item in dataset)
+    assert all(is_demo_small_unit(item["unit"]) for item in payload["wfp"])
+    assert all(is_demo_small_unit(item.get("verified_unit") or item["unit"]) for item in payload["nbs"])
     assert {item["unit"] for item in payload["wfp"]} <= {
         "KG", "0.5 KG", "1.3 KG", "2.1 KG", "2.2 KG", "2.5 KG", "2.6 KG",
         "2.7 KG", "2.8 KG", "250 G", "300 G", "400 G", "500 G",
     }
-    assert {item["unit"] for item in payload["nbs"]} == {"1kg", "2kg", "150g", "160g", "170g", "450g", "500g"}
-    assert len({item["commodity"] for item in payload["nbs"]}) == 11
+    assert {item["unit"] for item in payload["nbs"]} == {
+        "1kg", "2kg", "150g", "160g", "170g", "450g", "500g", "Not stated in workbook",
+    }
+    assert sum(bool(item.get("verified_unit")) for item in payload["nbs"]) == 112
+    assert len({item["commodity"] for item in payload["nbs"]}) == 27
+    assert len(service._nbs_unit_evidence) == 16
     assert all(item["price_flag"] for item in payload["wfp"])
     assert all(item["geography_level"] in {"national", "zone"} for item in payload["nbs"])
     assert {item["methodology_regime"] for item in payload["nbs"]} == {
@@ -210,7 +225,8 @@ def test_bulk_and_unapproved_units_are_not_public_or_historically_requestable(cl
     ]
     excluded.extend(
         item for item in service._series["nbs"]
-        if item["unit"] in {"Not stated in workbook", "30 pieces (crate)", "75cl"}
+        if (item["unit"] == "Not stated in workbook" and not item.get("verified_unit"))
+        or item["unit"] in {"30 pieces (crate)", "75cl"}
     )
     assert excluded
     for item in excluded:
@@ -277,7 +293,7 @@ def test_eligible_wfp_gram_series_reaches_forecaster_without_unit_or_id_substitu
     assert routed == [(record["series_id"], record["unit"], 1)]
 
 
-def test_nbs_revised_unitless_rice_labels_remain_internal_but_are_not_selectable(client, service):
+def test_nbs_revised_unitless_rice_labels_keep_exact_identity_and_verified_report_unit(client, service):
     nbs = service._series["nbs"]
     old_local = next(
         item for item in nbs
@@ -303,11 +319,31 @@ def test_nbs_revised_unitless_rice_labels_remain_internal_but_are_not_selectable
     assert agric["mapping_status"] == "related_variant_requires_review"
     assert agric["series_id"] not in {old_local["series_id"], new_local["series_id"]}
     assert old_local["unit"] == new_local["unit"] == "Not stated in workbook"
-    assert old_local["series_id"] not in {item["series_id"] for item in client.get("/api/series?dataset=nbs").get_json()}
-    assert client.get("/api/history", query_string={"dataset": "nbs", "series_id": old_local["series_id"]}).status_code == 404
-    assert client.get("/api/forecast", query_string={
+    assert old_local["verified_unit"] == "1kg"
+    # The post-rebase label is different from the label cited in the report;
+    # do not transfer unit evidence across item-label changes.
+    assert new_local["verified_unit"] == ""
+    assert old_local["unit_evidence"]["source_file"].endswith("Selected_Food_Report_Nov_2024.pdf")
+    assert old_local["unit_evidence"]["report_observation_month"] == "2024-11"
+    catalogue_ids = {
+        item["series_id"] for item in client.get("/api/series?dataset=nbs").get_json()
+    }
+    assert old_local["series_id"] in catalogue_ids
+    assert new_local["series_id"] not in catalogue_ids
+    history = client.get("/api/history", query_string={
+        "dataset": "nbs", "series_id": old_local["series_id"],
+    })
+    assert history.status_code == 200
+    assert history.get_json()["series"]["unit"] == "Not stated in workbook"
+    assert history.get_json()["series"]["verified_unit"] == "1kg"
+    forecast = client.get("/api/forecast", query_string={
         "dataset": "nbs", "series_id": old_local["series_id"], "horizon": "1",
-    }).status_code == 404
+    })
+    assert forecast.status_code == 200, forecast.get_json()
+    assert forecast.get_json()["series"]["series_id"] == old_local["series_id"]
+    assert forecast.get_json()["metadata"]["unit"] == "Not stated in workbook"
+    assert forecast.get_json()["forecast"]
+    assert all(point["price"] > 0 for point in forecast.get_json()["forecast"])
     javascript = client.get("/static/js/dashboard.js").get_data(as_text=True)
     assert "forecastDetailMapping" in javascript
     assert "Research mapping" in client.get("/").get_data(as_text=True)
@@ -364,7 +400,7 @@ def test_forecast_catalogue_exposes_small_units_and_only_pure_actual_wfp_forecas
     assert all(item["forecast_request_available"] for item in actual)
     assert all(not item["forecast_request_available"] for item in non_actual)
     assert len({item["commodity"] for item in catalogue if item["forecast_request_available"]}) == 36
-    assert len({item["commodity"] for item in client.get("/api/series?dataset=nbs").get_json()}) == 11
+    assert len({item["commodity"] for item in client.get("/api/series?dataset=nbs").get_json()}) == 27
     assert all(item["unit"] not in {"50 KG", "100 KG", "Unit", "30 pcs", "100 Tubers"} for item in catalogue)
 
     javascript = client.get("/static/js/dashboard.js").get_data(as_text=True)
@@ -590,6 +626,72 @@ def test_nbs_cpi_methodology_regimes_remain_exact_internally_but_unknown_units_a
         assert client.get("/api/history", query_string={"dataset": "nbs", "series_id": item["series_id"]}).status_code == 404
 
 
+def test_nbs_paired_report_unit_evidence_is_exact_and_does_not_rewrite_workbook_data(client, service):
+    catalogue = client.get("/api/series?dataset=nbs").get_json()
+    selected = next(
+        row for row in catalogue
+        if row["commodity"] == "Beans Brown"
+        and row["geography_level"] == "national"
+        and row["geography_name"] == "Nigeria"
+        and row["methodology_regime"] == "post_2025_cpi_rebase"
+    )
+    raw_path = Path(__file__).resolve().parents[1] / "data/processed/nbs_monthly.csv"
+    with raw_path.open(encoding="utf-8-sig", newline="") as handle:
+        raw_row = next(
+            row for row in csv.DictReader(handle)
+            if row["item_label"] == "Beans Brown"
+            and row["geography_level"] == "national"
+            and row["geography_name"] == "Nigeria"
+            and row["methodology_regime"] == "post_2025_cpi_rebase"
+            and row["observation_month"] == "2025-01"
+        )
+    assert selected["unit"] == "Not stated in workbook"
+    assert selected["source_unit"] == ""
+    assert selected["verified_unit"] == "1kg"
+    assert selected["unit_evidence"]["workbook_unit_status"] == "not_specified"
+    assert selected["unit_evidence"]["source_file"].endswith("Selected_Food_Report_Jan25.pdf")
+    assert selected["unit_evidence"]["page"] == 3
+    assert selected["series_id"] == _series_id("nbs", (
+        raw_row["item_label"], raw_row["geography_level"], raw_row["geography_name"], raw_row["unit"],
+        raw_row["price_type"], raw_row["currency"], raw_row["methodology_regime"],
+    ))
+    history = client.get("/api/history", query_string={"dataset": "nbs", "series_id": selected["series_id"]})
+    assert history.status_code == 200
+    assert history.get_json()["series"]["commodity"] == "Beans Brown"
+    assert history.get_json()["history"][0]["price"] == float(raw_row["price"])
+    assert history.get_json()["history"][0]["month"] == "2025-01"
+
+    unknown = next(
+        row for row in service._series["nbs"]
+        if row["commodity"] == "Chicken Wings" and row["geography_level"] == "national"
+        and row["geography_name"] == "Nigeria" and row["methodology_regime"] == "post_2025_cpi_rebase"
+    )
+    assert not is_demo_series(unknown)
+    assert unknown["verified_unit"] == ""
+    assert client.get("/api/history", query_string={"dataset": "nbs", "series_id": unknown["series_id"]}).status_code == 404
+
+
+def test_verified_short_history_nbs_series_gets_positive_fallback_forecast(client, service):
+    record = next(
+        row for row in service._series["nbs"]
+        if row["commodity"] == "Beans brown,sold loose"
+        and row["geography_level"] == "national" and row["geography_name"] == "Nigeria"
+        and row["methodology_regime"] == "pre_2025_cpi_rebase"
+    )
+    assert record["unit"] == "Not stated in workbook"
+    assert record["verified_unit"] == "1kg"
+    result = client.get("/api/forecast", query_string={
+        "dataset": "nbs", "series_id": record["series_id"], "horizon": 3, "mode": "on_demand",
+    })
+    assert result.status_code == 200
+    payload = result.get_json()
+    assert payload["series"]["source"] == "NBS"
+    assert payload["series"]["commodity"] == "Beans brown,sold loose"
+    assert payload["series"]["methodology_regime"] == "pre_2025_cpi_rebase"
+    assert len(payload["forecast"]) == 3
+    assert all(row["price"] > 0 for row in payload["forecast"])
+
+
 def test_small_unit_matching_accepts_positive_gram_and_kilogram_quantities_through_2_8kg():
     accepted = (
         "100 G", "250 g", "500 G", "750 g", "1 KG", "1.3 KG", "1.8 KG",
@@ -603,6 +705,10 @@ def test_small_unit_matching_accepts_positive_gram_and_kilogram_quantities_throu
     )
     assert all(is_demo_small_unit(unit) for unit in accepted)
     assert all(not is_demo_small_unit(unit) for unit in rejected)
+    assert is_demo_series({"source_key": "nbs", "unit": "Not stated in workbook", "verified_unit": "2.8 KG"})
+    assert not is_demo_series({"source_key": "nbs", "unit": "Not stated in workbook", "verified_unit": "2.8001 KG"})
+    assert not is_demo_series({"source_key": "wfp", "unit": "100 KG", "verified_unit": "1 KG"})
+    assert not is_demo_series({"source_key": "nbs", "unit": "75cl", "verified_unit": "1kg"})
 
 
 def test_history_date_filters_and_invalid_requests(client):
